@@ -12,12 +12,14 @@ struct SplitOptionsView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            // Left: PDF preview
+            // Left: PDF preview + thumbnails
             VStack(spacing: 0) {
                 PDFPreviewView(document: document)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .shadow(color: .black.opacity(0.1), radius: 8, y: 2)
+                    .shadow(color: Color(nsColor: .shadowColor).opacity(0.15), radius: 8, y: 2)
                     .padding(20)
+
+                PageThumbnailStripView(document: document)
             }
             .frame(minWidth: 260, idealWidth: 320)
             .overlay {

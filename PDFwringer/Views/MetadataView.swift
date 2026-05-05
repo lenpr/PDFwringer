@@ -21,7 +21,7 @@ struct MetadataView: View {
             VStack(spacing: 0) {
                 PDFPreviewView(document: document)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .shadow(color: .black.opacity(0.1), radius: 8, y: 2)
+                    .shadow(color: Color(nsColor: .shadowColor).opacity(0.15), radius: 8, y: 2)
                     .padding(20)
             }
             .frame(minWidth: 260, idealWidth: 320)

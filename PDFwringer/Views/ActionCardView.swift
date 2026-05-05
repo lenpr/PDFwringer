@@ -36,7 +36,7 @@ struct ActionCardView: View {
             .background {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(isHovered ? Color.accentColor.opacity(0.06) : Color(nsColor: .controlBackgroundColor))
-                    .shadow(color: .black.opacity(0.06), radius: isHovered ? 4 : 2, y: 1)
+                    .shadow(color: Color(nsColor: .shadowColor).opacity(0.08), radius: isHovered ? 4 : 2, y: 1)
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 10)

@@ -10,6 +10,7 @@ struct RotateOptionsView: View {
     @State private var selectedAngle: PDFRotator.Angle = .ninety
     @State private var pageRangeText: String = ""
     @State private var rotateAll = true
+    @State private var selectedPages: Set<Int> = []
     @State private var isProcessing = false
     @State private var progress: Double = 0
     @State private var resultMessage: String?
@@ -20,12 +21,19 @@ struct RotateOptionsView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            // Left: PDF preview
+            // Left: PDF preview + thumbnails
             VStack(spacing: 0) {
                 PDFPreviewView(document: document)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .shadow(color: .black.opacity(0.1), radius: 8, y: 2)
+                    .shadow(color: Color(nsColor: .shadowColor).opacity(0.15), radius: 8, y: 2)
                     .padding(20)
+
+                if !rotateAll {
+                    PageThumbnailStripView(document: document, selectedPages: $selectedPages)
+                        .onChange(of: selectedPages) {
+                            pageRangeText = selectedPages.sorted().map { "\($0 + 1)" }.joined(separator: ", ")
+                        }
+                }
             }
             .frame(minWidth: 260, idealWidth: 320)
             .overlay {
@@ -97,7 +105,7 @@ struct RotateOptionsView: View {
                         TextField("e.g. 1, 3-5, 8-", text: $pageRangeText)
                             .textFieldStyle(.roundedBorder)
                     }
-                    Text("Use page numbers (1-based), ranges, or comma-separated values")
+                    Text("Tap thumbnails or type page numbers, ranges, or comma-separated values")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }

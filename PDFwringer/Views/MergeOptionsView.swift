@@ -14,31 +14,7 @@ struct MergeOptionsView: View {
             VStack(spacing: 0) {
                 List {
                     ForEach(Array(files.enumerated()), id: \.element.id) { index, file in
-                        HStack(spacing: 6) {
-                            VStack(spacing: 2) {
-                                Button {
-                                    guard index > 0 else { return }
-                                    files.swapAt(index, index - 1)
-                                } label: {
-                                    Image(systemName: "chevron.up")
-                                        .font(.caption2.weight(.semibold))
-                                }
-                                .buttonStyle(.plain)
-                                .foregroundStyle(index > 0 ? .primary : .quaternary)
-                                .disabled(index == 0)
-
-                                Button {
-                                    guard index < files.count - 1 else { return }
-                                    files.swapAt(index, index + 1)
-                                } label: {
-                                    Image(systemName: "chevron.down")
-                                        .font(.caption2.weight(.semibold))
-                                }
-                                .buttonStyle(.plain)
-                                .foregroundStyle(index < files.count - 1 ? .primary : .quaternary)
-                                .disabled(index >= files.count - 1)
-                            }
-
+                        HStack(spacing: 8) {
                             Image(systemName: "doc.fill")
                                 .foregroundColor(.accentColor)
                                 .font(.body)
@@ -116,7 +92,7 @@ struct MergeOptionsView: View {
                 Text("Merge")
                     .font(.title3.weight(.semibold))
 
-                Text("Files will be merged in the order shown. Drag to reorder.")
+                Text("Drag files to reorder. They will be merged top to bottom.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
 
