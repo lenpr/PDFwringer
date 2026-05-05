@@ -14,8 +14,32 @@ struct MergeOptionsView: View {
             // Left: File list with reordering
             VStack(spacing: 0) {
                 List {
-                    ForEach(files) { file in
-                        HStack(spacing: 10) {
+                    ForEach(Array(files.enumerated()), id: \.element.id) { index, file in
+                        HStack(spacing: 6) {
+                            VStack(spacing: 2) {
+                                Button {
+                                    guard index > 0 else { return }
+                                    files.swapAt(index, index - 1)
+                                } label: {
+                                    Image(systemName: "chevron.up")
+                                        .font(.caption2.weight(.semibold))
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(index > 0 ? .primary : .quaternary)
+                                .disabled(index == 0)
+
+                                Button {
+                                    guard index < files.count - 1 else { return }
+                                    files.swapAt(index, index + 1)
+                                } label: {
+                                    Image(systemName: "chevron.down")
+                                        .font(.caption2.weight(.semibold))
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(index < files.count - 1 ? .primary : .quaternary)
+                                .disabled(index >= files.count - 1)
+                            }
+
                             Image(systemName: "doc.fill")
                                 .foregroundColor(.accentColor)
                                 .font(.body)
@@ -28,6 +52,15 @@ struct MergeOptionsView: View {
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
+
+                            Button {
+                                files.remove(at: index)
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
                         }
                         .padding(.vertical, 2)
                     }
