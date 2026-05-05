@@ -1,0 +1,273 @@
+import CoreGraphics
+import Foundation
+import ImageIO
+import PDFKit
+import UniformTypeIdentifiers
+
+@MainActor
+struct PDFCompressor {
+
+    func compress(
+        source: URL,
+        destination: URL,
+        level: CompressionLevel,
+        quality: JPEGQuality,
+        grayscale: Bool,
+        stripMetadata: Bool,
+        progress: (Double) -> Void
+    ) async throws {
+        if level.isRasterize {
+            try await compressRasterize(
+                source: source,
+                destination: destination,
+                dpi: level.dpi,
+                quality: quality.value,
+                grayscale: grayscale,
+                progress: progress
+            )
+        } else {
+            try await compressOptimize(
+                source: source,
+                destination: destination,
+                stripMetadata: stripMetadata,
+                progress: progress
+            )
+        }
+    }
+
+    /// Compress a single page and return its JPEG data size in bytes.
+    /// Used for background size estimation.
+    func compressFirstPage(source: URL, level: CompressionLevel, quality: JPEGQuality, grayscale: Bool) -> Int64? {
+        guard level.isRasterize else {
+            // Lossless: roughly same size
+            guard let attrs = try? FileManager.default.attributesOfItem(atPath: source.path(percentEncoded: false)),
+                  let size = attrs[.size] as? Int64 else { return nil }
+            return Int64(Double(size) * 0.95)
+        }
+
+        guard let doc = Self.openPDF(at: source),
+              doc.numberOfPages > 0,
+              let page = doc.page(at: 1) else { return nil }
+
+        let cropBox = page.getBoxRect(.cropBox)
+        let rotation = page.rotationAngle
+        let displaySize = Self.displaySize(for: cropBox.size, rotation: rotation)
+
+        let scale = level.dpi / 72.0
+        let pixelW = max(1, Int(displaySize.width * scale))
+        let pixelH = max(1, Int(displaySize.height * scale))
+
+        let colorSpace: CGColorSpace
+        let bitmapInfo: UInt32
+        if grayscale {
+            colorSpace = CGColorSpaceCreateDeviceGray()
+            bitmapInfo = CGImageAlphaInfo.none.rawValue
+        } else {
+            colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
+            bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+        }
+
+        guard let bitmap = CGContext(
+            data: nil, width: pixelW, height: pixelH,
+            bitsPerComponent: 8, bytesPerRow: 0,
+            space: colorSpace, bitmapInfo: bitmapInfo
+        ) else { return nil }
+
+        if grayscale {
+            bitmap.setFillColor(gray: 1.0, alpha: 1.0)
+        } else {
+            bitmap.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
+        }
+        bitmap.fill(CGRect(x: 0, y: 0, width: pixelW, height: pixelH))
+
+        bitmap.scaleBy(x: scale, y: scale)
+        let drawRect = CGRect(origin: .zero, size: displaySize)
+        let transform = page.getDrawingTransform(.cropBox, rect: drawRect, rotate: 0, preserveAspectRatio: true)
+        bitmap.concatenate(transform)
+        bitmap.drawPDFPage(page)
+
+        guard let rendered = bitmap.makeImage(),
+              let jpegData = Self.jpegEncode(image: rendered, quality: quality.value)
+        else { return nil }
+
+        // Extrapolate from first page to all pages
+        let pageSize = Int64(jpegData.count)
+        let pageCount = Int64(doc.numberOfPages)
+        // Add ~200 bytes overhead per page for PDF structure
+        return (pageSize + 200) * pageCount + 1000
+    }
+
+    // MARK: - Optimize path (preserves text, annotations, links)
+
+    private func compressOptimize(
+        source: URL,
+        destination: URL,
+        stripMetadata: Bool,
+        progress: (Double) -> Void
+    ) async throws {
+        guard let doc = PDFDocument(url: source) else {
+            throw PDFwringerError.cannotOpenDocument
+        }
+
+        if doc.isLocked {
+            throw PDFwringerError.documentIsLocked
+        }
+
+        doc.documentAttributes?.removeAll()
+
+        if stripMetadata {
+            for i in 0..<doc.pageCount {
+                guard let page = doc.page(at: i) else { continue }
+                for annotation in page.annotations {
+                    page.removeAnnotation(annotation)
+                }
+            }
+        }
+
+        guard let data = doc.dataRepresentation() else {
+            throw PDFwringerError.cannotWriteOutput
+        }
+
+        let tempURL = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
+        try data.write(to: tempURL)
+        _ = try FileManager.default.replaceItemAt(destination, withItemAt: tempURL)
+
+        progress(1.0)
+    }
+
+    // MARK: - Rasterize path (maximum compression, flattens content)
+
+    private func compressRasterize(
+        source: URL,
+        destination: URL,
+        dpi: CGFloat,
+        quality: CGFloat,
+        grayscale: Bool,
+        progress: (Double) -> Void
+    ) async throws {
+        guard let doc = Self.openPDF(at: source) else {
+            throw PDFwringerError.cannotOpenDocument
+        }
+
+        let pageCount = doc.numberOfPages
+        guard pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
+
+        let tempURL = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
+
+        var emptyBox = CGRect.zero
+        guard let outputCtx = CGContext(tempURL as CFURL, mediaBox: &emptyBox, nil) else {
+            throw PDFwringerError.cannotCreateOutput
+        }
+
+        for i in 1...pageCount {
+            try Task.checkCancellation()
+
+            autoreleasepool {
+                guard let page = doc.page(at: i) else { return }
+
+                let cropBox = page.getBoxRect(.cropBox)
+                let rotation = page.rotationAngle
+                let displaySize = Self.displaySize(for: cropBox.size, rotation: rotation)
+
+                let scale = dpi / 72.0
+                let pixelW = max(1, Int(displaySize.width * scale))
+                let pixelH = max(1, Int(displaySize.height * scale))
+
+                let colorSpace: CGColorSpace
+                let bitmapInfo: UInt32
+                if grayscale {
+                    colorSpace = CGColorSpaceCreateDeviceGray()
+                    bitmapInfo = CGImageAlphaInfo.none.rawValue
+                } else {
+                    colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
+                    bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+                }
+
+                guard let bitmap = CGContext(
+                    data: nil,
+                    width: pixelW,
+                    height: pixelH,
+                    bitsPerComponent: 8,
+                    bytesPerRow: 0,
+                    space: colorSpace,
+                    bitmapInfo: bitmapInfo
+                ) else { return }
+
+                if grayscale {
+                    bitmap.setFillColor(gray: 1.0, alpha: 1.0)
+                } else {
+                    bitmap.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
+                }
+                bitmap.fill(CGRect(x: 0, y: 0, width: pixelW, height: pixelH))
+
+                bitmap.scaleBy(x: scale, y: scale)
+
+                let drawRect = CGRect(origin: .zero, size: displaySize)
+                let transform = page.getDrawingTransform(.cropBox, rect: drawRect, rotate: 0, preserveAspectRatio: true)
+                bitmap.concatenate(transform)
+
+                bitmap.drawPDFPage(page)
+
+                guard let rendered = bitmap.makeImage() else { return }
+                guard let jpegData = Self.jpegEncode(image: rendered, quality: quality) else { return }
+
+                guard let provider = CGDataProvider(data: jpegData as CFData),
+                      let jpegImage = CGImage(
+                          jpegDataProviderSource: provider,
+                          decode: nil,
+                          shouldInterpolate: true,
+                          intent: .defaultIntent
+                      )
+                else { return }
+
+                var outBox = CGRect(origin: .zero, size: displaySize)
+                outputCtx.beginPage(mediaBox: &outBox)
+                outputCtx.draw(jpegImage, in: outBox)
+                outputCtx.endPage()
+            }
+
+            progress(Double(i) / Double(pageCount))
+            await Task.yield()
+        }
+
+        outputCtx.closePDF()
+
+        _ = try FileManager.default.replaceItemAt(destination, withItemAt: tempURL)
+    }
+
+    // MARK: - Helpers
+
+    /// Opens a PDF by reading data into memory first — works reliably in sandbox
+    /// where CGPDFDocument(url) may fail due to access restrictions.
+    static func openPDF(at url: URL) -> CGPDFDocument? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        guard let provider = CGDataProvider(data: data as CFData) else { return nil }
+        return CGPDFDocument(provider)
+    }
+
+    private static func displaySize(for size: CGSize, rotation: Int32) -> CGSize {
+        let angle = ((rotation % 360) + 360) % 360
+        if angle == 90 || angle == 270 {
+            return CGSize(width: size.height, height: size.width)
+        }
+        return size
+    }
+
+    static func jpegEncode(image: CGImage, quality: CGFloat) -> Data? {
+        let data = NSMutableData()
+        guard let dest = CGImageDestinationCreateWithData(
+            data,
+            UTType.jpeg.identifier as CFString,
+            1,
+            nil
+        ) else { return nil }
+
+        let options: [CFString: Any] = [
+            kCGImageDestinationLossyCompressionQuality: quality
+        ]
+        CGImageDestinationAddImage(dest, image, options as CFDictionary)
+
+        guard CGImageDestinationFinalize(dest) else { return nil }
+        return data as Data
+    }
+}
