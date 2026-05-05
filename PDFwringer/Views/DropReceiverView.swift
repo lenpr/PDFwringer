@@ -39,6 +39,10 @@ class DropNSView: NSView {
         registerForDraggedTypes([.fileURL])
     }
 
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
     override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
         let dominated = hasPDFFiles(in: sender)
         onTargetChanged?(dominated)
