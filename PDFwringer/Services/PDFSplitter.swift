@@ -23,6 +23,10 @@ struct PDFSplitter {
         destination: URL,
         progress: (Double) -> Void
     ) async throws -> [URL] {
+        guard FileManager.default.isReadableFile(atPath: source.path(percentEncoded: false)) else {
+            throw PDFwringerError.fileNotReadable(source.lastPathComponent)
+        }
+
         guard let sourceDoc = PDFDocument(url: source) else {
             throw PDFwringerError.cannotOpenDocument
         }
@@ -104,10 +108,15 @@ struct PDFSplitter {
                 throw PDFwringerError.cannotWriteOutput
             }
 
-            if FileManager.default.fileExists(atPath: outputURL.path(percentEncoded: false)) {
-                _ = try FileManager.default.replaceItemAt(outputURL, withItemAt: tempURL)
-            } else {
-                try FileManager.default.moveItem(at: tempURL, to: outputURL)
+            do {
+                if FileManager.default.fileExists(atPath: outputURL.path(percentEncoded: false)) {
+                    _ = try FileManager.default.replaceItemAt(outputURL, withItemAt: tempURL)
+                } else {
+                    try FileManager.default.moveItem(at: tempURL, to: outputURL)
+                }
+            } catch {
+                try? FileManager.default.removeItem(at: tempURL)
+                throw error
             }
 
             outputURLs.append(outputURL)
@@ -152,6 +161,11 @@ struct PDFSplitter {
             throw PDFwringerError.cannotWriteOutput
         }
 
-        _ = try FileManager.default.replaceItemAt(destination, withItemAt: tempURL)
+        do {
+            _ = try FileManager.default.replaceItemAt(destination, withItemAt: tempURL)
+        } catch {
+            try? FileManager.default.removeItem(at: tempURL)
+            throw error
+        }
     }
 }

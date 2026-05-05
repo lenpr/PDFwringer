@@ -51,7 +51,7 @@ class ConcatenateViewModel {
     }
 
     func concatenate() async {
-        guard canConcatenate else { return }
+        guard canConcatenate, !isProcessing else { return }
 
         guard let destination = FileDialogHelper.showSavePanel(suggestedName: "merged.pdf") else { return }
 

@@ -15,6 +15,13 @@ struct PDFConcatenator {
     ) async throws {
         guard !sources.isEmpty else { throw PDFwringerError.emptyFileList }
 
+        // Validate all source files are readable before starting
+        for url in sources {
+            guard FileManager.default.isReadableFile(atPath: url.path(percentEncoded: false)) else {
+                throw PDFwringerError.fileNotReadable(url.lastPathComponent)
+            }
+        }
+
         // First pass: count total pages without keeping docs in memory
         var totalPages = 0
         for url in sources {
@@ -46,7 +53,6 @@ struct PDFConcatenator {
                     await Task.yield()
                 }
             }
-            // sourceDoc released here at end of loop iteration
         }
 
         let tempURL = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
@@ -54,6 +60,11 @@ struct PDFConcatenator {
             throw PDFwringerError.cannotWriteOutput
         }
 
-        _ = try FileManager.default.replaceItemAt(destination, withItemAt: tempURL)
+        do {
+            _ = try FileManager.default.replaceItemAt(destination, withItemAt: tempURL)
+        } catch {
+            try? FileManager.default.removeItem(at: tempURL)
+            throw error
+        }
     }
 }

@@ -31,6 +31,10 @@ struct PDFRotator {
         pageIndices: [Int]?,
         progress: (Double) -> Void
     ) async throws {
+        guard FileManager.default.isReadableFile(atPath: source.path(percentEncoded: false)) else {
+            throw PDFwringerError.fileNotReadable(source.lastPathComponent)
+        }
+
         guard let doc = PDFDocument(url: source) else {
             throw PDFwringerError.cannotOpenDocument
         }
@@ -57,6 +61,12 @@ struct PDFRotator {
         guard doc.write(to: tempURL) else {
             throw PDFwringerError.cannotWriteOutput
         }
-        _ = try FileManager.default.replaceItemAt(destination, withItemAt: tempURL)
+
+        do {
+            _ = try FileManager.default.replaceItemAt(destination, withItemAt: tempURL)
+        } catch {
+            try? FileManager.default.removeItem(at: tempURL)
+            throw error
+        }
     }
 }

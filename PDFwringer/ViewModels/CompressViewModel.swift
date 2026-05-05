@@ -110,7 +110,7 @@ class CompressViewModel {
     }
 
     func performCompression() async {
-        guard let source = sourceURL else { return }
+        guard let source = sourceURL, !isProcessing else { return }
 
         let suggestedName = source.deletingPathExtension().lastPathComponent + "_compressed.pdf"
         guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }

@@ -11,10 +11,12 @@ enum PDFwringerError: LocalizedError {
     case emptyFileList
     case accessDenied
     case cancelled
+    case fileNotReadable(String)
+    case insufficientDiskSpace(needed: Int64, available: Int64)
 
     var errorDescription: String? {
         switch self {
-        case .cannotOpenDocument: "Cannot open the PDF document. It may be corrupted."
+        case .cannotOpenDocument: "Cannot open the PDF document. It may be corrupted or have zero pages."
         case .documentIsLocked: "This PDF is password-protected."
         case .cannotCreateOutput: "Cannot create the output file."
         case .cannotWriteOutput: "Failed to write the output PDF."
@@ -23,6 +25,9 @@ enum PDFwringerError: LocalizedError {
         case .emptyFileList: "No files to process."
         case .accessDenied: "Cannot access the file. Try selecting it again."
         case .cancelled: "Operation was cancelled."
+        case .fileNotReadable(let name): "Cannot read '\(name)'. The file may have been moved or deleted."
+        case .insufficientDiskSpace(let needed, let available):
+            "Not enough disk space. Need \(Formatting.fileSize(needed)), only \(Formatting.fileSize(available)) available."
         }
     }
 }
@@ -34,5 +39,11 @@ enum Formatting {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         return formatter.string(fromByteCount: bytes)
+    }
+
+    /// Returns available disk space at the given URL's volume, or nil if unavailable.
+    static func availableDiskSpace(at url: URL) -> Int64? {
+        let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        return values?.volumeAvailableCapacityForImportantUsage
     }
 }

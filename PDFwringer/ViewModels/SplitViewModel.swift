@@ -34,9 +34,14 @@ class SplitViewModel {
 
     func splitByPages() async {
         lastOperation = .split
-        guard let source = sourceURL else { return }
+        guard let source = sourceURL, !isProcessing else { return }
         guard splitPagesPerFile >= 1 else {
             resultMessage = "Pages per file must be at least 1."
+            isError = true
+            return
+        }
+        if splitPagesPerFile > sourcePageCount {
+            resultMessage = "Pages per file exceeds total page count (\(sourcePageCount))."
             isError = true
             return
         }
@@ -71,7 +76,7 @@ class SplitViewModel {
 
     func keepPages() async {
         lastOperation = .keep
-        guard let source = sourceURL else { return }
+        guard let source = sourceURL, !isProcessing else { return }
 
         do {
             let indices = try PageRangeParser.parse(keepPagesText, pageCount: sourcePageCount)
@@ -112,7 +117,7 @@ class SplitViewModel {
 
     func removePages() async {
         lastOperation = .remove
-        guard let source = sourceURL else { return }
+        guard let source = sourceURL, !isProcessing else { return }
 
         do {
             let indices = try PageRangeParser.parse(removePagesText, pageCount: sourcePageCount)
