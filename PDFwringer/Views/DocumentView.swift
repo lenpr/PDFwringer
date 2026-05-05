@@ -6,6 +6,8 @@ struct DocumentView: View {
     let document: PDFDocument
     let onCompress: () -> Void
     let onSplit: () -> Void
+    let onRotate: () -> Void
+    let onMetadata: () -> Void
     let onStartOver: () -> Void
     let onFilesDropped: ([URL]) -> Void
 
@@ -28,50 +30,64 @@ struct DocumentView: View {
             }
 
             // Right: File info + action cards
-            VStack(alignment: .leading, spacing: 16) {
-                // File info header
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(url.lastPathComponent)
-                            .font(.headline)
-                            .lineLimit(1)
-                        Text("\(document.pageCount) pages \u{2022} \(formattedFileSize)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    // File info header
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(url.lastPathComponent)
+                                .font(.headline)
+                                .lineLimit(1)
+                            Text("\(document.pageCount) pages \u{2022} \(formattedFileSize)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button(action: onStartOver) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Start over")
                     }
-                    Spacer()
-                    Button(action: onStartOver) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(.tertiary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Start over")
+
+                    Divider()
+
+                    Text("What would you like to do?")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    ActionCardView(
+                        icon: "arrow.down.doc",
+                        title: "Compress",
+                        description: "Reduce file size with lossless or lossy compression",
+                        action: onCompress
+                    )
+
+                    ActionCardView(
+                        icon: "scissors",
+                        title: "Split / Extract",
+                        description: "Split into chunks or extract specific pages",
+                        action: onSplit
+                    )
+
+                    ActionCardView(
+                        icon: "rotate.right",
+                        title: "Rotate Pages",
+                        description: "Rotate all or specific pages by 90°, 180°, or 270°",
+                        action: onRotate
+                    )
+
+                    ActionCardView(
+                        icon: "info.circle",
+                        title: "Edit Metadata",
+                        description: "View and edit title, author, subject, and keywords",
+                        action: onMetadata
+                    )
                 }
-
-                Divider()
-
-                Text("What would you like to do?")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                ActionCardView(
-                    icon: "arrow.down.doc",
-                    title: "Compress",
-                    description: "Reduce file size with lossless or lossy compression",
-                    action: onCompress
-                )
-
-                ActionCardView(
-                    icon: "scissors",
-                    title: "Split / Extract",
-                    description: "Split into chunks or extract specific pages",
-                    action: onSplit
-                )
-
-                Spacer()
+                .padding(24)
             }
-            .padding(24)
             .frame(minWidth: 280, idealWidth: 320)
         }
     }

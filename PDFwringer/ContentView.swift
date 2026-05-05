@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var appVM = AppViewModel()
+    @Bindable var appVM: AppViewModel
+    @Environment(\.self) private var environment
 
     var body: some View {
         Group {
@@ -25,6 +26,16 @@ struct ContentView: View {
                     onSplit: {
                         withAnimation(.spring(duration: 0.3)) {
                             appVM.selectSplit()
+                        }
+                    },
+                    onRotate: {
+                        withAnimation(.spring(duration: 0.3)) {
+                            appVM.selectRotate()
+                        }
+                    },
+                    onMetadata: {
+                        withAnimation(.spring(duration: 0.3)) {
+                            appVM.selectMetadata()
                         }
                     },
                     onStartOver: {
@@ -101,10 +112,57 @@ struct ContentView: View {
                         addFilesToMerge(urls)
                     }
                 )
+
+            case .rotating(let url, let doc):
+                RotateOptionsView(
+                    url: url,
+                    document: doc,
+                    onBack: {
+                        withAnimation(.spring(duration: 0.3)) {
+                            appVM.goBack()
+                        }
+                    },
+                    onFilesDropped: { urls in
+                        withAnimation(.spring(duration: 0.35)) {
+                            appVM.handleDrop(urls)
+                        }
+                    }
+                )
+
+            case .editingMetadata(let url, let doc):
+                MetadataView(
+                    url: url,
+                    document: doc,
+                    onBack: {
+                        withAnimation(.spring(duration: 0.3)) {
+                            appVM.goBack()
+                        }
+                    },
+                    onFilesDropped: { urls in
+                        withAnimation(.spring(duration: 0.35)) {
+                            appVM.handleDrop(urls)
+                        }
+                    }
+                )
             }
         }
         .frame(minWidth: 650, minHeight: 420)
         .animation(.spring(duration: 0.3), value: appVM.state)
+        .alert("Password Required", isPresented: $appVM.showPasswordPrompt) {
+            SecureField("Password", text: $appVM.passwordText)
+            Button("Unlock") { appVM.unlockDocument() }
+            Button("Cancel", role: .cancel) { appVM.cancelPassword() }
+        } message: {
+            Text("This PDF is password-protected.")
+        }
+        .onAppear {
+            // Wire AppDelegate to forward Finder-opened files
+            if let delegate = NSApp.delegate as? AppDelegate {
+                delegate.onOpenURLs = { [weak appVM] urls in
+                    appVM?.handleDrop(urls)
+                }
+            }
+        }
     }
 
     // MARK: - Bindings for mutable file lists

@@ -139,10 +139,18 @@ struct MergeOptionsView: View {
                 }
 
                 if let msg = vm.resultMessage {
-                    Text(msg)
-                        .font(.caption)
-                        .foregroundStyle(vm.isError ? .red : .green)
-                        .lineLimit(3)
+                    HStack {
+                        Text(msg)
+                            .font(.caption)
+                            .foregroundStyle(vm.isError ? .red : .green)
+                            .lineLimit(3)
+                        if vm.isError {
+                            Button("Try Again") {
+                                Task { await performMerge() }
+                            }
+                            .font(.caption)
+                        }
+                    }
                 }
 
                 HStack {
