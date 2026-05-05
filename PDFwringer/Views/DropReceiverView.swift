@@ -2,69 +2,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 import AppKit
 
-/// A reusable drop target that accepts PDF files via drag-and-drop.
-struct PDFDropZone: View {
-    let allowsMultiple: Bool
-    let onDrop: ([URL]) -> Void
-
-    @State private var isTargeted = false
-    @State private var droppedFiles: [URL] = []
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(isTargeted ? Color.accentColor.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(
-                    isTargeted ? Color.accentColor : Color.secondary.opacity(0.3),
-                    style: StrokeStyle(lineWidth: 2, dash: isTargeted ? [] : [6, 4])
-                )
-
-            if droppedFiles.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "arrow.down.doc")
-                        .font(.system(size: 36))
-                        .foregroundStyle(.secondary)
-                    Text(allowsMultiple ? "Drop PDF files here" : "Drop a PDF file here")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-            } else if droppedFiles.count == 1 {
-                VStack(spacing: 8) {
-                    Image(systemName: "doc.fill")
-                        .font(.system(size: 36))
-                        .foregroundStyle(.tint)
-                    Text(droppedFiles[0].lastPathComponent)
-                        .font(.callout)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                }
-                .padding()
-            } else {
-                VStack(spacing: 8) {
-                    Image(systemName: "doc.on.doc.fill")
-                        .font(.system(size: 36))
-                        .foregroundStyle(.tint)
-                    Text("\(droppedFiles.count) files")
-                        .font(.callout)
-                }
-            }
-        }
-        .overlay {
-            DropReceiverView(isTargeted: $isTargeted) { urls in
-                let pdfURLs = urls.filter { $0.pathExtension.lowercased() == "pdf" }
-                guard !pdfURLs.isEmpty else { return }
-                if allowsMultiple {
-                    droppedFiles = pdfURLs
-                } else {
-                    droppedFiles = [pdfURLs[0]]
-                }
-                onDrop(droppedFiles)
-            }
-        }
-    }
-}
-
 /// NSView-based drop receiver that reads file URLs from NSPasteboard directly — more reliable
 /// than SwiftUI's `onDrop` modifier when running inside the App Sandbox.
 struct DropReceiverView: NSViewRepresentable {

@@ -7,6 +7,6 @@ struct PDFwringerApp: App {
             ContentView()
         }
         .windowResizability(.contentMinSize)
-        .defaultSize(width: 720, height: 480)
+        .defaultSize(width: 800, height: 520)
     }
 }
