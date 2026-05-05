@@ -14,9 +14,13 @@ No Swift Package Manager — the project uses an Xcode project with a parallel M
 
 ## Tests
 
-Run via Xcode (Cmd+U) on the `PDFwringerTests` target. Uses Swift Testing (`import Testing`, `@Test`, `#expect`).
+```bash
+make test       # compile + run all tests via Swift Testing
+```
 
-Only `PageRangeParser` has unit tests currently.
+Uses Swift Testing (`import Testing`, `@Test`, `#expect`). Tests compile the Services/Models/Utilities layer without SwiftUI.
+
+Test suites cover: `PageRangeParser`, `PDFConcatenator`, `PDFSplitter`, `PDFCompressor`. Tests generate PDFs programmatically — no fixture files needed.
 
 ## Architecture
 

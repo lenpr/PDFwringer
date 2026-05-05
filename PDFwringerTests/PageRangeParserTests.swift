@@ -1,5 +1,4 @@
 import Testing
-@testable import PDFwringer
 
 @Suite("PageRangeParser")
 struct PageRangeParserTests {
