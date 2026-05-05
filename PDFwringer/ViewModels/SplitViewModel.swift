@@ -15,6 +15,8 @@ class SplitViewModel {
     var isError = false
 
     private let splitter = PDFSplitter()
+    private enum LastOperation { case split, keep, remove }
+    private var lastOperation: LastOperation?
 
     var canProcess: Bool {
         sourceURL != nil && !isProcessing
@@ -30,6 +32,7 @@ class SplitViewModel {
     }
 
     func splitByPages() async {
+        lastOperation = .split
         guard let source = sourceURL else { return }
         guard splitPagesPerFile >= 1 else {
             resultMessage = "Pages per file must be at least 1."
@@ -65,6 +68,7 @@ class SplitViewModel {
     }
 
     func keepPages() async {
+        lastOperation = .keep
         guard let source = sourceURL else { return }
 
         do {
@@ -104,6 +108,7 @@ class SplitViewModel {
     }
 
     func removePages() async {
+        lastOperation = .remove
         guard let source = sourceURL else { return }
 
         do {
@@ -141,5 +146,14 @@ class SplitViewModel {
         }
 
         isProcessing = false
+    }
+
+    func retryLastOperation() async {
+        switch lastOperation {
+        case .split: await splitByPages()
+        case .keep: await keepPages()
+        case .remove: await removePages()
+        case nil: break
+        }
     }
 }
