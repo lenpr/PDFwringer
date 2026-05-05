@@ -8,6 +8,7 @@ class ConcatenateViewModel {
     var progress: Double = 0
     var resultMessage: String?
     var isError = false
+    var lastOutputURL: URL?
 
     private let concatenator = PDFConcatenator()
 
@@ -70,6 +71,7 @@ class ConcatenateViewModel {
             let totalPages = files.reduce(0) { $0 + $1.pageCount }
             resultMessage = "Done! Merged \(files.count) files (\(totalPages) pages)."
             isError = false
+            lastOutputURL = destination
         } catch is CancellationError {
             resultMessage = "Cancelled."
             isError = false

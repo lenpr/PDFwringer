@@ -36,6 +36,7 @@ struct SplitOptionsView: View {
                         Label("Back", systemImage: "chevron.left")
                             .font(.caption.weight(.medium))
                     }
+                    .keyboardShortcut(.escape, modifiers: [])
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
 
@@ -122,9 +123,15 @@ struct SplitOptionsView: View {
                             .font(.caption)
                             .foregroundStyle(vm.isError ? .red : .green)
                             .lineLimit(3)
+                        Spacer()
                         if vm.isError {
                             Button("Try Again") {
                                 Task { await vm.retryLastOperation() }
+                            }
+                            .font(.caption)
+                        } else if let outputURL = vm.lastOutputURL {
+                            Button("Reveal in Finder") {
+                                NSWorkspace.shared.activateFileViewerSelecting([outputURL])
                             }
                             .font(.caption)
                         }

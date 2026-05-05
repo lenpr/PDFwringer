@@ -19,6 +19,7 @@ class CompressViewModel {
     var progress: Double = 0
     var resultMessage: String?
     var isError = false
+    var lastOutputURL: URL?
     var pdfDocument: PDFDocument?
 
     // Background-computed real sizes per level (keyed by "level-quality-grayscale")
@@ -118,6 +119,7 @@ class CompressViewModel {
         progress = 0
         resultMessage = nil
         isError = false
+        lastOutputURL = nil
 
         do {
             try await compressor.compress(
@@ -136,12 +138,14 @@ class CompressViewModel {
             if newSize >= sourceFileSize && sourceFileSize > 0 {
                 resultMessage = "Result (\(Formatting.fileSize(newSize))) is not smaller than original (\(Formatting.fileSize(sourceFileSize))). File saved."
                 isError = false
+                lastOutputURL = destination
             } else {
                 let ratio = sourceFileSize > 0
                     ? Int((1.0 - Double(newSize) / Double(sourceFileSize)) * 100)
                     : 0
                 resultMessage = "Done! \(ratio)% smaller (\(Formatting.fileSize(sourceFileSize)) → \(Formatting.fileSize(newSize)))"
                 isError = false
+                lastOutputURL = destination
             }
         } catch is CancellationError {
             resultMessage = "Cancelled."

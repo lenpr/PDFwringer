@@ -12,6 +12,7 @@ struct MetadataView: View {
     @State private var resultMessage: String?
     @State private var isError = false
     @State private var isDropTargeted = false
+    @State private var lastOutputURL: URL?
 
     private let editor = PDFMetadataEditor()
 
@@ -38,6 +39,7 @@ struct MetadataView: View {
                         Label("Back", systemImage: "chevron.left")
                             .font(.caption.weight(.medium))
                     }
+                    .keyboardShortcut(.escape, modifiers: [])
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
 
@@ -74,9 +76,15 @@ struct MetadataView: View {
                             .font(.caption)
                             .foregroundStyle(isError ? .red : .green)
                             .lineLimit(3)
+                        Spacer()
                         if isError {
                             Button("Try Again") { saveMetadata() }
                                 .font(.caption)
+                        } else if let outputURL = lastOutputURL {
+                            Button("Reveal in Finder") {
+                                NSWorkspace.shared.activateFileViewerSelecting([outputURL])
+                            }
+                            .font(.caption)
                         }
                     }
                 }
@@ -84,6 +92,7 @@ struct MetadataView: View {
                 HStack {
                     Spacer()
                     Button("Save Metadata") { saveMetadata() }
+                        .keyboardShortcut("s")
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
                         .disabled(isProcessing)
@@ -119,6 +128,7 @@ struct MetadataView: View {
             try editor.write(metadata: metadata, source: url, destination: destination)
             resultMessage = "Metadata saved successfully."
             isError = false
+            lastOutputURL = destination
         } catch {
             resultMessage = error.localizedDescription
             isError = true

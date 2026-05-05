@@ -13,6 +13,7 @@ class SplitViewModel {
     var progress: Double = 0
     var resultMessage: String?
     var isError = false
+    var lastOutputURL: URL?
 
     private let splitter = PDFSplitter()
     private enum LastOperation { case split, keep, remove }
@@ -56,6 +57,7 @@ class SplitViewModel {
             )
             resultMessage = "Done! Created \(outputs.count) files."
             isError = false
+            lastOutputURL = outputDir
         } catch is CancellationError {
             resultMessage = "Cancelled."
             isError = false
@@ -95,6 +97,7 @@ class SplitViewModel {
             )
             resultMessage = "Done! Extracted \(indices.count) pages."
             isError = false
+            lastOutputURL = destination
             _ = outputs
         } catch is CancellationError {
             resultMessage = "Cancelled."
@@ -136,6 +139,7 @@ class SplitViewModel {
             let remainingPages = sourcePageCount - Set(indices).count
             resultMessage = "Done! Kept \(remainingPages) pages."
             isError = false
+            lastOutputURL = destination
             _ = outputs
         } catch is CancellationError {
             resultMessage = "Cancelled."

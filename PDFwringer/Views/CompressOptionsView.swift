@@ -12,12 +12,14 @@ struct CompressOptionsView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            // Left: PDF preview
+            // Left: PDF preview + thumbnails
             VStack(spacing: 0) {
                 PDFPreviewView(document: document)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .shadow(color: Color(nsColor: .shadowColor).opacity(0.15), radius: 8, y: 2)
                     .padding(20)
+
+                PageThumbnailStripView(document: document)
             }
             .frame(minWidth: 260, idealWidth: 320)
             .overlay {
@@ -34,6 +36,7 @@ struct CompressOptionsView: View {
                         Label("Back", systemImage: "chevron.left")
                             .font(.caption.weight(.medium))
                     }
+                    .keyboardShortcut(.escape, modifiers: [])
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
 
@@ -151,9 +154,15 @@ struct CompressOptionsView: View {
                             .font(.caption)
                             .foregroundStyle(vm.isError ? .red : .green)
                             .lineLimit(3)
+                        Spacer()
                         if vm.isError {
                             Button("Try Again") {
                                 Task { await vm.performCompression() }
+                            }
+                            .font(.caption)
+                        } else if let outputURL = vm.lastOutputURL {
+                            Button("Reveal in Finder") {
+                                NSWorkspace.shared.activateFileViewerSelecting([outputURL])
                             }
                             .font(.caption)
                         }
@@ -165,6 +174,7 @@ struct CompressOptionsView: View {
                     Button("Compress") {
                         Task { await vm.performCompression() }
                     }
+                    .keyboardShortcut("s")
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                     .disabled(!vm.canCompress)

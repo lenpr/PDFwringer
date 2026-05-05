@@ -16,6 +16,7 @@ struct RotateOptionsView: View {
     @State private var resultMessage: String?
     @State private var isError = false
     @State private var isDropTargeted = false
+    @State private var lastOutputURL: URL?
 
     private let rotator = PDFRotator()
 
@@ -49,6 +50,7 @@ struct RotateOptionsView: View {
                         Label("Back", systemImage: "chevron.left")
                             .font(.caption.weight(.medium))
                     }
+                    .keyboardShortcut(.escape, modifiers: [])
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
 
@@ -123,9 +125,15 @@ struct RotateOptionsView: View {
                             .font(.caption)
                             .foregroundStyle(isError ? .red : .green)
                             .lineLimit(3)
+                        Spacer()
                         if isError {
                             Button("Try Again") { Task { await performRotation() } }
                                 .font(.caption)
+                        } else if let outputURL = lastOutputURL {
+                            Button("Reveal in Finder") {
+                                NSWorkspace.shared.activateFileViewerSelecting([outputURL])
+                            }
+                            .font(.caption)
                         }
                     }
                 }
@@ -135,6 +143,7 @@ struct RotateOptionsView: View {
                     Button("Rotate & Save") {
                         Task { await performRotation() }
                     }
+                    .keyboardShortcut("s")
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                     .disabled(isProcessing)
@@ -177,6 +186,7 @@ struct RotateOptionsView: View {
             let pagesRotated = indices?.count ?? document.pageCount
             resultMessage = "Done! Rotated \(pagesRotated) pages by \(selectedAngle.rawValue)°."
             isError = false
+            lastOutputURL = destination
         } catch is CancellationError {
             resultMessage = "Cancelled."
             isError = false
