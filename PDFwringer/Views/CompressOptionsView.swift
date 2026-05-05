@@ -49,7 +49,7 @@ struct CompressOptionsView: View {
                     Text("Compress")
                         .font(.title3.weight(.semibold))
                     Spacer()
-                    Text("\(vm.sourcePageCount) pages, \(CompressViewModel.formatBytes(vm.sourceFileSize))")
+                    Text("\(vm.sourcePageCount) pages, \(Formatting.fileSize(vm.sourceFileSize))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -72,7 +72,7 @@ struct CompressOptionsView: View {
                                     .font(.body.weight(.medium))
                                 Spacer()
                                 if let size = estimatedSize {
-                                    Text(CompressViewModel.formatBytes(size))
+                                    Text(Formatting.fileSize(size))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 } else {

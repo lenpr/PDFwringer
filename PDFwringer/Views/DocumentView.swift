@@ -79,9 +79,7 @@ struct DocumentView: View {
     private var formattedFileSize: String {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false)),
               let size = attrs[.size] as? Int64 else { return "" }
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: size)
+        return Formatting.fileSize(size)
     }
 }
 

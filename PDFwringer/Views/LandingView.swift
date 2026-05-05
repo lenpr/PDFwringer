@@ -4,7 +4,6 @@ struct LandingView: View {
     let onFilesSelected: ([URL]) -> Void
 
     @State private var isDropTargeted = false
-    @State private var isHovering = false
 
     var body: some View {
         VStack(spacing: 0) {

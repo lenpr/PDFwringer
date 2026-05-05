@@ -1,7 +1,11 @@
 import Foundation
 import PDFKit
 
-/// Drives the Compress tab: manages source file state, compression settings, background size estimation, and execution.
+/// Drives the compress flow: manages source file state, compression settings, background size estimation, and execution.
+///
+/// Size estimates are computed in the background for every combination of level/quality/grayscale
+/// and cached by a composite key (e.g. "medium-good-false"). This allows instant display when the
+/// user switches settings.
 @MainActor @Observable
 class CompressViewModel {
     var sourceURL: URL?
@@ -35,10 +39,10 @@ class CompressViewModel {
         guard sourceFileSize > 0 else { return nil }
         guard let estimated = estimatedSizes[currentEstimateKey] else { return nil }
         if estimated >= sourceFileSize {
-            return "\(Self.formatBytes(estimated)) (may not reduce)"
+            return "\(Formatting.fileSize(estimated)) (may not reduce)"
         }
         let ratio = Int((1.0 - Double(estimated) / Double(sourceFileSize)) * 100)
-        return "\(Self.formatBytes(estimated)) (\(ratio)% smaller)"
+        return "\(Formatting.fileSize(estimated)) (\(ratio)% smaller)"
     }
 
     var isEstimating: Bool {
@@ -130,13 +134,13 @@ class CompressViewModel {
             let newSize = newAttrs[.size] as? Int64 ?? 0
 
             if newSize >= sourceFileSize && sourceFileSize > 0 {
-                resultMessage = "Result (\(Self.formatBytes(newSize))) is not smaller than original (\(Self.formatBytes(sourceFileSize))). File saved."
+                resultMessage = "Result (\(Formatting.fileSize(newSize))) is not smaller than original (\(Formatting.fileSize(sourceFileSize))). File saved."
                 isError = false
             } else {
                 let ratio = sourceFileSize > 0
                     ? Int((1.0 - Double(newSize) / Double(sourceFileSize)) * 100)
                     : 0
-                resultMessage = "Done! \(ratio)% smaller (\(Self.formatBytes(sourceFileSize)) → \(Self.formatBytes(newSize)))"
+                resultMessage = "Done! \(ratio)% smaller (\(Formatting.fileSize(sourceFileSize)) → \(Formatting.fileSize(newSize)))"
                 isError = false
             }
         } catch is CancellationError {
@@ -148,11 +152,5 @@ class CompressViewModel {
         }
 
         isProcessing = false
-    }
-
-    static func formatBytes(_ bytes: Int64) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: bytes)
     }
 }

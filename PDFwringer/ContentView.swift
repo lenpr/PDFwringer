@@ -1,5 +1,4 @@
 import SwiftUI
-import PDFKit
 
 struct ContentView: View {
     @State private var appVM = AppViewModel()
@@ -146,21 +145,13 @@ struct ContentView: View {
 
     private func addFilesToMultiFile(_ urls: [URL]) {
         guard case .multiFile(var items) = appVM.state else { return }
-        for url in urls where url.pathExtension.lowercased() == "pdf" {
-            let pageCount = PDFDocument(url: url)?.pageCount ?? 0
-            let bookmarkData = (try? url.bookmarkData(options: .withSecurityScope)) ?? Data()
-            items.append(PDFFileItem(url: url, bookmarkData: bookmarkData, pageCount: pageCount))
-        }
+        items.append(contentsOf: PDFFileItem.from(urls: urls))
         appVM.state = .multiFile(items)
     }
 
     private func addFilesToMerge(_ urls: [URL]) {
         guard case .merging(var items) = appVM.state else { return }
-        for url in urls where url.pathExtension.lowercased() == "pdf" {
-            let pageCount = PDFDocument(url: url)?.pageCount ?? 0
-            let bookmarkData = (try? url.bookmarkData(options: .withSecurityScope)) ?? Data()
-            items.append(PDFFileItem(url: url, bookmarkData: bookmarkData, pageCount: pageCount))
-        }
+        items.append(contentsOf: PDFFileItem.from(urls: urls))
         appVM.state = .merging(items)
     }
 }

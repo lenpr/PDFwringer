@@ -1,6 +1,8 @@
 import Foundation
 import PDFKit
 
+/// Top-level navigation state machine. Each case represents a distinct screen in the app.
+/// Transitions: landing → singleFile/multiFile → compressing/splitting/merging → (back).
 enum AppState: Equatable {
     case landing
     case singleFile(URL, PDFDocument)
@@ -9,6 +11,7 @@ enum AppState: Equatable {
     case splitting(URL, PDFDocument)
     case merging([PDFFileItem])
 
+    // PDFDocument doesn't conform to Equatable; compare by URL/item identity only.
     static func == (lhs: AppState, rhs: AppState) -> Bool {
         switch (lhs, rhs) {
         case (.landing, .landing): true
@@ -22,6 +25,7 @@ enum AppState: Equatable {
     }
 }
 
+/// Orchestrates top-level navigation and file loading. Owned by ContentView.
 @MainActor @Observable
 class AppViewModel {
     var state: AppState = .landing
@@ -54,13 +58,7 @@ class AppViewModel {
     }
 
     func loadMultipleFiles(_ urls: [URL]) {
-        var items: [PDFFileItem] = []
-        for url in urls {
-            guard url.pathExtension.lowercased() == "pdf" else { continue }
-            let pageCount = PDFDocument(url: url)?.pageCount ?? 0
-            let bookmarkData = (try? url.bookmarkData(options: .withSecurityScope)) ?? Data()
-            items.append(PDFFileItem(url: url, bookmarkData: bookmarkData, pageCount: pageCount))
-        }
+        let items = PDFFileItem.from(urls: urls)
         guard !items.isEmpty else { return }
         state = .multiFile(items)
     }

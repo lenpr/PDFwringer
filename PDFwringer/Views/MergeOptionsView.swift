@@ -1,5 +1,4 @@
 import SwiftUI
-import PDFKit
 
 struct MergeOptionsView: View {
     @Binding var files: [PDFFileItem]
@@ -166,12 +165,7 @@ struct MergeOptionsView: View {
     }
 
     private func addFiles(_ urls: [URL]) {
-        for url in urls {
-            guard url.pathExtension.lowercased() == "pdf" else { continue }
-            let pageCount = PDFDocument(url: url)?.pageCount ?? 0
-            let bookmarkData = (try? url.bookmarkData(options: .withSecurityScope)) ?? Data()
-            files.append(PDFFileItem(url: url, bookmarkData: bookmarkData, pageCount: pageCount))
-        }
+        files.append(contentsOf: PDFFileItem.from(urls: urls))
     }
 
     private func performMerge() async {

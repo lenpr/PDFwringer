@@ -1,7 +1,6 @@
 import Foundation
-import PDFKit
 
-/// Drives the Concatenate tab: manages the ordered file list, reordering, and merge execution.
+/// Drives the merge flow: manages the ordered file list and merge execution.
 @MainActor @Observable
 class ConcatenateViewModel {
     var files: [PDFFileItem] = []
@@ -17,26 +16,24 @@ class ConcatenateViewModel {
     }
 
     func addFiles(_ urls: [URL]) {
-        for url in urls {
-            guard url.pathExtension.lowercased() == "pdf" else { continue }
-            let pageCount: Int
-            if let doc = PDFDocument(url: url) {
-                pageCount = doc.pageCount
-            } else {
-                pageCount = 0
-            }
-            let bookmarkData = (try? url.bookmarkData(options: .withSecurityScope)) ?? Data()
-            let item = PDFFileItem(url: url, bookmarkData: bookmarkData, pageCount: pageCount)
-            files.append(item)
-        }
+        files.append(contentsOf: PDFFileItem.from(urls: urls))
     }
 
     func removeFile(at offsets: IndexSet) {
-        files.remove(atOffsets: offsets)
+        for index in offsets.sorted().reversed() {
+            files.remove(at: index)
+        }
     }
 
     func moveFiles(from source: IndexSet, to destination: Int) {
-        files.move(fromOffsets: source, toOffset: destination)
+        var items = files
+        let moved = source.sorted().map { items[$0] }
+        for index in source.sorted().reversed() {
+            items.remove(at: index)
+        }
+        let insertAt = min(destination, items.count)
+        items.insert(contentsOf: moved, at: insertAt)
+        files = items
     }
 
     func sortAlphabetical() {
