@@ -10,6 +10,8 @@ struct FileDialogHelper {
         panel.allowedContentTypes = [.pdf]
         panel.nameFieldStringValue = suggestedName
         panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+        panel.nameFieldLabel = "Save As:"
         guard panel.runModal() == .OK else { return nil }
         return panel.url
     }
