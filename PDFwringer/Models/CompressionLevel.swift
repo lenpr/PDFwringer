@@ -31,6 +31,7 @@ enum CompressionLevel: String, CaseIterable, Identifiable {
         self != .lossless
     }
 
+    /// Target render DPI. Only meaningful for rasterize levels; lossless returns 72 as a no-op sentinel.
     var dpi: CGFloat {
         switch self {
         case .lossless: 72

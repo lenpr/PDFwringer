@@ -7,8 +7,11 @@ struct PDFSplitter {
 
     /// Determines how pages are selected for output.
     enum Mode {
+        /// Split into chunks of N pages each (last chunk may have fewer).
         case splitEveryN(Int)
+        /// Keep only the specified 0-based page indices.
         case keepPages([Int])
+        /// Remove the specified 0-based page indices, keeping everything else.
         case removePages([Int])
     }
 

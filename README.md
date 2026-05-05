@@ -2,8 +2,6 @@
 
 A lightweight macOS app for compressing, merging, and splitting PDF files. Native SwiftUI with no external dependencies.
 
-<!-- ![PDFwringer screenshot](docs/screenshot.png) -->
-
 ## Features
 
 ### Compress
@@ -12,9 +10,10 @@ A lightweight macOS app for compressing, merging, and splitting PDF files. Nativ
 - Adjustable JPEG quality, optional grayscale conversion
 - Live size estimates before committing
 
-### Concatenate
-- Drag-and-drop file list with reordering
-- Sort alphabetically (A-Z / Z-A)
+### Merge
+- Drag-and-drop file list with manual reordering (up/down buttons)
+- Sort alphabetically (A→Z / Z→A)
+- Add/remove individual files
 - Progress reporting for large merges
 
 ### Split / Extract
@@ -51,25 +50,48 @@ Open `PDFwringer.xcodeproj` and build the `PDFwringer` scheme (Cmd+B).
 
 ```bash
 make build   # compiles to .build/PDFwringer
-make run     # build + launch
+make app     # build + create .app bundle at .build/PDFwringer.app
+make run     # build + launch (bare executable)
+make test    # compile + run all tests
 make clean   # remove build artifacts
 ```
 
+### App bundle
+
+`make app` produces a proper macOS `.app` bundle at `.build/PDFwringer.app` with an Info.plist and app icon. This is the recommended way to distribute or install the app — double-clicking the bundle launches it like any native app (no Terminal window).
+
+## Testing
+
+```bash
+make test
+```
+
+Uses Swift Testing (`import Testing`, `@Test`, `#expect`). Tests cover the service/model/utility layers without requiring SwiftUI or a running app. Test PDFs are generated programmatically — no fixture files needed.
+
+Test suites: `PageRangeParserTests`, `PDFCompressorTests`, `PDFConcatenatorTests`, `PDFSplitterTests`.
+
 ## Architecture
 
-The app follows MVVM with a service layer:
+The app follows MVVM with a service layer. A top-level `AppState` enum drives navigation as a state machine (landing → singleFile/multiFile → action screen → back).
 
 ```
 PDFwringer/
-├── Models/          # Data types (CompressionLevel, JPEGQuality, PDFFileItem)
-├── Services/        # PDF operations (Compressor, Concatenator, Splitter, PageRangeParser)
-├── ViewModels/      # UI state + orchestration per feature tab
-├── Views/           # SwiftUI views including reusable PDFDropZone
-├── Utilities/       # Error types, file dialog helpers
-└── Resources/       # Asset catalog
+├── Models/          # Value types: CompressionLevel, JPEGQuality, PDFFileItem
+├── Services/        # Stateless PDF operations: PDFCompressor, PDFConcatenator, PDFSplitter, PageRangeParser
+├── ViewModels/      # @Observable classes: AppViewModel (navigation), CompressViewModel, ConcatenateViewModel, SplitViewModel
+├── Views/           # SwiftUI views + DropReceiverView (NSViewRepresentable for reliable sandboxed drag-and-drop)
+├── Utilities/       # PDFwringerError, FileDialogHelper, Formatting
+└── Resources/       # Asset catalog, AppIcon.icns
 ```
 
 All PDF processing uses Apple's PDFKit and CoreGraphics — no third-party libraries.
+
+### Key design decisions
+
+- **Document-first flow**: Users drop or select files first, then choose an action. Navigation is driven by `AppState` in `AppViewModel`.
+- **NSView drop overlay**: SwiftUI's built-in `onDrop` is unreliable in sandboxed apps. `DropReceiverView` wraps an `NSView` that registers for file URL drags while returning `nil` from `hitTest` so clicks pass through.
+- **Background size estimation**: `CompressViewModel` probes the first page at every compression setting in the background, then extrapolates to give instant feedback as users toggle options.
+- **Atomic writes**: All services write to a temp file first, then atomically replace the destination via `FileManager.replaceItemAt`.
 
 ## License
 

@@ -38,8 +38,9 @@ struct PDFCompressor {
         }
     }
 
-    /// Compress a single page and return its JPEG data size in bytes.
-    /// Used for background size estimation.
+    /// Compress a single page to estimate total output size without processing the entire document.
+    /// Extrapolates from first-page JPEG size to all pages (assumes roughly uniform page content).
+    /// Returns nil if the source cannot be read.
     func compressFirstPage(source: URL, level: CompressionLevel, quality: JPEGQuality, grayscale: Bool) -> Int64? {
         guard level.isRasterize else {
             // Lossless: roughly same size
@@ -100,7 +101,7 @@ struct PDFCompressor {
         return (pageSize + 200) * pageCount + 1000
     }
 
-    // MARK: - Optimize path (preserves text, annotations, links)
+    // MARK: - Optimize path (preserves text; strips annotations only when stripMetadata is true)
 
     private func compressOptimize(
         source: URL,
@@ -248,6 +249,7 @@ struct PDFCompressor {
         return CGPDFDocument(provider)
     }
 
+    /// Swaps width/height for 90° or 270° rotated pages so rendering uses the correct dimensions.
     private static func displaySize(for size: CGSize, rotation: Int32) -> CGSize {
         let angle = ((rotation % 360) + 360) % 360
         if angle == 90 || angle == 270 {

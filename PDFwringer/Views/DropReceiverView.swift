@@ -25,6 +25,8 @@ struct DropReceiverView: NSViewRepresentable {
     }
 }
 
+/// AppKit NSView that accepts PDF file drops. Used as an overlay — returns nil from hitTest
+/// so mouse clicks pass through to SwiftUI views underneath while still receiving drag events.
 class DropNSView: NSView {
     var onDrop: (([URL]) -> Void)?
     var onTargetChanged: ((Bool) -> Void)?
@@ -39,6 +41,7 @@ class DropNSView: NSView {
         registerForDraggedTypes([.fileURL])
     }
 
+    // Transparent to clicks so buttons beneath remain interactive.
     override func hitTest(_ point: NSPoint) -> NSView? {
         nil
     }
