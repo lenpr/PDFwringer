@@ -9,17 +9,18 @@ struct SplitOptionsView: View {
 
     @State private var vm = SplitViewModel()
     @State private var isDropTargeted = false
+    @State private var currentPage: Int = 0
 
     var body: some View {
         HStack(spacing: 0) {
             // Left: PDF preview + thumbnails
             VStack(spacing: 0) {
-                PDFPreviewView(document: document)
+                PDFPreviewView(document: document, currentPage: $currentPage)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .shadow(color: Color(nsColor: .shadowColor).opacity(0.15), radius: 8, y: 2)
                     .padding(20)
 
-                PageThumbnailStripView(document: document)
+                PageThumbnailStripView(document: document, currentPage: $currentPage)
             }
             .frame(minWidth: 260, idealWidth: 320)
             .overlay {

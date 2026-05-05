@@ -12,12 +12,13 @@ struct DocumentView: View {
     let onFilesDropped: ([URL]) -> Void
 
     @State private var isDropTargeted = false
+    @State private var currentPage: Int = 0
 
     var body: some View {
         HStack(spacing: 0) {
             // Left: PDF preview
             VStack(spacing: 0) {
-                PDFPreviewView(document: document)
+                PDFPreviewView(document: document, currentPage: $currentPage)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .shadow(color: Color(nsColor: .shadowColor).opacity(0.15), radius: 8, y: 2)
                     .padding(20)
@@ -101,6 +102,11 @@ struct DocumentView: View {
 
 struct PDFPreviewView: NSViewRepresentable {
     let document: PDFDocument
+    @Binding var currentPage: Int
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
 
     func makeNSView(context: Context) -> PDFView {
         let pdfView = PDFView()
@@ -109,12 +115,44 @@ struct PDFPreviewView: NSViewRepresentable {
         pdfView.displayMode = .singlePage
         pdfView.displaysPageBreaks = false
         pdfView.pageShadowsEnabled = false
+
+        NotificationCenter.default.addObserver(
+            context.coordinator,
+            selector: #selector(Coordinator.pageChanged(_:)),
+            name: .PDFViewPageChanged,
+            object: pdfView
+        )
+
         return pdfView
     }
 
     func updateNSView(_ pdfView: PDFView, context: Context) {
         if pdfView.document !== document {
             pdfView.document = document
+        }
+
+        if let page = document.page(at: currentPage),
+           pdfView.currentPage != page {
+            pdfView.go(to: page)
+        }
+    }
+
+    class Coordinator: NSObject {
+        var parent: PDFPreviewView
+
+        init(parent: PDFPreviewView) {
+            self.parent = parent
+        }
+
+        @objc func pageChanged(_ notification: Notification) {
+            guard let pdfView = notification.object as? PDFView,
+                  let page = pdfView.currentPage,
+                  let index = pdfView.document?.index(for: page) else { return }
+            DispatchQueue.main.async {
+                if self.parent.currentPage != index {
+                    self.parent.currentPage = index
+                }
+            }
         }
     }
 }

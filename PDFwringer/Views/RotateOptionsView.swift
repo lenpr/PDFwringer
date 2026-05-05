@@ -17,6 +17,7 @@ struct RotateOptionsView: View {
     @State private var isError = false
     @State private var isDropTargeted = false
     @State private var lastOutputURL: URL?
+    @State private var currentPage: Int = 0
 
     private let rotator = PDFRotator()
 
@@ -24,16 +25,18 @@ struct RotateOptionsView: View {
         HStack(spacing: 0) {
             // Left: PDF preview + thumbnails
             VStack(spacing: 0) {
-                PDFPreviewView(document: document)
+                PDFPreviewView(document: document, currentPage: $currentPage)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .shadow(color: Color(nsColor: .shadowColor).opacity(0.15), radius: 8, y: 2)
                     .padding(20)
 
-                if !rotateAll {
-                    PageThumbnailStripView(document: document, selectedPages: $selectedPages)
-                        .onChange(of: selectedPages) {
-                            pageRangeText = selectedPages.sorted().map { "\($0 + 1)" }.joined(separator: ", ")
-                        }
+                PageThumbnailStripView(
+                    document: document,
+                    currentPage: $currentPage,
+                    selectedPages: rotateAll ? nil : $selectedPages
+                )
+                .onChange(of: selectedPages) {
+                    pageRangeText = selectedPages.sorted().map { "\($0 + 1)" }.joined(separator: ", ")
                 }
             }
             .frame(minWidth: 260, idealWidth: 320)
@@ -151,6 +154,11 @@ struct RotateOptionsView: View {
             }
             .padding(24)
             .frame(minWidth: 300, idealWidth: 340)
+        }
+        .background {
+            Button("") { Task { await performRotation() } }
+                .keyboardShortcut("r")
+                .hidden()
         }
     }
 
