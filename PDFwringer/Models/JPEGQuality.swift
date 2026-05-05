@@ -1,5 +1,6 @@
 import Foundation
 
+/// JPEG encoding quality presets used during rasterize compression.
 enum JPEGQuality: String, CaseIterable, Identifiable {
     case best
     case good

@@ -1,9 +1,11 @@
 import Foundation
 
+/// Parses human-friendly page range strings (e.g. "1,3-5,8-") into 0-based page indices.
 struct PageRangeParser {
 
     /// Parses a page range string like "1,3,4-10,5-" into an array of 0-based page indices.
     /// Preserves user order. Allows duplicates. Supports descending ranges and open-ended ranges.
+    /// - Throws: `PDFwringerError.invalidPageRange` for malformed or out-of-bounds input.
     static func parse(_ input: String, pageCount: Int) throws -> [Int] {
         guard pageCount > 0 else { return [] }
 

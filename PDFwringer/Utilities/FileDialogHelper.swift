@@ -1,6 +1,7 @@
 import AppKit
 import UniformTypeIdentifiers
 
+/// Wraps `NSSavePanel` and `NSOpenPanel` for PDF file selection in a sandboxed context.
 @MainActor
 struct FileDialogHelper {
 

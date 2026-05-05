@@ -1,5 +1,6 @@
 import Foundation
 
+/// Available compression strategies, from lossless metadata stripping to aggressive rasterization.
 enum CompressionLevel: String, CaseIterable, Identifiable {
     case lossless
     case high

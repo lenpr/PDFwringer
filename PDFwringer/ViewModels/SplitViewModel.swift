@@ -1,6 +1,7 @@
 import Foundation
 import PDFKit
 
+/// Drives the Split/Extract tab: manages split-by-N, keep-pages, and remove-pages operations.
 @MainActor @Observable
 class SplitViewModel {
     var sourceURL: URL?

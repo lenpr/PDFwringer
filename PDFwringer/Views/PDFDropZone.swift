@@ -2,6 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 import AppKit
 
+/// A reusable drop target that accepts PDF files via drag-and-drop.
 struct PDFDropZone: View {
     let allowsMultiple: Bool
     let onDrop: ([URL]) -> Void
@@ -64,7 +65,8 @@ struct PDFDropZone: View {
     }
 }
 
-// NSView-based drop receiver that uses NSPasteboard directly (reliable in sandbox)
+/// NSView-based drop receiver that reads file URLs from NSPasteboard directly — more reliable
+/// than SwiftUI's `onDrop` modifier when running inside the App Sandbox.
 struct DropReceiverView: NSViewRepresentable {
     @Binding var isTargeted: Bool
     let onDrop: ([URL]) -> Void

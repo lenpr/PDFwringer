@@ -1,6 +1,7 @@
 import Foundation
 import PDFKit
 
+/// Drives the Compress tab: manages source file state, compression settings, background size estimation, and execution.
 @MainActor @Observable
 class CompressViewModel {
     var sourceURL: URL?

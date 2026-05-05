@@ -4,9 +4,12 @@ import ImageIO
 import PDFKit
 import UniformTypeIdentifiers
 
+/// Handles PDF compression via two strategies: lossless optimization (re-serialize with metadata stripped)
+/// or lossy rasterization (render pages as JPEG at a target DPI).
 @MainActor
 struct PDFCompressor {
 
+    /// Compresses a PDF from `source` to `destination` using the selected strategy.
     func compress(
         source: URL,
         destination: URL,

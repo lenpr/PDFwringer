@@ -1,15 +1,19 @@
 import Foundation
 import PDFKit
 
+/// Splits or extracts pages from a PDF into one or more output files.
 @MainActor
 struct PDFSplitter {
 
+    /// Determines how pages are selected for output.
     enum Mode {
         case splitEveryN(Int)
         case keepPages([Int])
         case removePages([Int])
     }
 
+    /// Splits or extracts pages from `source` according to `mode`, writing results at/under `destination`.
+    /// Returns the URLs of all output files created.
     func split(
         source: URL,
         mode: Mode,

@@ -1,6 +1,7 @@
 import Foundation
 import PDFKit
 
+/// Drives the Concatenate tab: manages the ordered file list, reordering, and merge execution.
 @MainActor @Observable
 class ConcatenateViewModel {
     var files: [PDFFileItem] = []

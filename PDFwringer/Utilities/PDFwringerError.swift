@@ -1,5 +1,6 @@
 import Foundation
 
+/// Domain-specific errors surfaced to users via `LocalizedError`.
 enum PDFwringerError: LocalizedError {
     case cannotOpenDocument
     case documentIsLocked

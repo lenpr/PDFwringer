@@ -1,5 +1,6 @@
 import Foundation
 
+/// Represents a user-selected PDF file with its security-scoped bookmark for sandbox access.
 struct PDFFileItem: Identifiable {
     let id = UUID()
     let url: URL

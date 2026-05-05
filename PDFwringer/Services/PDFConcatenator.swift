@@ -2,9 +2,11 @@ import CoreGraphics
 import Foundation
 import PDFKit
 
+/// Merges multiple PDF files into a single document, preserving page content and order.
 @MainActor
 struct PDFConcatenator {
 
+    /// Concatenates PDFs from `sources` (in order) into a single file at `destination`.
     func concatenate(
         sources: [URL],
         destination: URL,
