@@ -66,6 +66,7 @@ struct PageThumbnailStripView: View {
     private func thumbnailCell(index: Int) -> some View {
         let isSelected = selectedPages?.wrappedValue.contains(index) ?? false
         let isCurrent = currentPage?.wrappedValue == index
+        let _ = cache.generation
 
         return VStack(spacing: 3) {
             Group {
@@ -153,10 +154,11 @@ struct PageThumbnailStripView: View {
     }
 }
 
-@MainActor
+@MainActor @Observable
 final class ThumbnailCache {
     private let cache = NSCache<NSNumber, NSImage>()
     private var pending = Set<Int>()
+    var generation = 0
 
     init() {
         cache.countLimit = 200
@@ -177,6 +179,8 @@ final class ThumbnailCache {
             let img = page.thumbnail(of: size, for: .cropBox)
             await MainActor.run {
                 cache.setObject(img, forKey: key)
+                self.pending.remove(index)
+                self.generation += 1
             }
         }
 

@@ -25,6 +25,7 @@ struct DocumentView: View {
                     .padding(20)
 
                 PageThumbnailStripView(document: document, currentPage: $currentPage)
+                    .padding(.horizontal, 20)
             }
             .frame(minWidth: 280, idealWidth: 350)
             .overlay {
@@ -158,16 +159,7 @@ struct PDFPreviewView: NSViewRepresentable {
 
         if let page = document.page(at: currentPage),
            pdfView.currentPage != page {
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.15
-                pdfView.animator().alphaValue = 0.4
-            } completionHandler: {
-                pdfView.go(to: page)
-                NSAnimationContext.runAnimationGroup { ctx in
-                    ctx.duration = 0.15
-                    pdfView.animator().alphaValue = 1.0
-                }
-            }
+            pdfView.go(to: page)
         }
     }
 
