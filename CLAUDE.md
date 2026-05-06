@@ -21,7 +21,7 @@ make test       # compile + run all tests via Swift Testing
 
 Uses Swift Testing (`import Testing`, `@Test`, `#expect`). Tests compile the Services/Models/Utilities layer without SwiftUI.
 
-Test suites cover: `PageRangeParser`, `PDFConcatenator`, `PDFSplitter`, `PDFCompressor`. Tests generate PDFs programmatically — no fixture files needed.
+Test suites cover: `PageRangeParser`, `PDFConcatenator`, `PDFSplitter`, `PDFCompressor`, `PDFRotator`, `PDFMetadataEditor`, `AppViewModel`, `PDFFileItem`, end-to-end workflows. Tests generate PDFs programmatically — no fixture files needed.
 
 ## Architecture
 
@@ -29,10 +29,10 @@ MVVM with a service layer. All code is `@MainActor`.
 
 ```
 Models/       → Value types: CompressionLevel, JPEGQuality, PDFFileItem
-Services/     → Stateless PDF operations: PDFCompressor, PDFConcatenator, PDFSplitter, PageRangeParser
+Services/     → Stateless PDF operations: PDFCompressor, PDFConcatenator, PDFSplitter, PDFRotator, PDFMetadataEditor, PageRangeParser
 ViewModels/   → @Observable classes: AppViewModel, CompressViewModel, ConcatenateViewModel, SplitViewModel
 Views/        → SwiftUI views + DropReceiverView (NSViewRepresentable drop overlay)
-Utilities/    → PDFwringerError, FileDialogHelper, Formatting (shared formatBytes)
+Utilities/    → PDFwringerError, FileDialogHelper, Formatting (shared formatBytes + triggerShake)
 Resources/    → Asset catalog, AppIcon.icns
 ```
 
@@ -41,23 +41,24 @@ Resources/    → Asset catalog, AppIcon.icns
 `AppState` (in `AppViewModel.swift`) is the top-level state machine:
 
 ```
-landing → singleFile / multiFile → compressing / splitting / merging → (back)
+landing → singleFile / multiFile → compressing / splitting / rotating / editingMetadata / merging → (back)
 ```
 
-`ContentView` switches on `AppState` to render the correct view. `AppViewModel` owns state transitions (handleDrop, goBack, startOver, selectCompress/Split/Merge).
+`ContentView` switches on `AppState` to render the correct view. `AppViewModel` owns state transitions (handleDrop, goBack, startOver, selectCompress/Split/Merge/Rotate/Metadata).
 
 `AppState` has custom `Equatable` because `PDFDocument` doesn't conform — equality checks compare URLs/item IDs only.
 
 ## Key conventions
 
-- **Concurrency**: All service methods are `async throws` with cooperative cancellation (`Task.checkCancellation()`). Progress reported via `(Double) -> Void` closure (range 0.0–1.0).
+- **Concurrency**: Most service methods are `async throws` with cooperative cancellation (`Task.checkCancellation()`). Progress reported via `(Double) -> Void` closure (range 0.0–1.0). `PDFMetadataEditor` is synchronous (small data). `PDFCompressor.compressFirstPage` is `nonisolated` for background estimation.
 - **Sandbox**: App is sandboxed with `com.apple.security.files.user-selected.read-write`. File access uses `NSSavePanel`/`NSOpenPanel` — never raw path construction.
 - **PDF reading**: `PDFCompressor.openPDF(at:)` reads file data into memory first (works around CGPDFDocument sandbox restrictions). Other services use `PDFDocument(url:)`.
 - **Temp files**: Operations write to `URL.temporaryDirectory` then atomically replace the destination via `FileManager.replaceItemAt(_:withItemAt:)`.
 - **State management**: ViewModels use `@Observable` (Observation framework). Views own their VM via `@State`.
 - **Drop handling**: `DropReceiverView` wraps `DropNSView` (NSView subclass) for reliable drag-and-drop in sandbox. Returns `nil` from `hitTest` so SwiftUI buttons underneath remain clickable.
-- **File items**: `PDFFileItem.from(url:)` / `.from(urls:)` is the single factory for creating items from URLs (filters PDFs, creates bookmarks, reads page count).
-- **Formatting**: `Formatting.fileSize(_:)` is the shared byte-formatting utility used throughout the app.
+- **File items**: `PDFFileItem.from(url:)` / `.from(urls:)` is the single factory for creating items from URLs (filters PDFs, reads page count). Struct is `Sendable`.
+- **Formatting**: `Formatting.fileSize(_:)` is the shared byte-formatting utility. `Formatting.triggerShake(_:)` provides the shared invalid-input shake animation.
+- **Thumbnails**: `ThumbnailCache` is `@MainActor @Observable` with a generation counter for SwiftUI refresh. PDF access stays on MainActor; only bitmap rendering is detached.
 
 ## Compression dual-engine
 

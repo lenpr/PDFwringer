@@ -1,6 +1,6 @@
 # PDFwringer
 
-A lightweight macOS app for compressing, merging, and splitting PDF files. Native SwiftUI with no external dependencies.
+A lightweight macOS app for compressing, merging, splitting, rotating, and editing metadata of PDF files. Native SwiftUI with no external dependencies.
 
 ## Features
 
@@ -35,6 +35,17 @@ A lightweight macOS app for compressing, merging, and splitting PDF files. Nativ
 
 Duplicates are allowed. User order is preserved.
 
+### Rotate Pages
+- Rotate all or specific pages by 90°, 180°, or 270°
+- Page selection via thumbnail strip or page range syntax
+- Real-time progress for large documents
+
+### Edit Metadata
+- View and edit title, author, subject, keywords, and creator
+- Clear all metadata with one click
+- Keywords parsed as comma-separated values
+- 1000-character field limit for safety
+
 ## Requirements
 
 - macOS 26.0+
@@ -68,7 +79,7 @@ make test
 
 Uses Swift Testing (`import Testing`, `@Test`, `#expect`). Tests cover the service/model/utility layers without requiring SwiftUI or a running app. Test PDFs are generated programmatically — no fixture files needed.
 
-Test suites: `PageRangeParserTests`, `PDFCompressorTests`, `PDFConcatenatorTests`, `PDFSplitterTests`.
+Test suites: `PageRangeParserTests`, `PDFCompressorTests`, `PDFConcatenatorTests`, `PDFSplitterTests`, `PDFRotatorTests`, `PDFMetadataEditorTests`, `AppViewModelTests`, `PDFFileItemTests`, `EndToEndTests`.
 
 ## Architecture
 
@@ -77,7 +88,7 @@ The app follows MVVM with a service layer. A top-level `AppState` enum drives na
 ```
 PDFwringer/
 ├── Models/          # Value types: CompressionLevel, JPEGQuality, PDFFileItem
-├── Services/        # Stateless PDF operations: PDFCompressor, PDFConcatenator, PDFSplitter, PageRangeParser
+├── Services/        # Stateless PDF operations: PDFCompressor, PDFConcatenator, PDFSplitter, PDFRotator, PDFMetadataEditor, PageRangeParser
 ├── ViewModels/      # @Observable classes: AppViewModel (navigation), CompressViewModel, ConcatenateViewModel, SplitViewModel
 ├── Views/           # SwiftUI views + DropReceiverView (NSViewRepresentable for reliable sandboxed drag-and-drop)
 ├── Utilities/       # PDFwringerError, FileDialogHelper, Formatting
