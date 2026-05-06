@@ -9,7 +9,7 @@ import UniformTypeIdentifiers
 @MainActor
 struct PDFCompressor {
 
-    private static let sRGBColorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
+    nonisolated private static let sRGBColorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
 
     /// Compresses a PDF from `source` to `destination` using the selected strategy.
     func compress(
