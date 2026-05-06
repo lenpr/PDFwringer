@@ -173,15 +173,18 @@ final class ThumbnailCache {
         guard !pending.contains(index) else { return nil }
         pending.insert(index)
 
-        let cache = self.cache
-        Task.detached(priority: .utility) {
-            guard let page = document.page(at: index) else { return }
-            let img = page.thumbnail(of: size, for: .cropBox)
-            await MainActor.run {
-                cache.setObject(img, forKey: key)
-                self.pending.remove(index)
-                self.generation += 1
+        Task {
+            guard let page = document.page(at: index) else {
+                pending.remove(index)
+                return
             }
+            let thumbSize = size
+            let img = await Task.detached(priority: .utility) {
+                page.thumbnail(of: thumbSize, for: .cropBox)
+            }.value
+            cache.setObject(img, forKey: key)
+            pending.remove(index)
+            generation += 1
         }
 
         return nil
