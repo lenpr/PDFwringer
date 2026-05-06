@@ -93,6 +93,7 @@ class AppViewModel {
             state = .singleFile(url, doc)
             pendingLockedURL = nil
             wrongPasswordAttempt = false
+            showPasswordPrompt = false
         } else {
             passwordText = ""
             wrongPasswordAttempt = true
@@ -103,6 +104,7 @@ class AppViewModel {
     func cancelPassword() {
         pendingLockedURL = nil
         passwordText = ""
+        wrongPasswordAttempt = false
     }
 
     func loadMultipleFiles(_ urls: [URL]) {

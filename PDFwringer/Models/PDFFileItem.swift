@@ -26,11 +26,4 @@ struct PDFFileItem: Identifiable, Sendable {
     static func from(urls: [URL]) -> [PDFFileItem] {
         urls.compactMap { from(url: $0) }
     }
-
-    /// Async factory that loads file items off the main thread.
-    static func loadAsync(urls: [URL]) async -> [PDFFileItem] {
-        await Task.detached(priority: .userInitiated) {
-            urls.compactMap { from(url: $0) }
-        }.value
-    }
 }

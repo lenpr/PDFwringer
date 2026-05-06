@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// Domain-specific errors surfaced to users via `LocalizedError`.
 enum PDFwringerError: LocalizedError {
@@ -10,7 +11,6 @@ enum PDFwringerError: LocalizedError {
     case noSourceFile
     case emptyFileList
     case accessDenied
-    case cancelled
     case fileNotReadable(String)
     case insufficientDiskSpace(needed: Int64, available: Int64)
 
@@ -24,7 +24,6 @@ enum PDFwringerError: LocalizedError {
         case .noSourceFile: "No source file selected."
         case .emptyFileList: "No files to process."
         case .accessDenied: "Cannot access the file. Try selecting it again."
-        case .cancelled: "Operation was cancelled."
         case .fileNotReadable(let name): "Cannot read '\(name)'. The file may have been moved or deleted."
         case .insufficientDiskSpace(let needed, let available):
             "Not enough disk space. Need \(Formatting.fileSize(needed)), only \(Formatting.fileSize(available)) available."
@@ -49,5 +48,19 @@ enum Formatting {
     static func availableDiskSpace(at url: URL) -> Int64? {
         let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
         return values?.volumeAvailableCapacityForImportantUsage
+    }
+
+    /// Triggers a horizontal shake animation sequence on the given offset binding.
+    @MainActor static func triggerShake(_ offset: Binding<CGFloat>) {
+        withAnimation(.default) { offset.wrappedValue = 8 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            withAnimation(.default) { offset.wrappedValue = -6 }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+            withAnimation(.default) { offset.wrappedValue = 4 }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
+            withAnimation(.default) { offset.wrappedValue = 0 }
+        }
     }
 }

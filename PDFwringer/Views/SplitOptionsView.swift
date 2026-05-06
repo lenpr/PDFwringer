@@ -23,6 +23,7 @@ struct SplitOptionsView: View {
                     .padding(20)
 
                 PageThumbnailStripView(document: document, currentPage: $currentPage)
+                    .padding(.horizontal, 20)
             }
             .frame(minWidth: 260, idealWidth: 320)
             .overlay {
@@ -153,24 +154,11 @@ struct SplitOptionsView: View {
             guard isError else { return }
             if vm.resultMessage?.contains("pages") == true || vm.resultMessage?.contains("No pages") == true {
                 if !vm.keepPagesText.isEmpty {
-                    triggerShake($keepShakeOffset)
+                    Formatting.triggerShake($keepShakeOffset)
                 } else if !vm.removePagesText.isEmpty {
-                    triggerShake($removeShakeOffset)
+                    Formatting.triggerShake($removeShakeOffset)
                 }
             }
-        }
-    }
-
-    private func triggerShake(_ offset: Binding<CGFloat>) {
-        withAnimation(.default) { offset.wrappedValue = 8 }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-            withAnimation(.default) { offset.wrappedValue = -6 }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
-            withAnimation(.default) { offset.wrappedValue = 4 }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
-            withAnimation(.default) { offset.wrappedValue = 0 }
         }
     }
 }

@@ -37,6 +37,7 @@ struct RotateOptionsView: View {
                     currentPage: $currentPage,
                     selectedPages: rotateAll ? nil : $selectedPages
                 )
+                .padding(.horizontal, 20)
                 .onChange(of: selectedPages) {
                     syncingFromThumbnails = true
                     pageRangeText = selectedPages.sorted().map { "\($0 + 1)" }.joined(separator: ", ")
@@ -190,7 +191,7 @@ struct RotateOptionsView: View {
                     resultMessage = "No pages specified."
                     isError = true
                     isProcessing = false
-                    triggerShake()
+                    Formatting.triggerShake($shakeOffset)
                     return
                 }
             }
@@ -213,25 +214,12 @@ struct RotateOptionsView: View {
         } catch let error as PDFwringerError {
             resultMessage = error.localizedDescription
             isError = true
-            if case .invalidPageRange = error { triggerShake() }
+            if case .invalidPageRange = error { Formatting.triggerShake($shakeOffset) }
         } catch {
             resultMessage = error.localizedDescription
             isError = true
         }
 
         isProcessing = false
-    }
-
-    private func triggerShake() {
-        withAnimation(.default) { shakeOffset = 8 }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-            withAnimation(.default) { shakeOffset = -6 }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
-            withAnimation(.default) { shakeOffset = 4 }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
-            withAnimation(.default) { shakeOffset = 0 }
-        }
     }
 }
