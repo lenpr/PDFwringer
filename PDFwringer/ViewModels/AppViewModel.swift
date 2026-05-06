@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import PDFKit
 
@@ -54,6 +55,33 @@ class AppViewModel {
         }
     }
 
+    var canSelectSingleFileAction: Bool {
+        if case .singleFile = state { return true }
+        return false
+    }
+
+    var canSelectMerge: Bool {
+        if case .multiFile = state { return true }
+        return false
+    }
+
+    var canGoBack: Bool {
+        switch state {
+        case .compressing, .splitting, .rotating, .editingMetadata, .merging:
+            return true
+        default:
+            return false
+        }
+    }
+
+    var recentDocuments: [URL] {
+        NSDocumentController.shared.recentDocumentURLs
+    }
+
+    func clearRecentDocuments() {
+        NSDocumentController.shared.clearRecentDocuments(nil)
+    }
+
     func handleDrop(_ urls: [URL]) {
         let pdfURLs = urls.filter { $0.pathExtension.lowercased() == "pdf" }
         guard !pdfURLs.isEmpty else { return }
@@ -75,6 +103,7 @@ class AppViewModel {
         }
         currentPage = 0
         currentFileSize = (try? FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false))[.size] as? Int64) ?? 0
+        NSDocumentController.shared.noteNewRecentDocumentURL(url)
         state = .singleFile(url, doc)
     }
 
@@ -110,6 +139,9 @@ class AppViewModel {
     func loadMultipleFiles(_ urls: [URL]) {
         let items = PDFFileItem.from(urls: urls)
         guard !items.isEmpty else { return }
+        for item in items {
+            NSDocumentController.shared.noteNewRecentDocumentURL(item.url)
+        }
         state = .multiFile(items)
     }
 

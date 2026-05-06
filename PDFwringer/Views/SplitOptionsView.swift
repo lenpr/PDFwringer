@@ -43,6 +43,9 @@ struct SplitOptionsView: View {
                     .keyboardShortcut(.escape, modifiers: [])
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
+                    .contentShape(Rectangle())
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 2)
 
                     Spacer()
 
