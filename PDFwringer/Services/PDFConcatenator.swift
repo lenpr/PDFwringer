@@ -7,12 +7,19 @@ import PDFKit
 @MainActor
 struct PDFConcatenator {
 
+    struct Result {
+        var outputPageCount: Int
+        var skippedFiles: [String]
+    }
+
     /// Concatenates PDFs from `sources` (in order) into a single file at `destination`.
+    /// Returns a result indicating any files that could not be opened.
+    @discardableResult
     func concatenate(
         sources: [URL],
         destination: URL,
         progress: (Double) -> Void
-    ) async throws {
+    ) async throws -> Result {
         guard !sources.isEmpty else { throw PDFwringerError.emptyFileList }
 
         // Validate all source files are readable before starting
@@ -25,8 +32,12 @@ struct PDFConcatenator {
         // Single pass: count total pages and check for locked docs, then build output
         var totalPages = 0
         var sourceDocs: [(PDFDocument, Int)] = []
+        var skippedFiles: [String] = []
         for url in sources {
-            guard let doc = PDFDocument(url: url) else { continue }
+            guard let doc = PDFDocument(url: url) else {
+                skippedFiles.append(url.lastPathComponent)
+                continue
+            }
             if doc.isLocked { throw PDFwringerError.documentIsLocked }
             totalPages += doc.pageCount
             sourceDocs.append((doc, doc.pageCount))
@@ -66,5 +77,7 @@ struct PDFConcatenator {
             try? FileManager.default.removeItem(at: tempURL)
             throw error
         }
+
+        return Result(outputPageCount: insertIndex, skippedFiles: skippedFiles)
     }
 }
