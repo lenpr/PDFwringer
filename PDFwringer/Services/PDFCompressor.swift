@@ -45,7 +45,6 @@ struct PDFCompressor {
     /// Returns nil if the source cannot be read.
     nonisolated func compressFirstPage(source: URL, level: CompressionLevel, quality: JPEGQuality, grayscale: Bool) -> Int64? {
         guard level.isRasterize else {
-            // Lossless: roughly same size
             guard let attrs = try? FileManager.default.attributesOfItem(atPath: source.path(percentEncoded: false)),
                   let size = attrs[.size] as? Int64 else { return nil }
             return Int64(Double(size) * 0.95)
@@ -55,51 +54,12 @@ struct PDFCompressor {
               doc.numberOfPages > 0,
               let page = doc.page(at: 1) else { return nil }
 
-        let cropBox = page.getBoxRect(.cropBox)
-        let rotation = page.rotationAngle
-        let displaySize = Self.displaySize(for: cropBox.size, rotation: rotation)
-
-        let scale = level.dpi / 72.0
-        let pixelW = max(1, Int(displaySize.width * scale))
-        let pixelH = max(1, Int(displaySize.height * scale))
-
-        let colorSpace: CGColorSpace
-        let bitmapInfo: UInt32
-        if grayscale {
-            colorSpace = CGColorSpaceCreateDeviceGray()
-            bitmapInfo = CGImageAlphaInfo.none.rawValue
-        } else {
-            colorSpace = Self.sRGBColorSpace
-            bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
-        }
-
-        guard let bitmap = CGContext(
-            data: nil, width: pixelW, height: pixelH,
-            bitsPerComponent: 8, bytesPerRow: 0,
-            space: colorSpace, bitmapInfo: bitmapInfo
-        ) else { return nil }
-
-        if grayscale {
-            bitmap.setFillColor(gray: 1.0, alpha: 1.0)
-        } else {
-            bitmap.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
-        }
-        bitmap.fill(CGRect(x: 0, y: 0, width: pixelW, height: pixelH))
-
-        bitmap.scaleBy(x: scale, y: scale)
-        let drawRect = CGRect(origin: .zero, size: displaySize)
-        let transform = page.getDrawingTransform(.cropBox, rect: drawRect, rotate: 0, preserveAspectRatio: true)
-        bitmap.concatenate(transform)
-        bitmap.drawPDFPage(page)
-
-        guard let rendered = bitmap.makeImage(),
+        guard let (rendered, _) = Self.renderPage(page, dpi: level.dpi, grayscale: grayscale),
               let jpegData = Self.jpegEncode(image: rendered, quality: quality.value)
         else { return nil }
 
-        // Extrapolate from first page to all pages
         let pageSize = Int64(jpegData.count)
         let pageCount = Int64(doc.numberOfPages)
-        // Add ~200 bytes overhead per page for PDF structure
         return (pageSize + 200) * pageCount + 1000
     }
 
@@ -204,51 +164,7 @@ struct PDFCompressor {
 
                 autoreleasepool {
                     guard let page = doc.page(at: i) else { return }
-
-                    let cropBox = page.getBoxRect(.cropBox)
-                    let rotation = page.rotationAngle
-                    let displaySize = Self.displaySize(for: cropBox.size, rotation: rotation)
-
-                    let scale = dpi / 72.0
-                    let pixelW = max(1, Int(displaySize.width * scale))
-                    let pixelH = max(1, Int(displaySize.height * scale))
-
-                    let colorSpace: CGColorSpace
-                    let bitmapInfo: UInt32
-                    if grayscale {
-                        colorSpace = CGColorSpaceCreateDeviceGray()
-                        bitmapInfo = CGImageAlphaInfo.none.rawValue
-                    } else {
-                        colorSpace = Self.sRGBColorSpace
-                        bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
-                    }
-
-                    guard let bitmap = CGContext(
-                        data: nil,
-                        width: pixelW,
-                        height: pixelH,
-                        bitsPerComponent: 8,
-                        bytesPerRow: 0,
-                        space: colorSpace,
-                        bitmapInfo: bitmapInfo
-                    ) else { return }
-
-                    if grayscale {
-                        bitmap.setFillColor(gray: 1.0, alpha: 1.0)
-                    } else {
-                        bitmap.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
-                    }
-                    bitmap.fill(CGRect(x: 0, y: 0, width: pixelW, height: pixelH))
-
-                    bitmap.scaleBy(x: scale, y: scale)
-
-                    let drawRect = CGRect(origin: .zero, size: displaySize)
-                    let transform = page.getDrawingTransform(.cropBox, rect: drawRect, rotate: 0, preserveAspectRatio: true)
-                    bitmap.concatenate(transform)
-
-                    bitmap.drawPDFPage(page)
-
-                    guard let rendered = bitmap.makeImage() else { return }
+                    guard let (rendered, displaySize) = Self.renderPage(page, dpi: dpi, grayscale: grayscale) else { return }
                     guard let jpegData = Self.jpegEncode(image: rendered, quality: quality) else { return }
 
                     guard let provider = CGDataProvider(data: jpegData as CFData),
@@ -296,6 +212,49 @@ struct PDFCompressor {
             return CGSize(width: size.height, height: size.width)
         }
         return size
+    }
+
+    /// Renders a PDF page to a CGImage at the given DPI, optionally in grayscale.
+    nonisolated static func renderPage(_ page: CGPDFPage, dpi: CGFloat, grayscale: Bool) -> (image: CGImage, displaySize: CGSize)? {
+        let cropBox = page.getBoxRect(.cropBox)
+        let rotation = page.rotationAngle
+        let displaySize = Self.displaySize(for: cropBox.size, rotation: rotation)
+
+        let scale = dpi / 72.0
+        let pixelW = max(1, Int(displaySize.width * scale))
+        let pixelH = max(1, Int(displaySize.height * scale))
+
+        let colorSpace: CGColorSpace
+        let bitmapInfo: UInt32
+        if grayscale {
+            colorSpace = CGColorSpaceCreateDeviceGray()
+            bitmapInfo = CGImageAlphaInfo.none.rawValue
+        } else {
+            colorSpace = sRGBColorSpace
+            bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+        }
+
+        guard let bitmap = CGContext(
+            data: nil, width: pixelW, height: pixelH,
+            bitsPerComponent: 8, bytesPerRow: 0,
+            space: colorSpace, bitmapInfo: bitmapInfo
+        ) else { return nil }
+
+        if grayscale {
+            bitmap.setFillColor(gray: 1.0, alpha: 1.0)
+        } else {
+            bitmap.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
+        }
+        bitmap.fill(CGRect(x: 0, y: 0, width: pixelW, height: pixelH))
+
+        bitmap.scaleBy(x: scale, y: scale)
+        let drawRect = CGRect(origin: .zero, size: displaySize)
+        let transform = page.getDrawingTransform(.cropBox, rect: drawRect, rotate: 0, preserveAspectRatio: true)
+        bitmap.concatenate(transform)
+        bitmap.drawPDFPage(page)
+
+        guard let rendered = bitmap.makeImage() else { return nil }
+        return (rendered, displaySize)
     }
 
     nonisolated static func jpegEncode(image: CGImage, quality: CGFloat) -> Data? {
