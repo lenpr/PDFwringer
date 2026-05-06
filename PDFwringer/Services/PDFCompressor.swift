@@ -109,13 +109,9 @@ struct PDFCompressor {
             }
         }
 
-        let tempURL = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
-        do {
+        try AtomicFileWriter.write(to: destination) { tempURL in
             try data.write(to: tempURL)
-            _ = try FileManager.default.replaceItemAt(destination, withItemAt: tempURL)
-        } catch {
-            try? FileManager.default.removeItem(at: tempURL)
-            throw error
+            return true
         }
 
         progress(1.0)

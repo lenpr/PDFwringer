@@ -63,3 +63,22 @@ enum Formatting {
         }
     }
 }
+
+/// Writes content to a temporary file then atomically replaces the destination.
+/// Cleans up the temp file on failure.
+enum AtomicFileWriter {
+    static func write(to destination: URL, using block: (URL) throws -> Bool) throws {
+        let tempURL = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
+        let success = try block(tempURL)
+        guard success else {
+            try? FileManager.default.removeItem(at: tempURL)
+            throw PDFwringerError.cannotWriteOutput
+        }
+        do {
+            _ = try FileManager.default.replaceItemAt(destination, withItemAt: tempURL)
+        } catch {
+            try? FileManager.default.removeItem(at: tempURL)
+            throw error
+        }
+    }
+}

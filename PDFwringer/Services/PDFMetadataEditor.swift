@@ -61,30 +61,18 @@ struct PDFMetadataEditor {
 
         doc.documentAttributes = attrs
 
-        let tempURL = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
-
         var writeOptions: [PDFDocumentWriteOption: Any] = [:]
         if let pw = password, !pw.isEmpty {
             writeOptions[.ownerPasswordOption] = pw
             writeOptions[.userPasswordOption] = pw
         }
 
-        let success: Bool
-        if writeOptions.isEmpty {
-            success = doc.write(to: tempURL)
-        } else {
-            success = doc.write(to: tempURL, withOptions: writeOptions)
-        }
-
-        guard success else {
-            throw PDFwringerError.cannotWriteOutput
-        }
-
-        do {
-            _ = try FileManager.default.replaceItemAt(destination, withItemAt: tempURL)
-        } catch {
-            try? FileManager.default.removeItem(at: tempURL)
-            throw error
+        try AtomicFileWriter.write(to: destination) { tempURL in
+            if writeOptions.isEmpty {
+                doc.write(to: tempURL)
+            } else {
+                doc.write(to: tempURL, withOptions: writeOptions)
+            }
         }
     }
 }

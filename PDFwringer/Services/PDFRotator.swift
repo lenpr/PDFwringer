@@ -57,16 +57,8 @@ struct PDFRotator {
             progress(Double(i + 1) / Double(indicesToRotate.count))
         }
 
-        let tempURL = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
-        guard doc.write(to: tempURL) else {
-            throw PDFwringerError.cannotWriteOutput
-        }
-
-        do {
-            _ = try FileManager.default.replaceItemAt(destination, withItemAt: tempURL)
-        } catch {
-            try? FileManager.default.removeItem(at: tempURL)
-            throw error
+        try AtomicFileWriter.write(to: destination) { tempURL in
+            doc.write(to: tempURL)
         }
     }
 }

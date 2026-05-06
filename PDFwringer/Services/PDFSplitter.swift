@@ -156,16 +156,8 @@ struct PDFSplitter {
             }
         }
 
-        let tempURL = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
-        guard outputDoc.write(to: tempURL) else {
-            throw PDFwringerError.cannotWriteOutput
-        }
-
-        do {
-            _ = try FileManager.default.replaceItemAt(destination, withItemAt: tempURL)
-        } catch {
-            try? FileManager.default.removeItem(at: tempURL)
-            throw error
+        try AtomicFileWriter.write(to: destination) { tempURL in
+            outputDoc.write(to: tempURL)
         }
     }
 }

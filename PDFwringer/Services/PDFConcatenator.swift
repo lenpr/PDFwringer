@@ -66,16 +66,8 @@ struct PDFConcatenator {
             }
         }
 
-        let tempURL = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
-        guard output.write(to: tempURL) else {
-            throw PDFwringerError.cannotWriteOutput
-        }
-
-        do {
-            _ = try FileManager.default.replaceItemAt(destination, withItemAt: tempURL)
-        } catch {
-            try? FileManager.default.removeItem(at: tempURL)
-            throw error
+        try AtomicFileWriter.write(to: destination) { tempURL in
+            output.write(to: tempURL)
         }
 
         return Result(outputPageCount: insertIndex, skippedFiles: skippedFiles)
