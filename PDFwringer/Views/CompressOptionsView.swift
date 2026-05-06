@@ -21,6 +21,7 @@ struct CompressOptionsView: View {
                     .padding(20)
 
                 PageThumbnailStripView(document: document, currentPage: $currentPage)
+                    .padding(.horizontal, 20)
             }
             .frame(minWidth: 260, idealWidth: 320)
             .overlay {

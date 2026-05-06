@@ -227,4 +227,90 @@ struct PDFSplitterTests {
             #expect(progressValues[i] >= progressValues[i - 1])
         }
     }
+
+    // MARK: - Edge cases
+
+    @Test("Keep pages with out-of-bounds indices silently skips them")
+    func keepPagesOutOfBounds() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 3, filename: "three.pdf")
+        let output = TestPDFGenerator.makeTempDirectory().appending(component: "out.pdf")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(output)
+        }
+
+        let splitter = PDFSplitter()
+        let outputs = try await splitter.split(
+            source: source,
+            mode: .keepPages([0, 5, 10, -1]),
+            destination: output,
+            progress: { _ in }
+        )
+
+        #expect(outputs.count == 1)
+        #expect(PDFDocument(url: outputs[0])?.pageCount == 1)
+    }
+
+    @Test("Keep pages with duplicate indices includes page multiple times")
+    func keepPagesDuplicates() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 3, filename: "three.pdf")
+        let output = TestPDFGenerator.makeTempDirectory().appending(component: "out.pdf")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(output)
+        }
+
+        let splitter = PDFSplitter()
+        let outputs = try await splitter.split(
+            source: source,
+            mode: .keepPages([0, 0, 1, 1]),
+            destination: output,
+            progress: { _ in }
+        )
+
+        #expect(outputs.count == 1)
+        #expect(PDFDocument(url: outputs[0])?.pageCount == 4)
+    }
+
+    @Test("Remove pages with out-of-bounds indices are ignored")
+    func removePagesOutOfBounds() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 4, filename: "four.pdf")
+        let output = TestPDFGenerator.makeTempDirectory().appending(component: "out.pdf")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(output)
+        }
+
+        let splitter = PDFSplitter()
+        let outputs = try await splitter.split(
+            source: source,
+            mode: .removePages([1, 99]),
+            destination: output,
+            progress: { _ in }
+        )
+
+        #expect(outputs.count == 1)
+        #expect(PDFDocument(url: outputs[0])?.pageCount == 3)
+    }
+
+    @Test("Split single-page PDF every 1 produces one file")
+    func splitSinglePage() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "one.pdf")
+        let outputDir = TestPDFGenerator.makeTempDirectory()
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(outputDir)
+        }
+
+        let splitter = PDFSplitter()
+        let outputs = try await splitter.split(
+            source: source,
+            mode: .splitEveryN(1),
+            destination: outputDir,
+            progress: { _ in }
+        )
+
+        #expect(outputs.count == 1)
+        #expect(PDFDocument(url: outputs[0])?.pageCount == 1)
+    }
 }

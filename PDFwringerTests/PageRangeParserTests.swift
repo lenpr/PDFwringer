@@ -103,4 +103,49 @@ struct PageRangeParserTests {
         let result = try PageRangeParser.parse("", pageCount: 10)
         #expect(result.isEmpty)
     }
+
+    @Test("Both bounds of range out of bounds throws")
+    func bothBoundsOutOfRange() throws {
+        #expect(throws: PDFwringerError.self) {
+            try PageRangeParser.parse("15-20", pageCount: 10)
+        }
+    }
+
+    @Test("Single page document works with page 1")
+    func singlePageDoc() throws {
+        let result = try PageRangeParser.parse("1", pageCount: 1)
+        #expect(result == [0])
+    }
+
+    @Test("Single page document rejects page 2")
+    func singlePageDocRejectsTwo() throws {
+        #expect(throws: PDFwringerError.self) {
+            try PageRangeParser.parse("2", pageCount: 1)
+        }
+    }
+
+    @Test("Comma-only input returns empty")
+    func commaOnly() throws {
+        let result = try PageRangeParser.parse(",,,", pageCount: 10)
+        #expect(result.isEmpty)
+    }
+
+    @Test("Spaces around dash in range throws (not a valid integer)")
+    func spacesAroundDash() throws {
+        #expect(throws: PDFwringerError.self) {
+            try PageRangeParser.parse("2 - 4", pageCount: 10)
+        }
+    }
+
+    @Test("Open-start range covering all pages")
+    func openStartAllPages() throws {
+        let result = try PageRangeParser.parse("-5", pageCount: 5)
+        #expect(result == [0, 1, 2, 3, 4])
+    }
+
+    @Test("Zero pageCount returns empty regardless of input")
+    func zeroPageCount() throws {
+        let result = try PageRangeParser.parse("1-5", pageCount: 0)
+        #expect(result.isEmpty)
+    }
 }

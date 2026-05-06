@@ -257,4 +257,116 @@ struct AppViewModelTests {
         vm.loadMultipleFiles([url, url2])
         #expect(vm.windowTitle == "2 files")
     }
+
+    // MARK: - Rotate and Metadata transitions
+
+    @Test("selectRotate from singleFile goes to rotating")
+    func selectRotate() {
+        let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "r.pdf")
+        defer { TestPDFGenerator.cleanup(url) }
+
+        let vm = AppViewModel()
+        vm.loadSingleFile(url)
+        vm.selectRotate()
+
+        if case .rotating(let u, _) = vm.state {
+            #expect(u == url)
+        } else {
+            Issue.record("Expected rotating state")
+        }
+    }
+
+    @Test("selectMetadata from singleFile goes to editingMetadata")
+    func selectMetadata() {
+        let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "m.pdf")
+        defer { TestPDFGenerator.cleanup(url) }
+
+        let vm = AppViewModel()
+        vm.loadSingleFile(url)
+        vm.selectMetadata()
+
+        if case .editingMetadata(let u, _) = vm.state {
+            #expect(u == url)
+        } else {
+            Issue.record("Expected editingMetadata state")
+        }
+    }
+
+    @Test("goBack from splitting returns to singleFile")
+    func goBackFromSplit() {
+        let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "gs.pdf")
+        defer { TestPDFGenerator.cleanup(url) }
+
+        let vm = AppViewModel()
+        vm.loadSingleFile(url)
+        vm.selectSplit()
+        vm.goBack()
+
+        if case .singleFile(let u, _) = vm.state {
+            #expect(u == url)
+        } else {
+            Issue.record("Expected singleFile state")
+        }
+    }
+
+    @Test("goBack from rotating returns to singleFile")
+    func goBackFromRotate() {
+        let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "gr.pdf")
+        defer { TestPDFGenerator.cleanup(url) }
+
+        let vm = AppViewModel()
+        vm.loadSingleFile(url)
+        vm.selectRotate()
+        vm.goBack()
+
+        if case .singleFile(let u, _) = vm.state {
+            #expect(u == url)
+        } else {
+            Issue.record("Expected singleFile state")
+        }
+    }
+
+    @Test("goBack from editingMetadata returns to singleFile")
+    func goBackFromMetadata() {
+        let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "gm.pdf")
+        defer { TestPDFGenerator.cleanup(url) }
+
+        let vm = AppViewModel()
+        vm.loadSingleFile(url)
+        vm.selectMetadata()
+        vm.goBack()
+
+        if case .singleFile(let u, _) = vm.state {
+            #expect(u == url)
+        } else {
+            Issue.record("Expected singleFile state")
+        }
+    }
+
+    // MARK: - File size caching
+
+    @Test("loadSingleFile populates currentFileSize")
+    func fileSizePopulated() {
+        let url = TestPDFGenerator.makeRenderedPDF(pageCount: 3, filename: "sized.pdf")
+        defer { TestPDFGenerator.cleanup(url) }
+
+        let vm = AppViewModel()
+        vm.loadSingleFile(url)
+        #expect(vm.currentFileSize > 0)
+    }
+
+    // MARK: - Password state
+
+    @Test("cancelPassword resets all password state")
+    func cancelPasswordResetsState() {
+        let vm = AppViewModel()
+        vm.showPasswordPrompt = true
+        vm.passwordText = "secret"
+        vm.wrongPasswordAttempt = true
+
+        vm.cancelPassword()
+
+        #expect(vm.passwordText == "")
+        #expect(vm.wrongPasswordAttempt == false)
+    }
 }
