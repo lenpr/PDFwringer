@@ -25,7 +25,7 @@
 | **Merge** | Drag-and-drop reordering, alphabetical sort, add/remove files. |
 | **Split / Extract** | Split every N pages, keep specific pages, or remove pages using flexible range syntax. |
 | **Rotate** | Rotate all or selected pages by 90/180/270 degrees with live preview. |
-| **Metadata** | Edit title, author, subject, keywords, creator. Set or remove PDF passwords. |
+| **Metadata** | Edit title, author, subject, keywords, creator. Encrypt with password or remove existing protection. |
 
 ### Page range syntax
 
