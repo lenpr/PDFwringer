@@ -6,10 +6,10 @@ struct CompressOptionsView: View {
     let document: PDFDocument
     let onBack: () -> Void
     let onFilesDropped: ([URL]) -> Void
+    @Binding var currentPage: Int
 
     @State private var vm = CompressViewModel()
     @State private var isDropTargeted = false
-    @State private var currentPage: Int = 0
 
     var body: some View {
         HStack(spacing: 0) {

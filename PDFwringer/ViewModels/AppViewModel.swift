@@ -33,6 +33,7 @@ enum AppState: Equatable {
 @MainActor @Observable
 class AppViewModel {
     var state: AppState = .landing
+    var currentPage: Int = 0
 
     // Password prompt state
     var showPasswordPrompt = false
@@ -70,6 +71,7 @@ class AppViewModel {
             showPasswordPrompt = true
             return
         }
+        currentPage = 0
         state = .singleFile(url, doc)
     }
 

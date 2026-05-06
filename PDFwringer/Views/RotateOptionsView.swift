@@ -6,6 +6,7 @@ struct RotateOptionsView: View {
     let document: PDFDocument
     let onBack: () -> Void
     let onFilesDropped: ([URL]) -> Void
+    @Binding var currentPage: Int
 
     @State private var selectedAngle: PDFRotator.Angle = .ninety
     @State private var pageRangeText: String = ""
@@ -17,7 +18,6 @@ struct RotateOptionsView: View {
     @State private var isError = false
     @State private var isDropTargeted = false
     @State private var lastOutputURL: URL?
-    @State private var currentPage: Int = 0
     @State private var syncingFromThumbnails = false
     @State private var shakeOffset: CGFloat = 0
 

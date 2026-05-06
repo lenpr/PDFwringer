@@ -48,7 +48,8 @@ struct ContentView: View {
                         withAnimation(.spring(duration: 0.35)) {
                             appVM.handleDrop(urls)
                         }
-                    }
+                    },
+                    currentPage: $appVM.currentPage
                 )
                 .transition(.move(edge: .trailing).combined(with: .opacity))
 
@@ -84,7 +85,8 @@ struct ContentView: View {
                         withAnimation(.spring(duration: 0.35)) {
                             appVM.handleDrop(urls)
                         }
-                    }
+                    },
+                    currentPage: $appVM.currentPage
                 )
                 .transition(.move(edge: .trailing).combined(with: .opacity))
 
@@ -101,7 +103,8 @@ struct ContentView: View {
                         withAnimation(.spring(duration: 0.35)) {
                             appVM.handleDrop(urls)
                         }
-                    }
+                    },
+                    currentPage: $appVM.currentPage
                 )
                 .transition(.move(edge: .trailing).combined(with: .opacity))
 
@@ -132,7 +135,8 @@ struct ContentView: View {
                         withAnimation(.spring(duration: 0.35)) {
                             appVM.handleDrop(urls)
                         }
-                    }
+                    },
+                    currentPage: $appVM.currentPage
                 )
                 .transition(.move(edge: .trailing).combined(with: .opacity))
 
@@ -149,7 +153,8 @@ struct ContentView: View {
                         withAnimation(.spring(duration: 0.35)) {
                             appVM.handleDrop(urls)
                         }
-                    }
+                    },
+                    currentPage: $appVM.currentPage
                 )
                 .transition(.move(edge: .trailing).combined(with: .opacity))
             }

@@ -6,6 +6,7 @@ struct MetadataView: View {
     let document: PDFDocument
     let onBack: () -> Void
     let onFilesDropped: ([URL]) -> Void
+    @Binding var currentPage: Int
 
     @State private var metadata: PDFMetadataEditor.Metadata = .empty
     @State private var isProcessing = false
@@ -13,7 +14,6 @@ struct MetadataView: View {
     @State private var isError = false
     @State private var isDropTargeted = false
     @State private var lastOutputURL: URL?
-    @State private var currentPage: Int = 0
 
     private let editor = PDFMetadataEditor()
 

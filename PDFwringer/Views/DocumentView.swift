@@ -10,18 +10,21 @@ struct DocumentView: View {
     let onMetadata: () -> Void
     let onStartOver: () -> Void
     let onFilesDropped: ([URL]) -> Void
+    @Binding var currentPage: Int
 
     @State private var isDropTargeted = false
-    @State private var currentPage: Int = 0
+    @State private var pageCountScale: CGFloat = 1.0
 
     var body: some View {
         HStack(spacing: 0) {
-            // Left: PDF preview
+            // Left: PDF preview + thumbnails
             VStack(spacing: 0) {
                 PDFPreviewView(document: document, currentPage: $currentPage)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .shadow(color: Color(nsColor: .shadowColor).opacity(0.15), radius: 8, y: 2)
                     .padding(20)
+
+                PageThumbnailStripView(document: document, currentPage: $currentPage)
             }
             .frame(minWidth: 280, idealWidth: 350)
             .overlay {
@@ -42,6 +45,15 @@ struct DocumentView: View {
                             Text("\(document.pageCount) pages \u{2022} \(formattedFileSize)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                                .scaleEffect(pageCountScale)
+                                .onAppear {
+                                    withAnimation(.spring(duration: 0.3, bounce: 0.5).delay(0.15)) {
+                                        pageCountScale = 1.15
+                                    }
+                                    withAnimation(.spring(duration: 0.3, bounce: 0.3).delay(0.4)) {
+                                        pageCountScale = 1.0
+                                    }
+                                }
                         }
                         Spacer()
                         Button(action: onStartOver) {
@@ -91,6 +103,19 @@ struct DocumentView: View {
             }
             .frame(minWidth: 280, idealWidth: 320)
         }
+        .background {
+            Group {
+                Button("") { onCompress() }
+                    .keyboardShortcut("1")
+                Button("") { onSplit() }
+                    .keyboardShortcut("2")
+                Button("") { onRotate() }
+                    .keyboardShortcut("3")
+                Button("") { onMetadata() }
+                    .keyboardShortcut("4")
+            }
+            .hidden()
+        }
     }
 
     private var formattedFileSize: String {
@@ -133,7 +158,16 @@ struct PDFPreviewView: NSViewRepresentable {
 
         if let page = document.page(at: currentPage),
            pdfView.currentPage != page {
-            pdfView.go(to: page)
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.15
+                pdfView.animator().alphaValue = 0.4
+            } completionHandler: {
+                pdfView.go(to: page)
+                NSAnimationContext.runAnimationGroup { ctx in
+                    ctx.duration = 0.15
+                    pdfView.animator().alphaValue = 1.0
+                }
+            }
         }
     }
 

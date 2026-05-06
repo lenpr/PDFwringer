@@ -6,10 +6,10 @@ struct SplitOptionsView: View {
     let document: PDFDocument
     let onBack: () -> Void
     let onFilesDropped: ([URL]) -> Void
+    @Binding var currentPage: Int
 
     @State private var vm = SplitViewModel()
     @State private var isDropTargeted = false
-    @State private var currentPage: Int = 0
     @State private var keepShakeOffset: CGFloat = 0
     @State private var removeShakeOffset: CGFloat = 0
 
