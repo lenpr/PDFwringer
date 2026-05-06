@@ -155,6 +155,17 @@ struct CompressOptionsView: View {
 
                 Spacer()
 
+                if let warning = vm.largeFileWarning {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                            .font(.caption)
+                        Text(warning)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
                 if vm.isProcessing {
                     ProgressView(value: vm.progress)
                         .progressViewStyle(.linear)

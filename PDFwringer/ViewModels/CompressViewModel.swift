@@ -32,6 +32,13 @@ class CompressViewModel {
         sourceURL != nil && !isProcessing
     }
 
+    private static let largeFileThreshold: Int64 = 500_000_000 // 500 MB
+
+    var largeFileWarning: String? {
+        guard sourceFileSize > Self.largeFileThreshold, selectedLevel.isRasterize else { return nil }
+        return "Large file (\(Formatting.fileSize(sourceFileSize))). Rasterization may use significant memory and take a while."
+    }
+
     var currentEstimateKey: String {
         "\(selectedLevel.rawValue)-\(selectedQuality.rawValue)-\(grayscale)"
     }
