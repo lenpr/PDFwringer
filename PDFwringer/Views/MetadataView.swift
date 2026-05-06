@@ -95,6 +95,10 @@ struct MetadataView: View {
                     Toggle("Remove protection on save", isOn: $removeProtection)
                         .toggleStyle(.checkbox)
                         .font(.callout)
+                    if !removeProtection {
+                        SecureField("Re-enter password to keep protection", text: $passwordText)
+                            .textFieldStyle(.roundedBorder)
+                    }
                 } else {
                     Toggle("Set password", isOn: $setPassword)
                         .toggleStyle(.checkbox)
@@ -166,7 +170,9 @@ struct MetadataView: View {
         resultMessage = nil
         isError = false
 
-        let password: String? = if setPassword && !passwordText.isEmpty {
+        let password: String? = if document.isEncrypted && !removeProtection && !passwordText.isEmpty {
+            passwordText
+        } else if setPassword && !passwordText.isEmpty {
             passwordText
         } else {
             nil
