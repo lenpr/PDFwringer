@@ -11,16 +11,16 @@ struct DropReceiverView: NSViewRepresentable {
     func makeNSView(context: Context) -> DropNSView {
         let view = DropNSView()
         view.onDrop = onDrop
-        view.onTargetChanged = { targeted in
-            DispatchQueue.main.async { isTargeted = targeted }
+        view.onTargetChanged = { [self] targeted in
+            MainActor.assumeIsolated { isTargeted = targeted }
         }
         return view
     }
 
     func updateNSView(_ nsView: DropNSView, context: Context) {
         nsView.onDrop = onDrop
-        nsView.onTargetChanged = { targeted in
-            DispatchQueue.main.async { isTargeted = targeted }
+        nsView.onTargetChanged = { [self] targeted in
+            MainActor.assumeIsolated { isTargeted = targeted }
         }
     }
 }

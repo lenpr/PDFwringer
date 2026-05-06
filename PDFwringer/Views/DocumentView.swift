@@ -183,7 +183,7 @@ struct PDFPreviewView: NSViewRepresentable {
             guard let pdfView = notification.object as? PDFView,
                   let page = pdfView.currentPage,
                   let index = pdfView.document?.index(for: page) else { return }
-            DispatchQueue.main.async {
+            MainActor.assumeIsolated {
                 if self.parent.currentPage != index {
                     self.parent.currentPage = index
                 }

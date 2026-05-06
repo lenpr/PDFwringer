@@ -183,9 +183,8 @@ final class ThumbnailCache {
                 return
             }
             let thumbSize = size
-            let img = await Task.detached(priority: .utility) {
-                page.thumbnail(of: thumbSize, for: .cropBox)
-            }.value
+            await Task.yield()
+            let img = page.thumbnail(of: thumbSize, for: .cropBox)
             cache.setObject(img, forKey: key)
             pending.remove(index)
             generation += 1

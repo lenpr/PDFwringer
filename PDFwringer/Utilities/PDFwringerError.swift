@@ -52,14 +52,13 @@ enum Formatting {
 
     /// Triggers a horizontal shake animation sequence on the given offset binding.
     @MainActor static func triggerShake(_ offset: Binding<CGFloat>) {
-        withAnimation(.default) { offset.wrappedValue = 8 }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+        Task { @MainActor in
+            withAnimation(.default) { offset.wrappedValue = 8 }
+            try? await Task.sleep(for: .milliseconds(80))
             withAnimation(.default) { offset.wrappedValue = -6 }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+            try? await Task.sleep(for: .milliseconds(80))
             withAnimation(.default) { offset.wrappedValue = 4 }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
+            try? await Task.sleep(for: .milliseconds(80))
             withAnimation(.default) { offset.wrappedValue = 0 }
         }
     }
