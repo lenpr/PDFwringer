@@ -34,11 +34,15 @@ enum PDFwringerError: LocalizedError {
 
 /// Shared formatting utilities for the app.
 enum Formatting {
+    private static let fileSizeFormatter: ByteCountFormatter = {
+        let f = ByteCountFormatter()
+        f.countStyle = .file
+        return f
+    }()
+
     /// Formats a byte count as a human-readable file size string (e.g. "1.2 MB").
     static func fileSize(_ bytes: Int64) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: bytes)
+        fileSizeFormatter.string(fromByteCount: bytes)
     }
 
     /// Returns available disk space at the given URL's volume, or nil if unavailable.
