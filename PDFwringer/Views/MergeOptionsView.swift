@@ -12,40 +12,60 @@ struct MergeOptionsView: View {
         HStack(spacing: 0) {
             // Left: File list with reordering
             VStack(spacing: 0) {
-                List {
-                    ForEach(Array(files.enumerated()), id: \.element.id) { index, file in
-                        HStack(spacing: 8) {
-                            Image(systemName: "doc.fill")
-                                .foregroundColor(.accentColor)
-                                .font(.body)
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(file.filename)
-                                    .font(.callout)
-                                    .lineLimit(1)
-                                Text("\(file.pageCount) pages")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-
-                            Button {
-                                files.remove(at: index)
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        .padding(.vertical, 2)
+                if files.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 32))
+                            .foregroundStyle(.quaternary)
+                        Text("No files added")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        Text("Drop PDF files here or click Add Files")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
                     }
-                    .onMove { files.move(fromOffsets: $0, toOffset: $1) }
-                    .onDelete { files.remove(atOffsets: $0) }
-                }
-                .listStyle(.inset(alternatesRowBackgrounds: true))
-                .overlay {
-                    DropReceiverView(isTargeted: $isDropTargeted) { urls in
-                        addFiles(urls)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay {
+                        DropReceiverView(isTargeted: $isDropTargeted) { urls in
+                            addFiles(urls)
+                        }
+                    }
+                } else {
+                    List {
+                        ForEach(Array(files.enumerated()), id: \.element.id) { index, file in
+                            HStack(spacing: 8) {
+                                Image(systemName: "doc.fill")
+                                    .foregroundColor(.accentColor)
+                                    .font(.body)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(file.filename)
+                                        .font(.callout)
+                                        .lineLimit(1)
+                                    Text("\(file.pageCount) pages")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+
+                                Button {
+                                    files.remove(at: index)
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.vertical, 2)
+                        }
+                        .onMove { files.move(fromOffsets: $0, toOffset: $1) }
+                        .onDelete { files.remove(atOffsets: $0) }
+                    }
+                    .listStyle(.inset(alternatesRowBackgrounds: true))
+                    .overlay {
+                        DropReceiverView(isTargeted: $isDropTargeted) { urls in
+                            addFiles(urls)
+                        }
                     }
                 }
 

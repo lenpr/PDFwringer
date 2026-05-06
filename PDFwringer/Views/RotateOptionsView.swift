@@ -18,6 +18,8 @@ struct RotateOptionsView: View {
     @State private var isDropTargeted = false
     @State private var lastOutputURL: URL?
     @State private var currentPage: Int = 0
+    @State private var syncingFromThumbnails = false
+    @State private var shakeOffset: CGFloat = 0
 
     private let rotator = PDFRotator()
 
@@ -36,7 +38,9 @@ struct RotateOptionsView: View {
                     selectedPages: rotateAll ? nil : $selectedPages
                 )
                 .onChange(of: selectedPages) {
+                    syncingFromThumbnails = true
                     pageRangeText = selectedPages.sorted().map { "\($0 + 1)" }.joined(separator: ", ")
+                    syncingFromThumbnails = false
                 }
             }
             .frame(minWidth: 260, idealWidth: 320)
@@ -109,6 +113,13 @@ struct RotateOptionsView: View {
                     HStack {
                         TextField("e.g. 1, 3-5, 8-", text: $pageRangeText)
                             .textFieldStyle(.roundedBorder)
+                            .offset(x: shakeOffset)
+                            .onChange(of: pageRangeText) {
+                                guard !syncingFromThumbnails else { return }
+                                if let indices = try? PageRangeParser.parse(pageRangeText, pageCount: document.pageCount) {
+                                    selectedPages = Set(indices)
+                                }
+                            }
                     }
                     Text("Tap thumbnails or type page numbers, ranges, or comma-separated values")
                         .font(.caption2)
@@ -179,6 +190,7 @@ struct RotateOptionsView: View {
                     resultMessage = "No pages specified."
                     isError = true
                     isProcessing = false
+                    triggerShake()
                     return
                 }
             }
@@ -198,11 +210,28 @@ struct RotateOptionsView: View {
         } catch is CancellationError {
             resultMessage = "Cancelled."
             isError = false
+        } catch let error as PDFwringerError {
+            resultMessage = error.localizedDescription
+            isError = true
+            if case .invalidPageRange = error { triggerShake() }
         } catch {
             resultMessage = error.localizedDescription
             isError = true
         }
 
         isProcessing = false
+    }
+
+    private func triggerShake() {
+        withAnimation(.default) { shakeOffset = 8 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            withAnimation(.default) { shakeOffset = -6 }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+            withAnimation(.default) { shakeOffset = 4 }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
+            withAnimation(.default) { shakeOffset = 0 }
+        }
     }
 }

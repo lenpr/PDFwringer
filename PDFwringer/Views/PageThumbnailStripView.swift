@@ -82,6 +82,7 @@ struct PageThumbnailStripView: View {
                 .foregroundStyle(isSelected || isCurrent ? .primary : .secondary)
         }
         .contentShape(Rectangle())
+        .help(tooltipForPage(at: index))
         .onTapGesture {
             currentPage?.wrappedValue = index
             if selectable {
@@ -92,6 +93,16 @@ struct PageThumbnailStripView: View {
                 }
             }
         }
+    }
+
+    private func tooltipForPage(at index: Int) -> String {
+        guard let page = document.page(at: index) else {
+            return "Page \(index + 1)"
+        }
+        let box = page.bounds(for: .cropBox)
+        let w = Int(box.width)
+        let h = Int(box.height)
+        return "Page \(index + 1) — \(w) × \(h) pt"
     }
 }
 

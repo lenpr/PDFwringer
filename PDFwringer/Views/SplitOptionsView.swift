@@ -10,6 +10,8 @@ struct SplitOptionsView: View {
     @State private var vm = SplitViewModel()
     @State private var isDropTargeted = false
     @State private var currentPage: Int = 0
+    @State private var keepShakeOffset: CGFloat = 0
+    @State private var removeShakeOffset: CGFloat = 0
 
     var body: some View {
         HStack(spacing: 0) {
@@ -88,6 +90,7 @@ struct SplitOptionsView: View {
                     HStack {
                         TextField("e.g. 1, 3-5, 8-", text: $vm.keepPagesText)
                             .textFieldStyle(.roundedBorder)
+                            .offset(x: keepShakeOffset)
                         Button("Extract") {
                             Task { await vm.keepPages() }
                         }
@@ -104,6 +107,7 @@ struct SplitOptionsView: View {
                     HStack {
                         TextField("e.g. 1, 3-5, 8-", text: $vm.removePagesText)
                             .textFieldStyle(.roundedBorder)
+                            .offset(x: removeShakeOffset)
                         Button("Remove") {
                             Task { await vm.removePages() }
                         }
@@ -144,6 +148,29 @@ struct SplitOptionsView: View {
         }
         .onAppear {
             vm.setSource(url)
+        }
+        .onChange(of: vm.isError) { _, isError in
+            guard isError else { return }
+            if vm.resultMessage?.contains("pages") == true || vm.resultMessage?.contains("No pages") == true {
+                if !vm.keepPagesText.isEmpty {
+                    triggerShake($keepShakeOffset)
+                } else if !vm.removePagesText.isEmpty {
+                    triggerShake($removeShakeOffset)
+                }
+            }
+        }
+    }
+
+    private func triggerShake(_ offset: Binding<CGFloat>) {
+        withAnimation(.default) { offset.wrappedValue = 8 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            withAnimation(.default) { offset.wrappedValue = -6 }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+            withAnimation(.default) { offset.wrappedValue = 4 }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
+            withAnimation(.default) { offset.wrappedValue = 0 }
         }
     }
 }
