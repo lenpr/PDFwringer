@@ -34,6 +34,7 @@ enum AppState: Equatable {
 class AppViewModel {
     var state: AppState = .landing
     var currentPage: Int = 0
+    var currentFileSize: Int64 = 0
 
     // Password prompt state
     var showPasswordPrompt = false
@@ -72,6 +73,7 @@ class AppViewModel {
             return
         }
         currentPage = 0
+        currentFileSize = (try? FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false))[.size] as? Int64) ?? 0
         state = .singleFile(url, doc)
     }
 

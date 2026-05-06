@@ -4,6 +4,7 @@ import PDFKit
 struct DocumentView: View {
     let url: URL
     let document: PDFDocument
+    let fileSize: Int64
     let onCompress: () -> Void
     let onSplit: () -> Void
     let onRotate: () -> Void
@@ -43,7 +44,7 @@ struct DocumentView: View {
                             Text(url.lastPathComponent)
                                 .font(.headline)
                                 .lineLimit(1)
-                            Text("\(document.pageCount) pages \u{2022} \(formattedFileSize)")
+                            Text("\(document.pageCount) pages \u{2022} \(Formatting.fileSize(fileSize))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .scaleEffect(pageCountScale)
@@ -117,12 +118,6 @@ struct DocumentView: View {
             }
             .hidden()
         }
-    }
-
-    private var formattedFileSize: String {
-        guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false)),
-              let size = attrs[.size] as? Int64 else { return "" }
-        return Formatting.fileSize(size)
     }
 }
 

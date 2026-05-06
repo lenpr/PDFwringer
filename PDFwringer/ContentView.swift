@@ -19,6 +19,7 @@ struct ContentView: View {
                 DocumentView(
                     url: url,
                     document: doc,
+                    fileSize: appVM.currentFileSize,
                     onCompress: {
                         withAnimation(.spring(duration: 0.3)) {
                             appVM.selectCompress()
