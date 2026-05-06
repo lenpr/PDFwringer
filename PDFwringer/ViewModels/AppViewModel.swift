@@ -106,11 +106,9 @@ class AppViewModel {
     }
 
     func loadMultipleFiles(_ urls: [URL]) {
-        Task {
-            let items = await PDFFileItem.loadAsync(urls: urls)
-            guard !items.isEmpty else { return }
-            state = .multiFile(items)
-        }
+        let items = PDFFileItem.from(urls: urls)
+        guard !items.isEmpty else { return }
+        state = .multiFile(items)
     }
 
     func selectCompress() {
