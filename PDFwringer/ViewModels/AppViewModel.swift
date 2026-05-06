@@ -37,6 +37,10 @@ class AppViewModel {
     var currentPage: Int = 0
     var currentFileSize: Int64 = 0
 
+    // Error alert state
+    var showErrorAlert = false
+    var errorMessage = ""
+
     // Password prompt state
     var showPasswordPrompt = false
     var passwordText = ""
@@ -94,7 +98,11 @@ class AppViewModel {
     }
 
     func loadSingleFile(_ url: URL) {
-        guard let doc = PDFDocument(url: url) else { return }
+        guard let doc = PDFDocument(url: url) else {
+            errorMessage = "Cannot open '\(url.lastPathComponent)'. The file may be corrupted or not a valid PDF."
+            showErrorAlert = true
+            return
+        }
         if doc.isLocked {
             pendingLockedURL = url
             passwordText = ""

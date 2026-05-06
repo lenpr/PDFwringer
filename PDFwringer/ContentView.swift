@@ -173,6 +173,11 @@ struct ContentView: View {
                 Text("This PDF is password-protected.")
             }
         }
+        .alert("Cannot Open File", isPresented: $appVM.showErrorAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(appVM.errorMessage)
+        }
         .onAppear {
             // Wire AppDelegate to forward Finder-opened files
             if let delegate = NSApp.delegate as? AppDelegate {
