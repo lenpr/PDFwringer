@@ -48,6 +48,8 @@ struct PDFMetadataEditor {
         }
         if doc.isLocked { throw PDFwringerError.documentIsLocked }
 
+        Log.metadata.info("Writing metadata: title=\(metadata.title.isEmpty ? "(empty)" : metadata.title), encrypted=\(password != nil)")
+
         var attrs: [PDFDocumentAttribute: Any] = [:]
         if !metadata.title.isEmpty { attrs[.titleAttribute] = metadata.title }
         if !metadata.author.isEmpty { attrs[.authorAttribute] = metadata.author }

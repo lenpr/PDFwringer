@@ -21,6 +21,8 @@ struct PDFCompressor {
         stripMetadata: Bool,
         progress: (Double) -> Void
     ) async throws {
+        let start = ContinuousClock.now
+        Log.compress.info("Starting compression: level=\(level.title), quality=\(quality.title), grayscale=\(grayscale)")
         if level.isRasterize {
             try await compressRasterize(
                 source: source,
@@ -38,6 +40,9 @@ struct PDFCompressor {
                 progress: progress
             )
         }
+        let outputSize = (try? FileManager.default.attributesOfItem(atPath: destination.path(percentEncoded: false))[.size] as? Int64) ?? 0
+        let elapsed = ContinuousClock.now - start
+        Log.compress.info("Compression complete: output=\(Formatting.fileSize(outputSize)), duration=\(elapsed)")
     }
 
     /// Compress a single page to estimate total output size without processing the entire document.

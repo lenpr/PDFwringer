@@ -21,6 +21,8 @@ struct PDFConcatenator {
         progress: (Double) -> Void
     ) async throws -> Result {
         guard !sources.isEmpty else { throw PDFwringerError.emptyFileList }
+        let start = ContinuousClock.now
+        Log.merge.info("Starting merge: \(sources.count) files")
 
         // Validate all source files are readable before starting
         for url in sources {
@@ -69,6 +71,12 @@ struct PDFConcatenator {
         try AtomicFileWriter.write(to: destination) { tempURL in
             output.write(to: tempURL)
         }
+
+        let elapsed = ContinuousClock.now - start
+        if !skippedFiles.isEmpty {
+            Log.merge.warning("Merge complete with \(skippedFiles.count) skipped files: \(skippedFiles.joined(separator: ", "))")
+        }
+        Log.merge.info("Merge complete: \(insertIndex) pages, duration=\(elapsed)")
 
         return Result(outputPageCount: insertIndex, skippedFiles: skippedFiles)
     }

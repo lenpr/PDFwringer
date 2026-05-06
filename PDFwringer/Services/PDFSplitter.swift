@@ -35,9 +35,13 @@ struct PDFSplitter {
         let pageCount = sourceDoc.pageCount
         guard pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
 
+        let start = ContinuousClock.now
+        Log.split.info("Starting split: \(pageCount) pages, mode=\(String(describing: mode))")
+
+        let results: [URL]
         switch mode {
         case .splitEveryN(let n):
-            return try await splitEveryN(
+            results = try await splitEveryN(
                 sourceDoc: sourceDoc,
                 n: max(1, n),
                 baseName: source.deletingPathExtension().lastPathComponent,
@@ -53,7 +57,7 @@ struct PDFSplitter {
                 destination: outputURL,
                 progress: progress
             )
-            return [outputURL]
+            results = [outputURL]
 
         case .removePages(let indicesToRemove):
             let allIndices = Array(0..<pageCount)
@@ -66,8 +70,12 @@ struct PDFSplitter {
                 destination: outputURL,
                 progress: progress
             )
-            return [outputURL]
+            results = [outputURL]
         }
+
+        let elapsed = ContinuousClock.now - start
+        Log.split.info("Split complete: \(results.count) output files, duration=\(elapsed)")
+        return results
     }
 
     // MARK: - Split every N pages

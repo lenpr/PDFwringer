@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import SwiftUI
 
 /// Domain-specific errors surfaced to users via `LocalizedError`.
@@ -81,4 +82,13 @@ enum AtomicFileWriter {
             throw error
         }
     }
+}
+
+/// Shared loggers for structured diagnostics.
+enum Log {
+    static let compress = Logger(subsystem: "com.pdfwringer.app", category: "compress")
+    static let merge = Logger(subsystem: "com.pdfwringer.app", category: "merge")
+    static let split = Logger(subsystem: "com.pdfwringer.app", category: "split")
+    static let rotate = Logger(subsystem: "com.pdfwringer.app", category: "rotate")
+    static let metadata = Logger(subsystem: "com.pdfwringer.app", category: "metadata")
 }

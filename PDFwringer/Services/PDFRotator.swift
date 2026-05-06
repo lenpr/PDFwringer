@@ -43,6 +43,7 @@ struct PDFRotator {
         let pageCount = doc.pageCount
         guard pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
 
+        let start = ContinuousClock.now
         let indicesToRotate: [Int]
         if let indices = pageIndices {
             indicesToRotate = indices.filter { $0 >= 0 && $0 < pageCount }
@@ -60,5 +61,8 @@ struct PDFRotator {
         try AtomicFileWriter.write(to: destination) { tempURL in
             doc.write(to: tempURL)
         }
+
+        let elapsed = ContinuousClock.now - start
+        Log.rotate.info("Rotation complete: \(indicesToRotate.count) pages rotated \(angle.title), duration=\(elapsed)")
     }
 }
