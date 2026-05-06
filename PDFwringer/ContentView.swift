@@ -167,7 +167,11 @@ struct ContentView: View {
             Button("Unlock") { appVM.unlockDocument() }
             Button("Cancel", role: .cancel) { appVM.cancelPassword() }
         } message: {
-            Text("This PDF is password-protected.")
+            if appVM.wrongPasswordAttempt {
+                Text("Incorrect password. Please try again.")
+            } else {
+                Text("This PDF is password-protected.")
+            }
         }
         .onAppear {
             // Wire AppDelegate to forward Finder-opened files

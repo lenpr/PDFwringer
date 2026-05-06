@@ -39,6 +39,7 @@ class AppViewModel {
     // Password prompt state
     var showPasswordPrompt = false
     var passwordText = ""
+    var wrongPasswordAttempt = false
     private var pendingLockedURL: URL?
 
     var windowTitle: String {
@@ -78,16 +79,25 @@ class AppViewModel {
     }
 
     func unlockDocument() {
+        defer {
+            passwordText = ""
+        }
         guard let url = pendingLockedURL,
               let doc = PDFDocument(url: url) else {
             pendingLockedURL = nil
             return
         }
         if doc.unlock(withPassword: passwordText) {
+            currentPage = 0
+            currentFileSize = (try? FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false))[.size] as? Int64) ?? 0
             state = .singleFile(url, doc)
+            pendingLockedURL = nil
+            wrongPasswordAttempt = false
+        } else {
+            passwordText = ""
+            wrongPasswordAttempt = true
+            showPasswordPrompt = true
         }
-        pendingLockedURL = nil
-        passwordText = ""
     }
 
     func cancelPassword() {
