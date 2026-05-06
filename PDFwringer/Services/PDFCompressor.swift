@@ -9,6 +9,8 @@ import UniformTypeIdentifiers
 @MainActor
 struct PDFCompressor {
 
+    private static let sRGBColorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
+
     /// Compresses a PDF from `source` to `destination` using the selected strategy.
     func compress(
         source: URL,
@@ -67,7 +69,7 @@ struct PDFCompressor {
             colorSpace = CGColorSpaceCreateDeviceGray()
             bitmapInfo = CGImageAlphaInfo.none.rawValue
         } else {
-            colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
+            colorSpace = Self.sRGBColorSpace
             bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
         }
 
@@ -217,7 +219,7 @@ struct PDFCompressor {
                         colorSpace = CGColorSpaceCreateDeviceGray()
                         bitmapInfo = CGImageAlphaInfo.none.rawValue
                     } else {
-                        colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
+                        colorSpace = Self.sRGBColorSpace
                         bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
                     }
 
