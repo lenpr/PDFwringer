@@ -22,23 +22,23 @@ struct PDFConcatenator {
             }
         }
 
-        // First pass: count total pages without keeping docs in memory
+        // Single pass: count total pages and check for locked docs, then build output
         var totalPages = 0
+        var sourceDocs: [(PDFDocument, Int)] = []
         for url in sources {
             guard let doc = PDFDocument(url: url) else { continue }
             if doc.isLocked { throw PDFwringerError.documentIsLocked }
             totalPages += doc.pageCount
+            sourceDocs.append((doc, doc.pageCount))
         }
         guard totalPages > 0 else { throw PDFwringerError.emptyFileList }
 
-        // Second pass: build output one source at a time to limit peak memory
+        // Build output one source at a time
         let output = PDFDocument()
         var insertIndex = 0
 
-        for url in sources {
-            guard let sourceDoc = PDFDocument(url: url) else { continue }
-
-            for pageIdx in 0..<sourceDoc.pageCount {
+        for (sourceDoc, pageCount) in sourceDocs {
+            for pageIdx in 0..<pageCount {
                 try Task.checkCancellation()
 
                 autoreleasepool {
