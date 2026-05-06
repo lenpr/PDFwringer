@@ -98,6 +98,10 @@ struct CompressOptionsView: View {
                         vm.selectedLevel = level
                         vm.onSettingsChanged()
                     }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel("\(level.title): \(level.subtitle)")
+                    .accessibilityValue(vm.selectedLevel == level ? "Selected" : "")
                 }
 
                 if vm.selectedLevel.isRasterize {
@@ -122,6 +126,9 @@ struct CompressOptionsView: View {
                                     vm.selectedQuality = q
                                     vm.onSettingsChanged()
                                 }
+                                .accessibilityAddTraits(.isButton)
+                                .accessibilityLabel("JPEG quality: \(q.title)")
+                                .accessibilityValue(vm.selectedQuality == q ? "Selected" : "")
                         }
                     }
                 }

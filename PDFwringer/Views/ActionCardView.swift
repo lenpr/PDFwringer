@@ -46,5 +46,6 @@ struct ActionCardView: View {
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.15), value: isHovered)
+        .accessibilityLabel("\(title): \(description)")
     }
 }

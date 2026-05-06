@@ -100,6 +100,10 @@ struct PageThumbnailStripView: View {
         }
         .contentShape(Rectangle())
         .help(tooltipForPage(at: index))
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("Page \(index + 1)")
+        .accessibilityValue(isSelected ? "Selected" : (isCurrent ? "Current" : ""))
         .onTapGesture(count: 2) {
             zoomedPage = index
         }

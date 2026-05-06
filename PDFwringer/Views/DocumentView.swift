@@ -66,6 +66,7 @@ struct DocumentView: View {
                         }
                         .buttonStyle(.plain)
                         .help("Start over")
+                        .accessibilityLabel("Start over")
                     }
 
                     Divider()
