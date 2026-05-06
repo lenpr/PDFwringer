@@ -41,7 +41,7 @@ struct PDFCompressor {
     /// Compress a single page to estimate total output size without processing the entire document.
     /// Extrapolates from first-page JPEG size to all pages (assumes roughly uniform page content).
     /// Returns nil if the source cannot be read.
-    func compressFirstPage(source: URL, level: CompressionLevel, quality: JPEGQuality, grayscale: Bool) -> Int64? {
+    nonisolated func compressFirstPage(source: URL, level: CompressionLevel, quality: JPEGQuality, grayscale: Bool) -> Int64? {
         guard level.isRasterize else {
             // Lossless: roughly same size
             guard let attrs = try? FileManager.default.attributesOfItem(atPath: source.path(percentEncoded: false)),
@@ -281,14 +281,14 @@ struct PDFCompressor {
 
     /// Opens a PDF by reading data into memory first — works reliably in sandbox
     /// where CGPDFDocument(url) may fail due to access restrictions.
-    static func openPDF(at url: URL) -> CGPDFDocument? {
+    nonisolated static func openPDF(at url: URL) -> CGPDFDocument? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         guard let provider = CGDataProvider(data: data as CFData) else { return nil }
         return CGPDFDocument(provider)
     }
 
     /// Swaps width/height for 90° or 270° rotated pages so rendering uses the correct dimensions.
-    private static func displaySize(for size: CGSize, rotation: Int32) -> CGSize {
+    nonisolated private static func displaySize(for size: CGSize, rotation: Int32) -> CGSize {
         let angle = ((rotation % 360) + 360) % 360
         if angle == 90 || angle == 270 {
             return CGSize(width: size.height, height: size.width)
@@ -296,7 +296,7 @@ struct PDFCompressor {
         return size
     }
 
-    static func jpegEncode(image: CGImage, quality: CGFloat) -> Data? {
+    nonisolated static func jpegEncode(image: CGImage, quality: CGFloat) -> Data? {
         let data = NSMutableData()
         guard let dest = CGImageDestinationCreateWithData(
             data,

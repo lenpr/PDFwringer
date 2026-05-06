@@ -85,14 +85,13 @@ class CompressViewModel {
         estimationTask?.cancel()
 
         guard let source = sourceURL else { return }
+        let compressor = self.compressor
 
-        estimationTask = Task {
-            // Compute estimates for all combinations of level + quality + grayscale
+        estimationTask = Task.detached(priority: .utility) {
             for level in CompressionLevel.allCases {
                 for quality in JPEGQuality.allCases {
                     for gs in [false, true] {
                         let key = "\(level.rawValue)-\(quality.rawValue)-\(gs)"
-                        guard estimatedSizes[key] == nil else { continue }
 
                         if Task.isCancelled { return }
 
@@ -100,7 +99,9 @@ class CompressViewModel {
                         if Task.isCancelled { return }
 
                         if let size {
-                            estimatedSizes[key] = size
+                            await MainActor.run {
+                                self.estimatedSizes[key] = size
+                            }
                         }
                         await Task.yield()
                     }
