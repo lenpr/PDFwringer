@@ -1,27 +1,33 @@
-# PDFwringer
+<p align="center">
+  <img src="icon.png" width="128" height="128" alt="PDFwringer icon">
+</p>
 
-A lightweight macOS app for compressing, merging, splitting, rotating, and editing metadata of PDF files. Native SwiftUI with no external dependencies.
+<h1 align="center">PDFwringer</h1>
+
+<p align="center">
+  A lightweight native macOS app for compressing, merging, splitting, rotating, and editing PDF files.<br>
+  Built with SwiftUI and PDFKit — no external dependencies.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/platform-macOS_26+-blue?logo=apple" alt="Platform">
+  <img src="https://img.shields.io/badge/swift-6.0-orange?logo=swift" alt="Swift">
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
+</p>
+
+---
 
 ## Features
 
-### Compress
-- **Lossless mode** — strips metadata while preserving text, annotations, and links
-- **Rasterize mode** — re-renders pages as JPEG at configurable DPI (300/150/72) for maximum size reduction
-- Adjustable JPEG quality, optional grayscale conversion
-- Live size estimates before committing
+| Feature | Description |
+|---------|-------------|
+| **Compress** | Lossless metadata stripping or lossy rasterization at configurable DPI/quality. Live size estimates. |
+| **Merge** | Drag-and-drop reordering, alphabetical sort, add/remove files. |
+| **Split / Extract** | Split every N pages, keep specific pages, or remove pages using flexible range syntax. |
+| **Rotate** | Rotate all or selected pages by 90/180/270 degrees with live preview. |
+| **Metadata** | Edit title, author, subject, keywords, creator. Set or remove PDF passwords. |
 
-### Merge
-- Drag-and-drop file list with manual reordering (up/down buttons)
-- Sort alphabetically (A→Z / Z→A)
-- Add/remove individual files
-- Progress reporting for large merges
-
-### Split / Extract
-- **Split every N pages** — creates numbered output files
-- **Keep pages** — extract specific pages by range
-- **Remove pages** — drop specific pages from the document
-
-#### Page range syntax
+### Page range syntax
 
 | Input | Meaning |
 |-------|---------|
@@ -33,76 +39,65 @@ A lightweight macOS app for compressing, merging, splitting, rotating, and editi
 | `8-` | From page 8 to the end |
 | `1, 3-5, 8-` | Mixed (comma-separated) |
 
-Duplicates are allowed. User order is preserved.
+---
 
-### Rotate Pages
-- Rotate all or specific pages by 90°, 180°, or 270°
-- Page selection via thumbnail strip or page range syntax
-- Real-time progress for large documents
+## Getting Started
 
-### Edit Metadata
-- View and edit title, author, subject, keywords, and creator
-- Clear all metadata with one click
-- Keywords parsed as comma-separated values
-- 1000-character field limit for safety
+### Requirements
 
-## Requirements
-
-- macOS 26.0+
+- macOS 26.0+ (Tahoe)
 - Apple Silicon (arm64)
 
-## Building
-
-### Xcode
-
-Open `PDFwringer.xcodeproj` and build the `PDFwringer` scheme (Cmd+B).
-
-### Command line
+### Build
 
 ```bash
-make build   # compiles to .build/PDFwringer
-make app     # build + create .app bundle at .build/PDFwringer.app
-make run     # build + launch (bare executable)
-make test    # compile + run all tests
-make clean   # remove build artifacts
+# Command line
+make app     # produces .build/PDFwringer.app
+make run     # build + launch
+
+# Or open PDFwringer.xcodeproj in Xcode (Cmd+B)
 ```
 
-### App bundle
-
-`make app` produces a proper macOS `.app` bundle at `.build/PDFwringer.app` with an Info.plist and app icon. This is the recommended way to distribute or install the app — double-clicking the bundle launches it like any native app (no Terminal window).
-
-## Testing
+### Install
 
 ```bash
-make test
+make app
+cp -R .build/PDFwringer.app ~/Applications/
 ```
 
-Uses Swift Testing (`import Testing`, `@Test`, `#expect`). Tests cover the service/model/utility layers without requiring SwiftUI or a running app. Test PDFs are generated programmatically — no fixture files needed.
+### Test
 
-Test suites: `PageRangeParserTests`, `PDFCompressorTests`, `PDFConcatenatorTests`, `PDFSplitterTests`, `PDFRotatorTests`, `PDFMetadataEditorTests`, `AppViewModelTests`, `PDFFileItemTests`, `EndToEndTests`.
+```bash
+make test    # 110 tests across 9 suites
+```
+
+Uses [Swift Testing](https://developer.apple.com/documentation/testing). Tests cover the service/model/utility layers without requiring a running app. PDFs are generated programmatically — no fixture files.
+
+---
 
 ## Architecture
 
-The app follows MVVM with a service layer. A top-level `AppState` enum drives navigation as a state machine (landing → singleFile/multiFile → action screen → back).
+MVVM with a stateless service layer. Navigation is a state machine driven by `AppState`.
 
 ```
 PDFwringer/
-├── Models/          # Value types: CompressionLevel, JPEGQuality, PDFFileItem
-├── Services/        # Stateless PDF operations: PDFCompressor, PDFConcatenator, PDFSplitter, PDFRotator, PDFMetadataEditor, PageRangeParser
-├── ViewModels/      # @Observable classes: AppViewModel (navigation), CompressViewModel, ConcatenateViewModel, SplitViewModel
-├── Views/           # SwiftUI views + DropReceiverView (NSViewRepresentable for reliable sandboxed drag-and-drop)
-├── Utilities/       # PDFwringerError, FileDialogHelper, Formatting
-└── Resources/       # Asset catalog, AppIcon.icns
+├── Models/          Value types (CompressionLevel, JPEGQuality, PDFFileItem)
+├── Services/        Stateless PDF ops (Compressor, Concatenator, Splitter, Rotator, MetadataEditor, PageRangeParser)
+├── ViewModels/      @Observable classes (AppViewModel, CompressViewModel, ConcatenateViewModel, SplitViewModel)
+├── Views/           SwiftUI views + NSViewRepresentable drop overlay
+├── Utilities/       Error types, file dialogs, formatting helpers
+└── Resources/       Asset catalog, AppIcon.icns
 ```
 
-All PDF processing uses Apple's PDFKit and CoreGraphics — no third-party libraries.
+### Design decisions
 
-### Key design decisions
+- **Document-first flow** — drop/select files first, then choose an action
+- **NSView drop overlay** — SwiftUI's `onDrop` is unreliable in sandboxed apps; `DropReceiverView` wraps an NSView that passes clicks through via `hitTest → nil`
+- **Background size estimation** — compression options probe the first page at each setting to give instant size feedback
+- **Atomic writes** — all operations write to a temp file, then `FileManager.replaceItemAt` to the destination
+- **Strict concurrency** — full Swift 6 `SWIFT_STRICT_CONCURRENCY = complete`, all code `@MainActor`
 
-- **Document-first flow**: Users drop or select files first, then choose an action. Navigation is driven by `AppState` in `AppViewModel`.
-- **NSView drop overlay**: SwiftUI's built-in `onDrop` is unreliable in sandboxed apps. `DropReceiverView` wraps an `NSView` that registers for file URL drags while returning `nil` from `hitTest` so clicks pass through.
-- **Background size estimation**: `CompressViewModel` probes the first page at every compression setting in the background, then extrapolates to give instant feedback as users toggle options.
-- **Atomic writes**: All services write to a temp file first, then atomically replace the destination via `FileManager.replaceItemAt`.
+---
 
 ## License
 
