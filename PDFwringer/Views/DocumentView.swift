@@ -1,5 +1,6 @@
 import SwiftUI
 import PDFKit
+import QuartzCore
 
 struct DocumentView: View {
     let url: URL
@@ -137,6 +138,7 @@ struct PDFPreviewView: NSViewRepresentable {
         pdfView.displayMode = .singlePage
         pdfView.displaysPageBreaks = false
         pdfView.pageShadowsEnabled = false
+        pdfView.displayDirection = .vertical
 
         NotificationCenter.default.addObserver(
             context.coordinator,
@@ -154,9 +156,17 @@ struct PDFPreviewView: NSViewRepresentable {
             context.coordinator.lastGeneration = generation
         }
 
-        if let page = document.page(at: currentPage),
-           pdfView.currentPage != page {
+        let currentIndex: Int? = {
+            guard let page = pdfView.currentPage else { return nil }
+            return pdfView.document?.index(for: page)
+        }()
+
+        if currentIndex != currentPage,
+           let page = document.page(at: currentPage) {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
             pdfView.go(to: page)
+            CATransaction.commit()
         }
     }
 
