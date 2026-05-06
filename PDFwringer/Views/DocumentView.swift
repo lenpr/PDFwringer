@@ -124,6 +124,7 @@ struct DocumentView: View {
 struct PDFPreviewView: NSViewRepresentable {
     let document: PDFDocument
     @Binding var currentPage: Int
+    var generation: Int = 0
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -148,8 +149,9 @@ struct PDFPreviewView: NSViewRepresentable {
     }
 
     func updateNSView(_ pdfView: PDFView, context: Context) {
-        if pdfView.document !== document {
+        if pdfView.document !== document || context.coordinator.lastGeneration != generation {
             pdfView.document = document
+            context.coordinator.lastGeneration = generation
         }
 
         if let page = document.page(at: currentPage),
@@ -160,6 +162,7 @@ struct PDFPreviewView: NSViewRepresentable {
 
     class Coordinator: NSObject {
         var parent: PDFPreviewView
+        var lastGeneration = 0
 
         init(parent: PDFPreviewView) {
             self.parent = parent
