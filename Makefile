@@ -32,7 +32,7 @@ $(APP_BUNDLE): $(BUILD_DIR)/$(APP_NAME)
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string 1.0" $(APP_BUNDLE)/Contents/Info.plist
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string 1" $(APP_BUNDLE)/Contents/Info.plist
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string AppIcon" $(APP_BUNDLE)/Contents/Info.plist
-	@/usr/libexec/PlistBuddy -c "Add :LSMinimumSystemVersion string 15.0" $(APP_BUNDLE)/Contents/Info.plist
+	@/usr/libexec/PlistBuddy -c "Add :LSMinimumSystemVersion string 26.0" $(APP_BUNDLE)/Contents/Info.plist
 	@/usr/libexec/PlistBuddy -c "Add :NSHighResolutionCapable bool true" $(APP_BUNDLE)/Contents/Info.plist
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes array" $(APP_BUNDLE)/Contents/Info.plist
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0 dict" $(APP_BUNDLE)/Contents/Info.plist
