@@ -14,6 +14,9 @@ struct MetadataView: View {
     @State private var isError = false
     @State private var isDropTargeted = false
     @State private var lastOutputURL: URL?
+    @State private var setPassword = false
+    @State private var passwordText = ""
+    @State private var removeProtection = false
 
     private let editor = PDFMetadataEditor()
 
@@ -74,6 +77,33 @@ struct MetadataView: View {
                 Text("Keywords should be comma-separated")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
+
+                Divider()
+
+                Text("Security")
+                    .font(.callout.weight(.medium))
+
+                if document.isEncrypted {
+                    HStack(spacing: 6) {
+                        Image(systemName: "lock.fill")
+                            .foregroundStyle(.orange)
+                            .font(.caption)
+                        Text("This document is encrypted")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Toggle("Remove protection on save", isOn: $removeProtection)
+                        .toggleStyle(.checkbox)
+                        .font(.callout)
+                } else {
+                    Toggle("Set password", isOn: $setPassword)
+                        .toggleStyle(.checkbox)
+                        .font(.callout)
+                    if setPassword {
+                        SecureField("Password", text: $passwordText)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                }
 
                 Spacer()
 
@@ -136,9 +166,21 @@ struct MetadataView: View {
         resultMessage = nil
         isError = false
 
+        let password: String? = if setPassword && !passwordText.isEmpty {
+            passwordText
+        } else {
+            nil
+        }
+
         do {
-            try editor.write(metadata: metadata, source: url, destination: destination)
-            resultMessage = "Metadata saved successfully."
+            try editor.write(metadata: metadata, source: url, destination: destination, password: password)
+            if password != nil {
+                resultMessage = "Saved with password protection."
+            } else if removeProtection {
+                resultMessage = "Saved without password protection."
+            } else {
+                resultMessage = "Metadata saved successfully."
+            }
             isError = false
             lastOutputURL = destination
         } catch {

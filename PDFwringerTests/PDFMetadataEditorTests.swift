@@ -134,6 +134,64 @@ struct PDFMetadataEditorTests {
         #expect(readBack.keywords.contains("gamma"))
     }
 
+    // MARK: - Encryption
+
+    @Test("Write with password produces encrypted document")
+    func writeWithPassword() throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
+        let output = TestPDFGenerator.makeTempDirectory().appending(component: "encrypted.pdf")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(output)
+        }
+
+        let meta = PDFMetadataEditor.Metadata(
+            title: "Secret", author: "", subject: "", keywords: "", creator: ""
+        )
+        try editor.write(metadata: meta, source: source, destination: output, password: "test123")
+
+        let doc = PDFDocument(url: output)
+        #expect(doc != nil)
+        #expect(doc!.isEncrypted == true)
+        #expect(doc!.isLocked == true)
+    }
+
+    @Test("Write without password from source produces unencrypted document")
+    func writeWithoutPassword() throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
+        let output = TestPDFGenerator.makeTempDirectory().appending(component: "plain.pdf")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(output)
+        }
+
+        try editor.write(metadata: .empty, source: source, destination: output, password: nil)
+
+        let doc = PDFDocument(url: output)
+        #expect(doc != nil)
+        #expect(doc!.isEncrypted == false)
+    }
+
+    @Test("Encrypted document can be unlocked and read")
+    func encryptedRoundTrip() throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
+        let encrypted = TestPDFGenerator.makeTempDirectory().appending(component: "enc.pdf")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(encrypted)
+        }
+
+        let meta = PDFMetadataEditor.Metadata(
+            title: "Locked Doc", author: "Author", subject: "", keywords: "", creator: ""
+        )
+        try editor.write(metadata: meta, source: source, destination: encrypted, password: "pw")
+
+        let doc = PDFDocument(url: encrypted)!
+        #expect(doc.isLocked == true)
+        #expect(doc.unlock(withPassword: "pw") == true)
+        #expect(doc.pageCount == 2)
+    }
+
     // MARK: - Helpers
 
     private func makePDFWithMetadata(title: String, author: String) -> URL {

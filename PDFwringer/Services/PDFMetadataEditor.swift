@@ -32,10 +32,12 @@ struct PDFMetadataEditor {
     }
 
     /// Writes metadata to a PDF file, saving to destination.
+    /// If `password` is non-nil and non-empty, encrypts the output with that password.
     func write(
         metadata: Metadata,
         source: URL,
-        destination: URL
+        destination: URL,
+        password: String? = nil
     ) throws {
         guard FileManager.default.isReadableFile(atPath: source.path(percentEncoded: false)) else {
             throw PDFwringerError.fileNotReadable(source.lastPathComponent)
@@ -60,7 +62,21 @@ struct PDFMetadataEditor {
         doc.documentAttributes = attrs
 
         let tempURL = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
-        guard doc.write(to: tempURL) else {
+
+        var writeOptions: [PDFDocumentWriteOption: Any] = [:]
+        if let pw = password, !pw.isEmpty {
+            writeOptions[.ownerPasswordOption] = pw
+            writeOptions[.userPasswordOption] = pw
+        }
+
+        let success: Bool
+        if writeOptions.isEmpty {
+            success = doc.write(to: tempURL)
+        } else {
+            success = doc.write(to: tempURL, withOptions: writeOptions)
+        }
+
+        guard success else {
             throw PDFwringerError.cannotWriteOutput
         }
 
