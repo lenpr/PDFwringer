@@ -27,6 +27,7 @@ struct MetadataView: View {
                     .padding(20)
 
                 PageThumbnailStripView(document: document, currentPage: $currentPage)
+                    .padding(.horizontal, 20)
             }
             .frame(minWidth: 260, idealWidth: 320)
             .overlay {
@@ -116,6 +117,11 @@ struct MetadataView: View {
                 .foregroundStyle(.secondary)
             TextField(label, text: text)
                 .textFieldStyle(.roundedBorder)
+                .onChange(of: text.wrappedValue) { _, newValue in
+                    if newValue.count > 1000 {
+                        text.wrappedValue = String(newValue.prefix(1000))
+                    }
+                }
         }
     }
 
