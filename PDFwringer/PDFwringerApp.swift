@@ -8,7 +8,7 @@ struct PDFwringerApp: App {
 
     init() {
         NSApplication.shared.setActivationPolicy(.regular)
-        NSApplication.shared.activate(ignoringOtherApps: true)
+        NSApplication.shared.activate()
     }
 
     var body: some Scene {
