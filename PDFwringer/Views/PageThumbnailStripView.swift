@@ -11,6 +11,7 @@ struct PageThumbnailStripView: View {
     private let thumbHeight: CGFloat = 64
 
     @State private var cache = ThumbnailCache()
+    @State private var zoomedPage: Int?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -47,6 +48,19 @@ struct PageThumbnailStripView: View {
         }
         .frame(height: thumbHeight + (document.pageCount > 20 ? 48 : 28))
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+        .background {
+            Group {
+                Button("") { navigatePage(by: -1) }
+                    .keyboardShortcut(.leftArrow, modifiers: .option)
+                Button("") { navigatePage(by: 1) }
+                    .keyboardShortcut(.rightArrow, modifiers: .option)
+                if selectable {
+                    Button("") { toggleCurrentPageSelection() }
+                        .keyboardShortcut(.return, modifiers: .option)
+                }
+            }
+            .hidden()
+        }
     }
 
     private func thumbnailCell(index: Int) -> some View {
@@ -76,6 +90,8 @@ struct PageThumbnailStripView: View {
             }
             .opacity(selectable && !isSelected && !isCurrent ? 0.7 : 1.0)
             .shadow(color: Color(nsColor: .shadowColor).opacity(isCurrent ? 0.2 : 0.1), radius: isCurrent ? 3 : 1, y: 1)
+            .scaleEffect(isCurrent ? 1.08 : 1.0)
+            .animation(.spring(duration: 0.25, bounce: 0.4), value: currentPage?.wrappedValue)
 
             Text("\(index + 1)")
                 .font(.system(size: 9, weight: isSelected || isCurrent ? .bold : .regular))
@@ -83,6 +99,9 @@ struct PageThumbnailStripView: View {
         }
         .contentShape(Rectangle())
         .help(tooltipForPage(at: index))
+        .onTapGesture(count: 2) {
+            zoomedPage = index
+        }
         .onTapGesture {
             currentPage?.wrappedValue = index
             if selectable {
@@ -91,6 +110,17 @@ struct PageThumbnailStripView: View {
                 } else {
                     selectedPages!.wrappedValue.insert(index)
                 }
+            }
+        }
+        .popover(isPresented: Binding(get: { zoomedPage == index }, set: { if !$0 { zoomedPage = nil } })) {
+            if let page = document.page(at: index) {
+                let size = page.bounds(for: .cropBox).size
+                let scale = min(400 / size.width, 500 / size.height)
+                Image(nsImage: page.thumbnail(of: CGSize(width: size.width * scale, height: size.height * scale), for: .cropBox))
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: 400, maxHeight: 500)
+                    .padding(8)
             }
         }
     }
@@ -103,6 +133,23 @@ struct PageThumbnailStripView: View {
         let w = Int(box.width)
         let h = Int(box.height)
         return "Page \(index + 1) — \(w) × \(h) pt"
+    }
+
+    private func navigatePage(by offset: Int) {
+        guard let binding = currentPage else { return }
+        let newPage = binding.wrappedValue + offset
+        guard newPage >= 0 && newPage < document.pageCount else { return }
+        binding.wrappedValue = newPage
+    }
+
+    private func toggleCurrentPageSelection() {
+        guard let pageBinding = currentPage, let selBinding = selectedPages else { return }
+        let index = pageBinding.wrappedValue
+        if selBinding.wrappedValue.contains(index) {
+            selBinding.wrappedValue.remove(index)
+        } else {
+            selBinding.wrappedValue.insert(index)
+        }
     }
 }
 
