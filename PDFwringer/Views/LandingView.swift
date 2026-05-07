@@ -31,6 +31,10 @@ struct LandingView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
+
+                Text("⌘O to open")
+                    .font(.caption2)
+                    .foregroundStyle(.quaternary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background {
