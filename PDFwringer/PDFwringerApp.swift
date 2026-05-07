@@ -49,6 +49,35 @@ struct PDFwringerApp: App {
                 .keyboardShortcut("w")
             }
 
+            // Navigate menu
+            CommandMenu("Navigate") {
+                Button("Next Page") {
+                    appVM.nextPage()
+                }
+                .keyboardShortcut(.rightArrow, modifiers: [])
+                .disabled(!appVM.hasDocument)
+
+                Button("Previous Page") {
+                    appVM.previousPage()
+                }
+                .keyboardShortcut(.leftArrow, modifiers: [])
+                .disabled(!appVM.hasDocument)
+
+                Divider()
+
+                Button("First Page") {
+                    appVM.goToFirstPage()
+                }
+                .keyboardShortcut(.leftArrow, modifiers: .command)
+                .disabled(!appVM.hasDocument)
+
+                Button("Last Page") {
+                    appVM.goToLastPage()
+                }
+                .keyboardShortcut(.rightArrow, modifiers: .command)
+                .disabled(!appVM.hasDocument)
+            }
+
             // Actions menu
             CommandMenu("Actions") {
                 Button("Compress") {
@@ -73,6 +102,12 @@ struct PDFwringerApp: App {
                     appVM.selectMetadata()
                 }
                 .keyboardShortcut("4", modifiers: .command)
+                .disabled(!appVM.canSelectSingleFileAction)
+
+                Button("Crop / Resize") {
+                    appVM.selectCrop()
+                }
+                .keyboardShortcut("5", modifiers: .command)
                 .disabled(!appVM.canSelectSingleFileAction)
 
                 Divider()

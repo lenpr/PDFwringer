@@ -51,10 +51,6 @@ struct PageThumbnailStripView: View {
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
         .background {
             Group {
-                Button("") { navigatePage(by: -1) }
-                    .keyboardShortcut(.leftArrow, modifiers: .option)
-                Button("") { navigatePage(by: 1) }
-                    .keyboardShortcut(.rightArrow, modifiers: .option)
                 if selectable {
                     Button("") { toggleCurrentPageSelection() }
                         .keyboardShortcut(.return, modifiers: .option)
@@ -138,13 +134,6 @@ struct PageThumbnailStripView: View {
         let w = Int(box.width)
         let h = Int(box.height)
         return "Page \(index + 1) — \(w) × \(h) pt"
-    }
-
-    private func navigatePage(by offset: Int) {
-        guard let binding = currentPage else { return }
-        let newPage = binding.wrappedValue + offset
-        guard newPage >= 0 && newPage < document.pageCount else { return }
-        binding.wrappedValue = newPage
     }
 
     private func toggleCurrentPageSelection() {

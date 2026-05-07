@@ -114,20 +114,5 @@ struct DocumentView: View {
             }
             .frame(minWidth: 280, idealWidth: 320)
         }
-        .background {
-            Group {
-                Button("") { onCompress() }
-                    .keyboardShortcut("1")
-                Button("") { onSplit() }
-                    .keyboardShortcut("2")
-                Button("") { onRotate() }
-                    .keyboardShortcut("3")
-                Button("") { onCrop() }
-                    .keyboardShortcut("4")
-                Button("") { onMetadata() }
-                    .keyboardShortcut("5")
-            }
-            .hidden()
-        }
     }
 }

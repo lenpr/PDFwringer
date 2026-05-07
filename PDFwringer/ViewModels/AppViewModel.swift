@@ -88,6 +88,23 @@ class AppViewModel {
         }
     }
 
+    var currentPageCount: Int {
+        switch state {
+        case .singleFile(_, let doc), .compressing(_, let doc), .splitting(_, let doc),
+             .rotating(_, let doc), .editingMetadata(_, let doc), .cropping(_, let doc):
+            return doc.pageCount
+        default:
+            return 0
+        }
+    }
+
+    var hasDocument: Bool { currentPageCount > 0 }
+
+    func nextPage() { if currentPage < currentPageCount - 1 { currentPage += 1 } }
+    func previousPage() { if currentPage > 0 { currentPage -= 1 } }
+    func goToFirstPage() { currentPage = 0 }
+    func goToLastPage() { currentPage = max(0, currentPageCount - 1) }
+
     var recentDocuments: [URL] {
         NSDocumentController.shared.recentDocumentURLs
     }

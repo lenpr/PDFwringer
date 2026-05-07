@@ -164,6 +164,7 @@ struct CropOptionsView: View {
                     Button("Save") { Task { await saveCropped() } }
                         .keyboardShortcut("s")
                         .buttonStyle(.borderedProminent)
+                        .tint(Self.coral)
                         .controlSize(.large)
                 }
 
@@ -231,6 +232,10 @@ struct CropOptionsView: View {
             return
         }
 
+        cropTop = 0
+        cropBottom = 0
+        cropLeft = 0
+        cropRight = 0
         documentGeneration += 1
         resultMessage = result.pagesSkipped > 0
             ? "Cropped \(result.pagesModified) pages (\(result.pagesSkipped) skipped — crop exceeds dimensions)."

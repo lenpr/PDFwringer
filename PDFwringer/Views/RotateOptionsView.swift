@@ -80,6 +80,7 @@ struct RotateOptionsView: View {
                     Button("Save") { Task { await saveRotated() } }
                         .keyboardShortcut("s")
                         .buttonStyle(.borderedProminent)
+                        .tint(Color(red: 0.91, green: 0.39, blue: 0.30))
                         .controlSize(.large)
                 }
 
