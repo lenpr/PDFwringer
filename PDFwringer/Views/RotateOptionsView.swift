@@ -103,7 +103,20 @@ struct RotateOptionsView: View {
                         .foregroundStyle(.tertiary)
                 }
 
-                Spacer()
+                HStack(spacing: 12) {
+                    Button("90° CW") { rotateInPlace(angle: .ninety) }
+                        .keyboardShortcut("r")
+                    Button("180°") { rotateInPlace(angle: .oneEighty) }
+                    Button("90° CCW") { rotateInPlace(angle: .twoSeventy) }
+                        .keyboardShortcut("r", modifiers: [.command, .shift])
+
+                    Spacer()
+
+                    Button("Save") { Task { await saveRotated() } }
+                        .keyboardShortcut("s")
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                }
 
                 if let msg = resultMessage {
                     HStack {
@@ -121,20 +134,7 @@ struct RotateOptionsView: View {
                     }
                 }
 
-                HStack(spacing: 12) {
-                    Button("90° CW") { rotateInPlace(angle: .ninety) }
-                        .keyboardShortcut("r")
-                    Button("180°") { rotateInPlace(angle: .oneEighty) }
-                    Button("90° CCW") { rotateInPlace(angle: .twoSeventy) }
-                        .keyboardShortcut("r", modifiers: [.command, .shift])
-
-                    Spacer()
-
-                    Button("Save") { Task { await saveRotated() } }
-                        .keyboardShortcut("s")
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                }
+                Spacer()
             }
             .padding(24)
             .frame(minWidth: 300, idealWidth: 340)
@@ -177,9 +177,10 @@ struct RotateOptionsView: View {
         }
 
         do {
-            let tempURL = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
-            try data.write(to: tempURL)
-            _ = try FileManager.default.replaceItemAt(destination, withItemAt: tempURL)
+            try AtomicFileWriter.write(to: destination) { tempURL in
+                try data.write(to: tempURL)
+                return true
+            }
             resultMessage = "Saved."
             isError = false
             lastOutputURL = destination
