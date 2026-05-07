@@ -33,26 +33,7 @@ struct SplitOptionsView: View {
 
             // Right: Split options
             VStack(alignment: .leading, spacing: 16) {
-                // Header with back button
-                HStack {
-                    Button(action: onBack) {
-                        Label("Back", systemImage: "chevron.left")
-                            .font(.caption.weight(.medium))
-                    }
-                    .keyboardShortcut(.escape, modifiers: [])
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .contentShape(Rectangle())
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 2)
-
-                    Spacer()
-
-                    Text(url.lastPathComponent)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+                OptionsHeaderView(url: url, onBack: onBack)
 
                 HStack {
                     Text("Split / Extract")

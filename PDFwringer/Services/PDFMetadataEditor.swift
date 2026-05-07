@@ -112,9 +112,11 @@ struct PDFMetadataEditor {
             throw PDFwringerError.cannotCreateOutput
         }
 
+        var skippedPages = 0
+
         for i in 0..<pageCount {
             autoreleasepool {
-                guard let page = doc.page(at: i) else { return }
+                guard let page = doc.page(at: i) else { skippedPages += 1; return }
                 let bounds = page.bounds(for: .cropBox)
                 let rotation = page.rotation
 
@@ -135,7 +137,7 @@ struct PDFMetadataEditor {
                     bitsPerComponent: 8, bytesPerRow: 0,
                     space: CGColorSpaceCreateDeviceRGB(),
                     bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-                ) else { return }
+                ) else { skippedPages += 1; return }
 
                 bitmap.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
                 bitmap.fill(CGRect(x: 0, y: 0, width: pixelW, height: pixelH))
@@ -157,7 +159,7 @@ struct PDFMetadataEditor {
                 guard let tiffData = image.tiffRepresentation,
                       let bitmapRep = NSBitmapImageRep(data: tiffData),
                       let jpegData = bitmapRep.representation(using: .jpeg, properties: [.compressionFactor: quality])
-                else { return }
+                else { skippedPages += 1; return }
 
                 guard let provider = CGDataProvider(data: jpegData as CFData),
                       let jpegImage = CGImage(
@@ -166,13 +168,23 @@ struct PDFMetadataEditor {
                           shouldInterpolate: true,
                           intent: .defaultIntent
                       )
-                else { return }
+                else { skippedPages += 1; return }
 
                 var outBox = CGRect(origin: .zero, size: displaySize)
                 outputCtx.beginPage(mediaBox: &outBox)
                 outputCtx.draw(jpegImage, in: outBox)
                 outputCtx.endPage()
             }
+        }
+
+        if skippedPages == pageCount {
+            outputCtx.closePDF()
+            try? FileManager.default.removeItem(at: tempURL)
+            throw PDFwringerError.cannotWriteOutput
+        }
+
+        if skippedPages > 0 {
+            Log.metadata.warning("Flatten skipped \(skippedPages) of \(pageCount) pages")
         }
 
         outputCtx.closePDF()

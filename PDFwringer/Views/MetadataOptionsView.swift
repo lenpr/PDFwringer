@@ -1,7 +1,7 @@
 import SwiftUI
 import PDFKit
 
-struct MetadataView: View {
+struct MetadataOptionsView: View {
     let url: URL
     let document: PDFDocument
     let onBack: () -> Void
@@ -43,25 +43,7 @@ struct MetadataView: View {
 
             // Right: Metadata fields
             VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Button(action: onBack) {
-                        Label("Back", systemImage: "chevron.left")
-                            .font(.caption.weight(.medium))
-                    }
-                    .keyboardShortcut(.escape, modifiers: [])
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .contentShape(Rectangle())
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 2)
-
-                    Spacer()
-
-                    Text(url.lastPathComponent)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+                OptionsHeaderView(url: url, onBack: onBack)
 
                 HStack {
                     Text("Edit Metadata")

@@ -1,24 +1,6 @@
 import SwiftUI
 import PDFKit
 
-enum PaperSize: String, CaseIterable, Identifiable {
-    case a4 = "A4"
-    case letter = "Letter"
-    case a5 = "A5"
-    case legal = "Legal"
-
-    var id: String { rawValue }
-
-    var size: CGSize {
-        switch self {
-        case .a4: CGSize(width: 595.28, height: 841.89)
-        case .letter: CGSize(width: 612, height: 792)
-        case .a5: CGSize(width: 419.53, height: 595.28)
-        case .legal: CGSize(width: 612, height: 1008)
-        }
-    }
-}
-
 struct CropOptionsView: View {
     let url: URL
     let document: PDFDocument
@@ -35,34 +17,45 @@ struct CropOptionsView: View {
     @State private var selectedPaperSize: PaperSize = .a4
     @State private var landscape = false
 
-    @State private var cropAll = true
+    @State private var applyAll = true
     @State private var pageRangeText = ""
     @State private var selectedPages: Set<Int> = []
-    @State private var syncingFromThumbnails = false
+    @State private var shakeOffset: CGFloat = 0
 
     @State private var resultMessage: String?
     @State private var isError = false
     @State private var lastOutputURL: URL?
     @State private var isDropTargeted = false
     @State private var documentGeneration = 0
-    @State private var shakeOffset: CGFloat = 0
+
+    private static let coral = Color(red: 0.91, green: 0.39, blue: 0.30)
+    private let cropper = PDFCropper()
 
     var body: some View {
         HStack(spacing: 0) {
             VStack(spacing: 0) {
-                PDFPreviewPanel(document: document, currentPage: $currentPage, generation: documentGeneration)
+                CropPreviewPanel(
+                    document: document,
+                    currentPage: $currentPage,
+                    generation: documentGeneration,
+                    cropInsets: NSEdgeInsets(
+                        top: max(0, cropTop),
+                        left: max(0, cropLeft),
+                        bottom: max(0, cropBottom),
+                        right: max(0, cropRight)
+                    ),
+                    resizeTarget: computedResizeTarget
+                )
 
                 PageThumbnailStripView(
                     document: document,
                     currentPage: $currentPage,
-                    selectedPages: cropAll ? nil : $selectedPages
+                    selectedPages: applyAll ? nil : $selectedPages
                 )
                 .id(documentGeneration)
                 .padding(.horizontal, 20)
                 .onChange(of: selectedPages) {
-                    syncingFromThumbnails = true
                     pageRangeText = selectedPages.sorted().map { "\($0 + 1)" }.joined(separator: ", ")
-                    syncingFromThumbnails = false
                 }
             }
             .frame(minWidth: 260, idealWidth: 320)
@@ -75,25 +68,7 @@ struct CropOptionsView: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Button(action: onBack) {
-                        Label("Back", systemImage: "chevron.left")
-                            .font(.caption.weight(.medium))
-                    }
-                    .keyboardShortcut(.escape, modifiers: [])
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .contentShape(Rectangle())
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 2)
-
-                    Spacer()
-
-                    Text(url.lastPathComponent)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+                OptionsHeaderView(url: url, onBack: onBack)
 
                 HStack {
                     Text("Crop / Resize")
@@ -107,29 +82,13 @@ struct CropOptionsView: View {
 
                 Divider()
 
-                // Page selection
-                Toggle(isOn: $cropAll) {
-                    Text("Apply to all pages")
-                        .font(.callout)
-                }
-                .toggleStyle(.checkbox)
-
-                if !cropAll {
-                    HStack {
-                        TextField("e.g. 1, 3-5, 8-", text: $pageRangeText)
-                            .textFieldStyle(.roundedBorder)
-                            .offset(x: shakeOffset)
-                            .onChange(of: pageRangeText) {
-                                guard !syncingFromThumbnails else { return }
-                                if let indices = try? PageRangeParser.parse(pageRangeText, pageCount: document.pageCount) {
-                                    selectedPages = Set(indices)
-                                }
-                            }
-                    }
-                    Text("Tap thumbnails or type page numbers")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
+                PageSelectionView(
+                    pageCount: document.pageCount,
+                    applyAll: $applyAll,
+                    pageRangeText: $pageRangeText,
+                    selectedPages: $selectedPages,
+                    shakeOffset: $shakeOffset
+                )
 
                 Divider()
 
@@ -166,6 +125,7 @@ struct CropOptionsView: View {
                         Spacer()
                         Button("Crop") { applyCrop() }
                             .buttonStyle(.borderedProminent)
+                            .tint(Self.coral)
                             .disabled(cropTop == 0 && cropBottom == 0 && cropLeft == 0 && cropRight == 0)
                     }
                 }
@@ -194,6 +154,7 @@ struct CropOptionsView: View {
 
                         Button("Resize") { applyResize() }
                             .buttonStyle(.borderedProminent)
+                            .tint(Self.coral)
                     }
                 }
 
@@ -222,8 +183,21 @@ struct CropOptionsView: View {
         }
     }
 
+    private var computedResizeTarget: CGSize? {
+        let paperSize = selectedPaperSize.size
+        let target = landscape
+            ? CGSize(width: paperSize.height, height: paperSize.width)
+            : paperSize
+        guard let page = document.page(at: currentPage) else { return target }
+        let current = page.bounds(for: .cropBox).size
+        if abs(current.width - target.width) < 1 && abs(current.height - target.height) < 1 {
+            return nil
+        }
+        return target
+    }
+
     private var targetIndices: [Int]? {
-        if cropAll {
+        if applyAll {
             return Array(0..<document.pageCount)
         }
         if let parsed = try? PageRangeParser.parse(pageRangeText, pageCount: document.pageCount), !parsed.isEmpty {
@@ -241,20 +215,27 @@ struct CropOptionsView: View {
             return
         }
 
-        for idx in indices where idx >= 0 && idx < document.pageCount {
-            guard let page = document.page(at: idx) else { continue }
-            let bounds = page.bounds(for: .cropBox)
-            let newBounds = CGRect(
-                x: bounds.origin.x + cropLeft,
-                y: bounds.origin.y + cropBottom,
-                width: bounds.width - cropLeft - cropRight,
-                height: bounds.height - cropTop - cropBottom
-            )
-            guard newBounds.width > 0 && newBounds.height > 0 else { continue }
-            page.setBounds(newBounds, for: .cropBox)
+        let result = cropper.crop(
+            document: document,
+            indices: indices,
+            top: cropTop,
+            bottom: cropBottom,
+            left: cropLeft,
+            right: cropRight
+        )
+
+        if result.pagesModified == 0 && result.pagesSkipped > 0 {
+            Formatting.triggerShake($shakeOffset)
+            resultMessage = "Crop exceeds page dimensions on all selected pages."
+            isError = true
+            return
         }
+
         documentGeneration += 1
-        resultMessage = nil
+        resultMessage = result.pagesSkipped > 0
+            ? "Cropped \(result.pagesModified) pages (\(result.pagesSkipped) skipped — crop exceeds dimensions)."
+            : nil
+        isError = false
         onMutate?()
     }
 
@@ -264,21 +245,15 @@ struct CropOptionsView: View {
             return
         }
 
-        let targetSize: CGSize
         let paperSize = selectedPaperSize.size
-        if landscape {
-            targetSize = CGSize(width: paperSize.height, height: paperSize.width)
-        } else {
-            targetSize = paperSize
-        }
+        let targetSize = landscape
+            ? CGSize(width: paperSize.height, height: paperSize.width)
+            : paperSize
 
-        for idx in indices where idx >= 0 && idx < document.pageCount {
-            guard let page = document.page(at: idx) else { continue }
-            page.setBounds(CGRect(origin: .zero, size: targetSize), for: .mediaBox)
-            page.setBounds(CGRect(origin: .zero, size: targetSize), for: .cropBox)
-        }
+        _ = cropper.resize(document: document, indices: indices, targetSize: targetSize)
         documentGeneration += 1
         resultMessage = nil
+        isError = false
         onMutate?()
     }
 

@@ -144,7 +144,7 @@ struct ContentView: View {
                 .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
 
             case .editingMetadata(let url, let doc):
-                MetadataView(
+                MetadataOptionsView(
                     url: url,
                     document: doc,
                     onBack: {

@@ -16,7 +16,6 @@ struct RotateOptionsView: View {
     @State private var isError = false
     @State private var isDropTargeted = false
     @State private var lastOutputURL: URL?
-    @State private var syncingFromThumbnails = false
     @State private var shakeOffset: CGFloat = 0
     @State private var documentGeneration = 0
 
@@ -33,9 +32,7 @@ struct RotateOptionsView: View {
                 .id(documentGeneration)
                 .padding(.horizontal, 20)
                 .onChange(of: selectedPages) {
-                    syncingFromThumbnails = true
                     pageRangeText = selectedPages.sorted().map { "\($0 + 1)" }.joined(separator: ", ")
-                    syncingFromThumbnails = false
                 }
             }
             .frame(minWidth: 260, idealWidth: 320)
@@ -48,25 +45,7 @@ struct RotateOptionsView: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Button(action: onBack) {
-                        Label("Back", systemImage: "chevron.left")
-                            .font(.caption.weight(.medium))
-                    }
-                    .keyboardShortcut(.escape, modifiers: [])
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .contentShape(Rectangle())
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 2)
-
-                    Spacer()
-
-                    Text(url.lastPathComponent)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+                OptionsHeaderView(url: url, onBack: onBack)
 
                 HStack {
                     Text("Rotate Pages")
@@ -80,29 +59,14 @@ struct RotateOptionsView: View {
 
                 Divider()
 
-                // Page selection
-                Toggle(isOn: $rotateAll) {
-                    Text("Rotate all pages")
-                        .font(.callout)
-                }
-                .toggleStyle(.checkbox)
-
-                if !rotateAll {
-                    HStack {
-                        TextField("e.g. 1, 3-5, 8-", text: $pageRangeText)
-                            .textFieldStyle(.roundedBorder)
-                            .offset(x: shakeOffset)
-                            .onChange(of: pageRangeText) {
-                                guard !syncingFromThumbnails else { return }
-                                if let indices = try? PageRangeParser.parse(pageRangeText, pageCount: document.pageCount) {
-                                    selectedPages = Set(indices)
-                                }
-                            }
-                    }
-                    Text("Tap thumbnails or type page numbers, ranges, or comma-separated values")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
+                PageSelectionView(
+                    pageCount: document.pageCount,
+                    applyAll: $rotateAll,
+                    pageRangeText: $pageRangeText,
+                    selectedPages: $selectedPages,
+                    shakeOffset: $shakeOffset,
+                    label: "Rotate all pages"
+                )
 
                 HStack(spacing: 12) {
                     Button("90° CW") { rotateInPlace(angle: .ninety) }

@@ -160,13 +160,15 @@ struct PDFCompressor {
         }
 
         do {
+            var skippedPages = 0
+
             for i in 1...pageCount {
                 try Task.checkCancellation()
 
                 autoreleasepool {
-                    guard let page = doc.page(at: i) else { return }
-                    guard let (rendered, displaySize) = Self.renderPage(page, dpi: dpi, grayscale: grayscale) else { return }
-                    guard let jpegData = Self.jpegEncode(image: rendered, quality: quality) else { return }
+                    guard let page = doc.page(at: i) else { skippedPages += 1; return }
+                    guard let (rendered, displaySize) = Self.renderPage(page, dpi: dpi, grayscale: grayscale) else { skippedPages += 1; return }
+                    guard let jpegData = Self.jpegEncode(image: rendered, quality: quality) else { skippedPages += 1; return }
 
                     guard let provider = CGDataProvider(data: jpegData as CFData),
                           let jpegImage = CGImage(
@@ -175,7 +177,7 @@ struct PDFCompressor {
                               shouldInterpolate: true,
                               intent: .defaultIntent
                           )
-                    else { return }
+                    else { skippedPages += 1; return }
 
                     var outBox = CGRect(origin: .zero, size: displaySize)
                     outputCtx.beginPage(mediaBox: &outBox)
@@ -188,6 +190,16 @@ struct PDFCompressor {
             }
 
             outputCtx.closePDF()
+
+            if skippedPages == pageCount {
+                try? FileManager.default.removeItem(at: tempURL)
+                throw PDFwringerError.cannotWriteOutput
+            }
+
+            if skippedPages > 0 {
+                Log.compress.warning("Rasterization skipped \(skippedPages) of \(pageCount) pages")
+            }
+
             _ = try FileManager.default.replaceItemAt(destination, withItemAt: tempURL)
         } catch {
             outputCtx.closePDF()

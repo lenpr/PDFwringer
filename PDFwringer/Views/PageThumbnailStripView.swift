@@ -109,11 +109,11 @@ struct PageThumbnailStripView: View {
         }
         .onTapGesture {
             currentPage?.wrappedValue = index
-            if selectable {
-                if selectedPages!.wrappedValue.contains(index) {
-                    selectedPages!.wrappedValue.remove(index)
+            if selectable, let binding = selectedPages {
+                if binding.wrappedValue.contains(index) {
+                    binding.wrappedValue.remove(index)
                 } else {
-                    selectedPages!.wrappedValue.insert(index)
+                    binding.wrappedValue.insert(index)
                 }
             }
         }
