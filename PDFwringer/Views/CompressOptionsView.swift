@@ -53,7 +53,7 @@ struct CompressOptionsView: View {
 
                     HStack(alignment: .top, spacing: 8) {
                         Image(systemName: vm.selectedLevel == level ? "largecircle.fill.circle" : "circle")
-                            .foregroundColor(vm.selectedLevel == level ? .accentColor : .secondary)
+                            .foregroundColor(vm.selectedLevel == level ? .coral : .secondary)
                             .font(.body)
                             .frame(width: 20)
                         VStack(alignment: .leading, spacing: 1) {
@@ -97,13 +97,13 @@ struct CompressOptionsView: View {
                         ForEach(JPEGQuality.allCases) { q in
                             Text(q.title)
                                 .font(.caption.weight(vm.selectedQuality == q ? .bold : .regular))
-                                .foregroundColor(vm.selectedQuality == q ? .accentColor : .primary)
+                                .foregroundColor(vm.selectedQuality == q ? .coral : .primary)
                                 .padding(.vertical, 4)
                                 .padding(.horizontal, 8)
                                 .background {
                                     if vm.selectedQuality == q {
                                         RoundedRectangle(cornerRadius: 5)
-                                            .fill(Color.accentColor.opacity(0.12))
+                                            .fill(Color.coral.opacity(0.12))
                                             .matchedGeometryEffect(id: "quality", in: qualityNamespace)
                                     }
                                 }
@@ -181,7 +181,7 @@ struct CompressOptionsView: View {
             }
             .padding(24)
             .frame(minWidth: 300, idealWidth: 340)
-            .tint(Color(red: 0.91, green: 0.39, blue: 0.30))
+            .tint(.coral)
         }
         .onAppear {
             vm.setSource(url)

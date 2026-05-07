@@ -28,7 +28,6 @@ struct CropOptionsView: View {
     @State private var isDropTargeted = false
     @State private var documentGeneration = 0
 
-    private static let coral = Color(red: 0.91, green: 0.39, blue: 0.30)
     private let cropper = PDFCropper()
 
     var body: some View {
@@ -178,7 +177,7 @@ struct CropOptionsView: View {
             }
             .padding(24)
             .frame(minWidth: 300, idealWidth: 340)
-            .tint(Self.coral)
+            .tint(.coral)
         }
     }
 

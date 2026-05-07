@@ -92,3 +92,7 @@ enum Log {
     static let rotate = Logger(subsystem: "com.pdfwringer.app", category: "rotate")
     static let metadata = Logger(subsystem: "com.pdfwringer.app", category: "metadata")
 }
+
+extension Color {
+    static let coral = Color(red: 0.91, green: 0.39, blue: 0.30)
+}

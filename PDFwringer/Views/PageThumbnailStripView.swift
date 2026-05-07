@@ -81,7 +81,7 @@ struct PageThumbnailStripView: View {
             .overlay {
                 RoundedRectangle(cornerRadius: 3)
                     .strokeBorder(
-                        isSelected ? Color.accentColor : (isCurrent ? Color.primary.opacity(0.5) : Color(nsColor: .separatorColor)),
+                        isSelected ? Color.coral : (isCurrent ? Color.primary.opacity(0.5) : Color(nsColor: .separatorColor)),
                         lineWidth: isSelected ? 2 : (isCurrent ? 1.5 : 0.5)
                     )
             }

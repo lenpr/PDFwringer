@@ -21,18 +21,18 @@ make test       # compile + run all tests via Swift Testing
 
 Uses Swift Testing (`import Testing`, `@Test`, `#expect`). Tests compile the Services/Models/Utilities layer without SwiftUI.
 
-Test suites cover: `PageRangeParser`, `PDFConcatenator`, `PDFSplitter`, `PDFCompressor`, `PDFRotator`, `PDFMetadataEditor`, `AppViewModel`, `PDFFileItem`, `FailureModeTests`, `UtilityTests`, end-to-end workflows. Tests generate PDFs programmatically — no fixture files needed.
+Test suites cover: `PageRangeParser`, `PDFConcatenator`, `PDFSplitter`, `PDFCompressor`, `PDFRotator`, `PDFCropper`, `PDFMetadataEditor`, `AppViewModel`, `PDFFileItem`, `FailureModeTests`, `UtilityTests`, end-to-end workflows. Tests generate PDFs programmatically — no fixture files needed.
 
 ## Architecture
 
 MVVM with a service layer. All code is `@MainActor`.
 
 ```
-Models/       → Value types: CompressionLevel, JPEGQuality, PDFFileItem
-Services/     → Stateless PDF operations: PDFCompressor, PDFConcatenator, PDFSplitter, PDFRotator, PDFMetadataEditor, PageRangeParser
+Models/       → Value types: CompressionLevel, JPEGQuality, PDFFileItem, PaperSize
+Services/     → Stateless PDF operations: PDFCompressor, PDFConcatenator, PDFSplitter, PDFRotator, PDFCropper, PDFMetadataEditor, PageRangeParser
 ViewModels/   → @Observable classes: AppViewModel, CompressViewModel, ConcatenateViewModel, SplitViewModel
-Views/        → SwiftUI views: CropOptionsView (with PaperSize enum), DropReceiverView (NSViewRepresentable drop overlay), ResultMessageView, ActionCardView, etc.
-Utilities/    → PDFwringerError, FileDialogHelper, Formatting, AtomicFileWriter, Log (all in PDFwringerError.swift)
+Views/        → SwiftUI views + shared components: OptionsHeaderView, PageSelectionView, PDFPreviewView, CropPreviewPanel, PageThumbnailStripView, DropReceiverView, ResultMessageView, ActionCardView
+Utilities/    → PDFwringerError, FileDialogHelper, Formatting, AtomicFileWriter, Log, Color.coral (all in PDFwringerError.swift)
 Resources/    → Asset catalog, AppIcon.icns
 ```
 

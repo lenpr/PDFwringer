@@ -16,7 +16,7 @@ struct MultiFileView: View {
                     ForEach(files) { file in
                         HStack(spacing: 10) {
                             Image(systemName: "doc.fill")
-                                .foregroundColor(.accentColor)
+                                .foregroundColor(.coral)
                                 .font(.body)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(file.filename)

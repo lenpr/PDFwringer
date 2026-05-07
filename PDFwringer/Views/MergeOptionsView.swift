@@ -35,7 +35,7 @@ struct MergeOptionsView: View {
                         ForEach(Array(files.enumerated()), id: \.element.id) { index, file in
                             HStack(spacing: 8) {
                                 Image(systemName: "doc.fill")
-                                    .foregroundColor(.accentColor)
+                                    .foregroundColor(.coral)
                                     .font(.body)
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text(file.filename)
@@ -161,7 +161,7 @@ struct MergeOptionsView: View {
             }
             .padding(24)
             .frame(minWidth: 300, idealWidth: 340)
-            .tint(Color(red: 0.91, green: 0.39, blue: 0.30))
+            .tint(.coral)
         }
     }
 

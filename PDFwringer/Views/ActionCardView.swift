@@ -6,7 +6,7 @@ struct ActionCardView: View {
     let description: String
     let action: () -> Void
 
-    private static let iconColor = Color(red: 0.91, green: 0.39, blue: 0.30)
+    private static let iconColor = Color.coral
 
     @State private var isHovered = false
 

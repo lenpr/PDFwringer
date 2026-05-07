@@ -108,7 +108,7 @@ cp -R .build/PDFwringer.app ~/Applications/
 ### Test
 
 ```bash
-make test    # 125 tests across 11 suites
+make test    # 132 tests across 12 suites
 ```
 
 Uses [Swift Testing](https://developer.apple.com/documentation/testing). Tests cover the service/model/utility layers without requiring a running app. PDFs are generated programmatically — no fixture files.
@@ -121,11 +121,11 @@ MVVM with a stateless service layer. Navigation is a state machine driven by `Ap
 
 ```
 PDFwringer/
-├── Models/          Value types (CompressionLevel, JPEGQuality, PDFFileItem)
-├── Services/        Stateless PDF ops (Compressor, Concatenator, Splitter, Rotator, MetadataEditor, PageRangeParser)
+├── Models/          Value types (CompressionLevel, JPEGQuality, PDFFileItem, PaperSize)
+├── Services/        Stateless PDF ops (Compressor, Concatenator, Splitter, Rotator, Cropper, MetadataEditor, PageRangeParser)
 ├── ViewModels/      @Observable classes (AppViewModel, CompressViewModel, ConcatenateViewModel, SplitViewModel)
-├── Views/           SwiftUI views + NSViewRepresentable drop overlay
-├── Utilities/       Error types, file dialogs, formatting helpers
+├── Views/           SwiftUI views, shared components (OptionsHeaderView, PageSelectionView, PDFPreviewView, CropPreviewPanel)
+├── Utilities/       Error types, file dialogs, formatting helpers, Color.coral
 └── Resources/       Asset catalog, AppIcon.icns
 ```
 

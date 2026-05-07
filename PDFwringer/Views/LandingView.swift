@@ -35,7 +35,7 @@ struct LandingView: View {
                         .font(.body.weight(.medium))
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(Color(red: 0.91, green: 0.39, blue: 0.30))
+                .tint(.coral)
                 .controlSize(.large)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -52,7 +52,7 @@ struct LandingView: View {
                                 .strokeBorder(
                                     style: StrokeStyle(lineWidth: 2, dash: [8, 4], dashPhase: dashPhase)
                                 )
-                                .foregroundStyle(Color.accentColor)
+                                .foregroundStyle(Color.coral)
                         }
                     }
             }

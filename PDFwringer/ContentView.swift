@@ -183,6 +183,13 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 650, minHeight: 420)
+        .overlay(alignment: .bottomTrailing) {
+            Text("v0.1.6")
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+                .padding(.trailing, 8)
+                .padding(.bottom, 4)
+        }
         .animation(.spring(duration: 0.3), value: appVM.state)
         .alert("Password Required", isPresented: $appVM.showPasswordPrompt) {
             SecureField("Password", text: $appVM.passwordText)
