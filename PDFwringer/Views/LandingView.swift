@@ -13,7 +13,7 @@ struct LandingView: View {
             VStack(spacing: 20) {
                 Image(systemName: "doc.richtext")
                     .font(.system(size: 56, weight: .thin))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.coral)
                     .symbolEffect(.pulse, options: .repeating.speed(0.3), value: isDropTargeted)
 
                 VStack(spacing: 6) {
@@ -21,14 +21,10 @@ struct LandingView: View {
                         .font(.title2.weight(.medium))
                         .foregroundStyle(.primary)
 
-                    Text("or click to select")
+                    Text("or click to select (\u{2318}O)")
                         .font(.callout)
                         .foregroundStyle(.tertiary)
                 }
-
-                Text("\u{2318}O to open")
-                    .font(.caption2)
-                    .foregroundStyle(.quaternary)
 
                 Button(action: selectFiles) {
                     Label("Select Files...", systemImage: "folder")

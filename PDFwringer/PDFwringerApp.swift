@@ -5,6 +5,7 @@ import PDFKit
 struct PDFwringerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var appVM = AppViewModel()
+    @AppStorage("appearance") private var appearance: AppAppearance = .system
 
     init() {
         NSApplication.shared.setActivationPolicy(.regular)
@@ -15,6 +16,7 @@ struct PDFwringerApp: App {
         WindowGroup {
             ContentView(appVM: appVM)
                 .navigationTitle(appVM.windowTitle)
+                .preferredColorScheme(appearance.colorScheme)
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 800, height: 520)
@@ -47,6 +49,15 @@ struct PDFwringerApp: App {
                     NSApp.keyWindow?.close()
                 }
                 .keyboardShortcut("w")
+            }
+
+            // View menu
+            CommandMenu("View") {
+                Picker("Appearance", selection: $appearance) {
+                    ForEach(AppAppearance.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
             }
 
             // Navigate menu
@@ -165,5 +176,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return .terminateNow
         }
         return .terminateCancel
+    }
+}
+
+enum AppAppearance: String, CaseIterable, Identifiable {
+    case system, light, dark
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
     }
 }

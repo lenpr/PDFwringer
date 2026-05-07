@@ -9,13 +9,13 @@ struct OptionsHeaderView: View {
             Button(action: onBack) {
                 Label("Back", systemImage: "chevron.left")
                     .font(.caption.weight(.medium))
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 10)
             }
             .keyboardShortcut(.escape, modifiers: [])
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .contentShape(Rectangle())
-            .padding(.vertical, 4)
-            .padding(.horizontal, 2)
 
             Spacer()
 

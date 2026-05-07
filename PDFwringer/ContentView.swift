@@ -184,7 +184,7 @@ struct ContentView: View {
         }
         .frame(minWidth: 650, minHeight: 420)
         .overlay(alignment: .bottomTrailing) {
-            Text("v0.1.6")
+            Text("v0.1.7")
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
                 .padding(.trailing, 8)
