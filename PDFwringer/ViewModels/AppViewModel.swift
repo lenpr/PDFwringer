@@ -14,6 +14,7 @@ enum AppState: Equatable {
     case merging([PDFFileItem])
     case rotating(URL, PDFDocument)
     case editingMetadata(URL, PDFDocument)
+    case cropping(URL, PDFDocument)
 
     // PDFDocument doesn't conform to Equatable; compare by URL/item identity only.
     static func == (lhs: AppState, rhs: AppState) -> Bool {
@@ -26,6 +27,7 @@ enum AppState: Equatable {
         case (.merging(let a), .merging(let b)): a.map(\.id) == b.map(\.id)
         case (.rotating(let a, _), .rotating(let b, _)): a == b
         case (.editingMetadata(let a, _), .editingMetadata(let b, _)): a == b
+        case (.cropping(let a, _), .cropping(let b, _)): a == b
         default: false
         }
     }
@@ -60,7 +62,7 @@ class AppViewModel {
         case .landing:
             return "PDFwringer"
         case .singleFile(let url, _), .compressing(let url, _), .splitting(let url, _),
-             .rotating(let url, _), .editingMetadata(let url, _):
+             .rotating(let url, _), .editingMetadata(let url, _), .cropping(let url, _):
             return url.lastPathComponent
         case .multiFile(let items), .merging(let items):
             return "\(items.count) files"
@@ -79,7 +81,7 @@ class AppViewModel {
 
     var canGoBack: Bool {
         switch state {
-        case .compressing, .splitting, .rotating, .editingMetadata, .merging:
+        case .compressing, .splitting, .rotating, .editingMetadata, .merging, .cropping:
             return true
         default:
             return false
@@ -191,11 +193,18 @@ class AppViewModel {
         state = .editingMetadata(url, doc)
     }
 
+    func selectCrop() {
+        guard case .singleFile(let url, let doc) = state else { return }
+        navigationDirection = .trailing
+        state = .cropping(url, doc)
+    }
+
     func goBack() {
         navigationDirection = .leading
         switch state {
         case .compressing(let url, let doc), .splitting(let url, let doc),
-             .rotating(let url, let doc), .editingMetadata(let url, let doc):
+             .rotating(let url, let doc), .editingMetadata(let url, let doc),
+             .cropping(let url, let doc):
             state = .singleFile(url, doc)
         case .merging(let items):
             state = .multiFile(items)

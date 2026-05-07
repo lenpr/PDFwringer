@@ -10,6 +10,7 @@ struct DocumentView: View {
     let onSplit: () -> Void
     let onRotate: () -> Void
     let onMetadata: () -> Void
+    let onCrop: () -> Void
     let onStartOver: () -> Void
     let onFilesDropped: ([URL]) -> Void
     @Binding var currentPage: Int
@@ -97,6 +98,13 @@ struct DocumentView: View {
                     )
 
                     ActionCardView(
+                        icon: "crop",
+                        title: "Crop / Resize",
+                        description: "Trim margins or resize pages to standard paper sizes",
+                        action: onCrop
+                    )
+
+                    ActionCardView(
                         icon: "info.circle",
                         title: "Edit Metadata",
                         description: "View and edit title, author, subject, and keywords",
@@ -115,8 +123,10 @@ struct DocumentView: View {
                     .keyboardShortcut("2")
                 Button("") { onRotate() }
                     .keyboardShortcut("3")
-                Button("") { onMetadata() }
+                Button("") { onCrop() }
                     .keyboardShortcut("4")
+                Button("") { onMetadata() }
+                    .keyboardShortcut("5")
             }
             .hidden()
         }

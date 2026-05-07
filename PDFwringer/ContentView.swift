@@ -40,6 +40,11 @@ struct ContentView: View {
                             appVM.selectMetadata()
                         }
                     },
+                    onCrop: {
+                        withAnimation(.spring(duration: 0.3)) {
+                            appVM.selectCrop()
+                        }
+                    },
                     onStartOver: {
                         appVM.confirmStartOver()
                     },
@@ -140,6 +145,25 @@ struct ContentView: View {
 
             case .editingMetadata(let url, let doc):
                 MetadataView(
+                    url: url,
+                    document: doc,
+                    onBack: {
+                        withAnimation(.spring(duration: 0.3)) {
+                            appVM.goBack()
+                        }
+                    },
+                    onFilesDropped: { urls in
+                        withAnimation(.spring(duration: 0.35)) {
+                            appVM.handleDrop(urls)
+                        }
+                    },
+                    onMutate: { appVM.hasUnsavedChanges = true },
+                    currentPage: $appVM.currentPage
+                )
+                .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
+
+            case .cropping(let url, let doc):
+                CropOptionsView(
                     url: url,
                     document: doc,
                     onBack: {

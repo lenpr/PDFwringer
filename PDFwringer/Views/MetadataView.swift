@@ -19,6 +19,7 @@ struct MetadataView: View {
     @State private var passwordText = ""
     @State private var confirmPasswordText = ""
     @State private var removeProtection = false
+    @State private var flattenAnnotations = false
 
     private let editor = PDFMetadataEditor()
 
@@ -83,6 +84,19 @@ struct MetadataView: View {
                 }
 
                 Text("Keywords should be comma-separated")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+
+                Divider()
+
+                Text("Annotations")
+                    .font(.callout.weight(.medium))
+
+                Toggle("Flatten annotations", isOn: $flattenAnnotations)
+                    .toggleStyle(.checkbox)
+                    .font(.callout)
+
+                Text("Burns highlights, comments, and form fields into the page content so they cannot be edited")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
 
@@ -199,8 +213,10 @@ struct MetadataView: View {
         }
 
         do {
-            try editor.write(metadata: metadata, source: url, destination: destination, password: password)
-            if password != nil {
+            try editor.write(metadata: metadata, source: url, destination: destination, password: password, flattenAnnotations: flattenAnnotations)
+            if flattenAnnotations {
+                resultMessage = "Saved with annotations flattened."
+            } else if password != nil {
                 resultMessage = "Saved with password protection."
             } else if removeProtection {
                 resultMessage = "Saved without password protection."
