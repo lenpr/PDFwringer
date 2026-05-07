@@ -41,6 +41,9 @@ class AppViewModel {
     var showErrorAlert = false
     var errorMessage = ""
 
+    // Start-over confirmation state
+    var showStartOverConfirm = false
+
     // Password prompt state
     var showPasswordPrompt = false
     var passwordText = ""
@@ -188,6 +191,10 @@ class AppViewModel {
         default:
             break
         }
+    }
+
+    func confirmStartOver() {
+        showStartOverConfirm = true
     }
 
     func startOver() {

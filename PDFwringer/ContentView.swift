@@ -41,9 +41,7 @@ struct ContentView: View {
                         }
                     },
                     onStartOver: {
-                        withAnimation(.spring(duration: 0.35)) {
-                            appVM.startOver()
-                        }
+                        appVM.confirmStartOver()
                     },
                     onFilesDropped: { urls in
                         withAnimation(.spring(duration: 0.35)) {
@@ -63,9 +61,7 @@ struct ContentView: View {
                         }
                     },
                     onStartOver: {
-                        withAnimation(.spring(duration: 0.35)) {
-                            appVM.startOver()
-                        }
+                        appVM.confirmStartOver()
                     },
                     onFilesDropped: { urls in
                         addFilesToMultiFile(urls)
@@ -177,6 +173,16 @@ struct ContentView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(appVM.errorMessage)
+        }
+        .alert("Start Over?", isPresented: $appVM.showStartOverConfirm) {
+            Button("Start Over", role: .destructive) {
+                withAnimation(.spring(duration: 0.35)) {
+                    appVM.startOver()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will discard your current selection.")
         }
         .onAppear {
             // Wire AppDelegate to forward Finder-opened files
