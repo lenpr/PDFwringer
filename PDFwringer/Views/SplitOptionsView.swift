@@ -153,14 +153,14 @@ struct SplitOptionsView: View {
         .onAppear {
             vm.setSource(url)
         }
-        .onChange(of: vm.isError) { _, isError in
-            guard isError else { return }
-            if vm.resultMessage?.contains("pages") == true || vm.resultMessage?.contains("No pages") == true {
-                if !vm.keepPagesText.isEmpty {
-                    Formatting.triggerShake($keepShakeOffset)
-                } else if !vm.removePagesText.isEmpty {
-                    Formatting.triggerShake($removeShakeOffset)
-                }
+        .onChange(of: vm.errorSource) { _, source in
+            switch source {
+            case .keep:
+                Formatting.triggerShake($keepShakeOffset)
+            case .remove:
+                Formatting.triggerShake($removeShakeOffset)
+            case .split, nil:
+                break
             }
         }
     }

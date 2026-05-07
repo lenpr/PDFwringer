@@ -14,10 +14,12 @@ class SplitViewModel {
     var resultMessage: String?
     var isError = false
     var lastOutputURL: URL?
+    var errorSource: ErrorSource?
+
+    enum ErrorSource: Equatable { case split, keep, remove }
 
     private let splitter = PDFSplitter()
-    private enum LastOperation { case split, keep, remove }
-    private var lastOperation: LastOperation?
+    private var lastOperation: ErrorSource?
 
     var canProcess: Bool {
         sourceURL != nil && !isProcessing
@@ -34,15 +36,18 @@ class SplitViewModel {
 
     func splitByPages() async {
         lastOperation = .split
+        errorSource = nil
         guard let source = sourceURL, !isProcessing else { return }
         guard splitPagesPerFile >= 1 else {
             resultMessage = "Pages per file must be at least 1."
             isError = true
+            errorSource = .split
             return
         }
         if splitPagesPerFile > sourcePageCount {
             resultMessage = "Pages per file exceeds total page count (\(sourcePageCount))."
             isError = true
+            errorSource = .split
             return
         }
 
@@ -69,6 +74,7 @@ class SplitViewModel {
         } catch {
             resultMessage = error.localizedDescription
             isError = true
+            errorSource = .split
         }
 
         isProcessing = false
@@ -76,6 +82,7 @@ class SplitViewModel {
 
     func keepPages() async {
         lastOperation = .keep
+        errorSource = nil
         guard let source = sourceURL, !isProcessing else { return }
 
         do {
@@ -83,6 +90,7 @@ class SplitViewModel {
             guard !indices.isEmpty else {
                 resultMessage = "No pages specified."
                 isError = true
+                errorSource = .keep
                 return
             }
 
@@ -110,6 +118,7 @@ class SplitViewModel {
         } catch {
             resultMessage = error.localizedDescription
             isError = true
+            errorSource = .keep
         }
 
         isProcessing = false
@@ -117,6 +126,7 @@ class SplitViewModel {
 
     func removePages() async {
         lastOperation = .remove
+        errorSource = nil
         guard let source = sourceURL, !isProcessing else { return }
 
         do {
@@ -124,6 +134,7 @@ class SplitViewModel {
             guard !indices.isEmpty else {
                 resultMessage = "No pages specified."
                 isError = true
+                errorSource = .remove
                 return
             }
 
@@ -152,6 +163,7 @@ class SplitViewModel {
         } catch {
             resultMessage = error.localizedDescription
             isError = true
+            errorSource = .remove
         }
 
         isProcessing = false
