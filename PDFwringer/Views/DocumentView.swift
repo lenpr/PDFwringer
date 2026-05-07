@@ -166,16 +166,22 @@ struct PDFPreviewView: NSViewRepresentable {
 
         if currentIndex != currentPage,
            let page = document.page(at: currentPage) {
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            pdfView.go(to: page)
-            CATransaction.commit()
+            context.coordinator.pendingNavigation?.cancel()
+            let item = DispatchWorkItem {
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                pdfView.go(to: page)
+                CATransaction.commit()
+            }
+            context.coordinator.pendingNavigation = item
+            DispatchQueue.main.async(execute: item)
         }
     }
 
     class Coordinator: NSObject {
         var parent: PDFPreviewView
         var lastGeneration = 0
+        var pendingNavigation: DispatchWorkItem?
 
         init(parent: PDFPreviewView) {
             self.parent = parent
