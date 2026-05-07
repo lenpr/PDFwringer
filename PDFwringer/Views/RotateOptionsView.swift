@@ -22,10 +22,7 @@ struct RotateOptionsView: View {
     var body: some View {
         HStack(spacing: 0) {
             VStack(spacing: 0) {
-                PDFPreviewView(document: document, currentPage: $currentPage, generation: documentGeneration)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .shadow(color: Color(nsColor: .shadowColor).opacity(0.15), radius: 8, y: 2)
-                    .padding(20)
+                PDFPreviewPanel(document: document, currentPage: $currentPage, generation: documentGeneration)
 
                 PageThumbnailStripView(
                     document: document,

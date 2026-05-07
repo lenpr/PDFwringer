@@ -21,10 +21,7 @@ struct DocumentView: View {
         HStack(spacing: 0) {
             // Left: PDF preview + thumbnails
             VStack(spacing: 0) {
-                PDFPreviewView(document: document, currentPage: $currentPage)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .shadow(color: Color(nsColor: .shadowColor).opacity(0.15), radius: 8, y: 2)
-                    .padding(20)
+                PDFPreviewPanel(document: document, currentPage: $currentPage)
 
                 PageThumbnailStripView(document: document, currentPage: $currentPage)
                     .padding(.horizontal, 20)
@@ -129,6 +126,7 @@ struct PDFPreviewView: NSViewRepresentable {
     let document: PDFDocument
     @Binding var currentPage: Int
     var generation: Int = 0
+    var proxy: PDFViewProxy?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -142,6 +140,8 @@ struct PDFPreviewView: NSViewRepresentable {
         pdfView.displaysPageBreaks = false
         pdfView.pageShadowsEnabled = false
         pdfView.displayDirection = .vertical
+
+        proxy?.pdfView = pdfView
 
         NotificationCenter.default.addObserver(
             context.coordinator,
@@ -157,7 +157,11 @@ struct PDFPreviewView: NSViewRepresentable {
         if pdfView.document !== document || context.coordinator.lastGeneration != generation {
             pdfView.document = document
             context.coordinator.lastGeneration = generation
+            pdfView.autoScales = true
+            pdfView.layoutDocumentView()
         }
+
+        proxy?.pdfView = pdfView
 
         let currentIndex: Int? = {
             guard let page = pdfView.currentPage else { return nil }
@@ -171,6 +175,7 @@ struct PDFPreviewView: NSViewRepresentable {
                 CATransaction.begin()
                 CATransaction.setDisableActions(true)
                 pdfView.go(to: page)
+                pdfView.autoScales = true
                 CATransaction.commit()
             }
             context.coordinator.pendingNavigation = item
@@ -197,5 +202,49 @@ struct PDFPreviewView: NSViewRepresentable {
                 }
             }
         }
+    }
+}
+
+@MainActor @Observable
+class PDFViewProxy {
+    weak var pdfView: PDFView?
+
+    func zoomIn() { pdfView?.zoomIn(nil) }
+    func zoomOut() { pdfView?.zoomOut(nil) }
+    func fitToView() { pdfView?.autoScales = true }
+    var canZoomIn: Bool { pdfView?.canZoomIn ?? false }
+    var canZoomOut: Bool { pdfView?.canZoomOut ?? false }
+}
+
+struct PDFPreviewPanel: View {
+    let document: PDFDocument
+    @Binding var currentPage: Int
+    var generation: Int = 0
+
+    @State private var proxy = PDFViewProxy()
+
+    var body: some View {
+        PDFPreviewView(document: document, currentPage: $currentPage, generation: generation, proxy: proxy)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .shadow(color: Color(nsColor: .shadowColor).opacity(0.15), radius: 8, y: 2)
+            .overlay(alignment: .bottomTrailing) {
+                HStack(spacing: 4) {
+                    Button { proxy.zoomOut() } label: {
+                        Image(systemName: "minus.magnifyingglass")
+                    }
+                    Button { proxy.fitToView() } label: {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    }
+                    Button { proxy.zoomIn() } label: {
+                        Image(systemName: "plus.magnifyingglass")
+                    }
+                }
+                .buttonStyle(.plain)
+                .font(.caption)
+                .padding(6)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
+                .padding(8)
+            }
+            .padding(20)
     }
 }

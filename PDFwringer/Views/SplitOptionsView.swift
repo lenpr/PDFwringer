@@ -17,10 +17,7 @@ struct SplitOptionsView: View {
         HStack(spacing: 0) {
             // Left: PDF preview + thumbnails
             VStack(spacing: 0) {
-                PDFPreviewView(document: document, currentPage: $currentPage)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .shadow(color: Color(nsColor: .shadowColor).opacity(0.15), radius: 8, y: 2)
-                    .padding(20)
+                PDFPreviewPanel(document: document, currentPage: $currentPage)
 
                 PageThumbnailStripView(document: document, currentPage: $currentPage)
                     .padding(.horizontal, 20)
