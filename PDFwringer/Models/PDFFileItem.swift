@@ -18,8 +18,8 @@ struct PDFFileItem: Identifiable, Sendable {
     /// Returns nil if the URL is not a PDF.
     static func from(url: URL) -> PDFFileItem? {
         guard url.pathExtension.lowercased() == "pdf" else { return nil }
-        let pageCount = PDFDocument(url: url)?.pageCount ?? 0
-        return PDFFileItem(url: url, pageCount: pageCount)
+        guard let doc = PDFDocument(url: url), doc.pageCount > 0 else { return nil }
+        return PDFFileItem(url: url, pageCount: doc.pageCount)
     }
 
     /// Creates PDFFileItems from multiple URLs, filtering to valid PDFs.

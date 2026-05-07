@@ -26,15 +26,14 @@ struct PDFFileItemTests {
         #expect(item == nil)
     }
 
-    @Test("from(url:) handles PDF that can't be parsed (0 pages)")
+    @Test("from(url:) returns nil for corrupt PDF (0 pages)")
     func fromCorruptPDF() {
         let url = URL.temporaryDirectory.appending(component: "bad.pdf")
         try! "not a real pdf".write(to: url, atomically: true, encoding: .utf8)
         defer { TestPDFGenerator.cleanup(url) }
 
         let item = PDFFileItem.from(url: url)
-        #expect(item != nil)
-        #expect(item?.pageCount == 0)
+        #expect(item == nil)
     }
 
     @Test("from(urls:) filters to valid PDFs only")
