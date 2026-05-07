@@ -5,7 +5,7 @@ import PDFKit
 @MainActor
 struct PDFMetadataEditor {
 
-    struct Metadata {
+    struct Metadata: Equatable {
         var title: String
         var author: String
         var subject: String

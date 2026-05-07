@@ -108,8 +108,27 @@ struct PDFwringerApp: App {
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     var onOpenURLs: (([URL]) -> Void)?
+    var hasUnsavedChanges: (() -> Bool)?
 
     func application(_ application: NSApplication, open urls: [URL]) {
         onOpenURLs?(urls)
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let dirty = hasUnsavedChanges?() == true ||
+            sender.windows.contains(where: { $0.isDocumentEdited })
+        guard dirty else { return .terminateNow }
+
+        let alert = NSAlert()
+        alert.messageText = "You have unsaved changes."
+        alert.informativeText = "If you quit now, your changes will be lost."
+        alert.addButton(withTitle: "Quit")
+        alert.addButton(withTitle: "Cancel")
+        alert.alertStyle = .warning
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            return .terminateNow
+        }
+        return .terminateCancel
     }
 }

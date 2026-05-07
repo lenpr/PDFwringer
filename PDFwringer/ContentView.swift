@@ -133,6 +133,7 @@ struct ContentView: View {
                             appVM.handleDrop(urls)
                         }
                     },
+                    onMutate: { appVM.hasUnsavedChanges = true },
                     currentPage: $appVM.currentPage
                 )
                 .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -151,6 +152,7 @@ struct ContentView: View {
                             appVM.handleDrop(urls)
                         }
                     },
+                    onMutate: { appVM.hasUnsavedChanges = true },
                     currentPage: $appVM.currentPage
                 )
                 .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -185,10 +187,13 @@ struct ContentView: View {
             Text("This will discard your current selection.")
         }
         .onAppear {
-            // Wire AppDelegate to forward Finder-opened files
+            // Wire AppDelegate to forward Finder-opened files and check dirty state
             if let delegate = NSApp.delegate as? AppDelegate {
                 delegate.onOpenURLs = { [weak appVM] urls in
                     appVM?.handleDrop(urls)
+                }
+                delegate.hasUnsavedChanges = { [weak appVM] in
+                    appVM?.hasUnsavedChanges ?? false
                 }
             }
         }

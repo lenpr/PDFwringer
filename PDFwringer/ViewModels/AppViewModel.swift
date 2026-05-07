@@ -44,6 +44,9 @@ class AppViewModel {
     // Start-over confirmation state
     var showStartOverConfirm = false
 
+    // Dirty state: set when user makes unsaved mutations (rotations, metadata edits)
+    var hasUnsavedChanges = false
+
     // Password prompt state
     var showPasswordPrompt = false
     var passwordText = ""
@@ -191,6 +194,7 @@ class AppViewModel {
         default:
             break
         }
+        hasUnsavedChanges = false
     }
 
     func confirmStartOver() {
@@ -199,5 +203,6 @@ class AppViewModel {
 
     func startOver() {
         state = .landing
+        hasUnsavedChanges = false
     }
 }

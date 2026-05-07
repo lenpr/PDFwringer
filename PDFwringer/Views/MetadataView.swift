@@ -6,9 +6,11 @@ struct MetadataView: View {
     let document: PDFDocument
     let onBack: () -> Void
     let onFilesDropped: ([URL]) -> Void
+    var onMutate: (() -> Void)?
     @Binding var currentPage: Int
 
     @State private var metadata: PDFMetadataEditor.Metadata = .empty
+    @State private var initialMetadata: PDFMetadataEditor.Metadata = .empty
     @State private var resultMessage: String?
     @State private var isError = false
     @State private var isDropTargeted = false
@@ -147,6 +149,12 @@ struct MetadataView: View {
         }
         .onAppear {
             metadata = editor.read(from: url)
+            initialMetadata = metadata
+        }
+        .onChange(of: metadata) {
+            if metadata != initialMetadata {
+                onMutate?()
+            }
         }
     }
 

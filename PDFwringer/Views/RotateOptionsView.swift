@@ -6,6 +6,7 @@ struct RotateOptionsView: View {
     let document: PDFDocument
     let onBack: () -> Void
     let onFilesDropped: ([URL]) -> Void
+    var onMutate: (() -> Void)?
     @Binding var currentPage: Int
 
     @State private var pageRangeText: String = ""
@@ -165,6 +166,7 @@ struct RotateOptionsView: View {
         }
         documentGeneration += 1
         resultMessage = nil
+        onMutate?()
     }
 
     private func saveRotated() async {
