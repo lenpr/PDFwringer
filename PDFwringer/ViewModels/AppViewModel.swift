@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import PDFKit
+import SwiftUI
 
 /// Top-level navigation state machine. Each case represents a distinct screen in the app.
 /// Transitions: landing → singleFile/multiFile → action screen → (back).
@@ -36,6 +37,7 @@ class AppViewModel {
     var state: AppState = .landing
     var currentPage: Int = 0
     var currentFileSize: Int64 = 0
+    var navigationDirection: Edge = .trailing
 
     // Error alert state
     var showErrorAlert = false
@@ -161,30 +163,36 @@ class AppViewModel {
 
     func selectCompress() {
         guard case .singleFile(let url, let doc) = state else { return }
+        navigationDirection = .trailing
         state = .compressing(url, doc)
     }
 
     func selectSplit() {
         guard case .singleFile(let url, let doc) = state else { return }
+        navigationDirection = .trailing
         state = .splitting(url, doc)
     }
 
     func selectMerge() {
         guard case .multiFile(let items) = state else { return }
+        navigationDirection = .trailing
         state = .merging(items)
     }
 
     func selectRotate() {
         guard case .singleFile(let url, let doc) = state else { return }
+        navigationDirection = .trailing
         state = .rotating(url, doc)
     }
 
     func selectMetadata() {
         guard case .singleFile(let url, let doc) = state else { return }
+        navigationDirection = .trailing
         state = .editingMetadata(url, doc)
     }
 
     func goBack() {
+        navigationDirection = .leading
         switch state {
         case .compressing(let url, let doc), .splitting(let url, let doc),
              .rotating(let url, let doc), .editingMetadata(let url, let doc):

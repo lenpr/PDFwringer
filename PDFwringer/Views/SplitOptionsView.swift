@@ -61,6 +61,7 @@ struct SplitOptionsView: View {
                     Text("\(vm.sourcePageCount) pages")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
                 }
 
                 Divider()
@@ -80,6 +81,7 @@ struct SplitOptionsView: View {
                         Button("Split") {
                             Task { await vm.splitByPages() }
                         }
+                        .buttonStyle(.borderedProminent)
                         .disabled(!vm.canProcess)
                     }
                 }
@@ -97,6 +99,7 @@ struct SplitOptionsView: View {
                         Button("Extract") {
                             Task { await vm.keepPages() }
                         }
+                        .buttonStyle(.borderedProminent)
                         .disabled(!vm.canProcess || vm.keepPagesText.isEmpty)
                     }
                 }
@@ -114,6 +117,7 @@ struct SplitOptionsView: View {
                         Button("Remove") {
                             Task { await vm.removePages() }
                         }
+                        .buttonStyle(.borderedProminent)
                         .disabled(!vm.canProcess || vm.removePagesText.isEmpty)
                     }
                 }
@@ -124,24 +128,12 @@ struct SplitOptionsView: View {
                 }
 
                 if let msg = vm.resultMessage {
-                    HStack {
-                        Text(msg)
-                            .font(.caption)
-                            .foregroundStyle(vm.isError ? .red : .green)
-                            .lineLimit(3)
-                        Spacer()
-                        if vm.isError {
-                            Button("Try Again") {
-                                Task { await vm.retryLastOperation() }
-                            }
-                            .font(.caption)
-                        } else if let outputURL = vm.lastOutputURL {
-                            Button("Reveal in Finder") {
-                                NSWorkspace.shared.activateFileViewerSelecting([outputURL])
-                            }
-                            .font(.caption)
-                        }
-                    }
+                    ResultMessageView(
+                        message: msg,
+                        isError: vm.isError,
+                        outputURL: vm.lastOutputURL,
+                        onRetry: vm.isError ? { Task { await vm.retryLastOperation() } } : nil
+                    )
                 }
 
                 Spacer()

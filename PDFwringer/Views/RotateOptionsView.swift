@@ -75,6 +75,7 @@ struct RotateOptionsView: View {
                     Text("\(document.pageCount) pages")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
                 }
 
                 Divider()
@@ -119,24 +120,12 @@ struct RotateOptionsView: View {
                 }
 
                 if let msg = resultMessage {
-                    HStack {
-                        Text(msg)
-                            .font(.caption)
-                            .foregroundStyle(isError ? .red : .green)
-                            .lineLimit(3)
-                        Spacer()
-                        if isError {
-                            Button("Try Again") {
-                                Task { await saveRotated() }
-                            }
-                            .font(.caption)
-                        } else if let outputURL = lastOutputURL {
-                            Button("Reveal in Finder") {
-                                NSWorkspace.shared.activateFileViewerSelecting([outputURL])
-                            }
-                            .font(.caption)
-                        }
-                    }
+                    ResultMessageView(
+                        message: msg,
+                        isError: isError,
+                        outputURL: lastOutputURL,
+                        onRetry: isError ? { Task { await saveRotated() } } : nil
+                    )
                 }
 
                 Spacer()

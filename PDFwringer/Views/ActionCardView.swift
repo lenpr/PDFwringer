@@ -6,6 +6,8 @@ struct ActionCardView: View {
     let description: String
     let action: () -> Void
 
+    private static let iconColor = Color(red: 0.91, green: 0.39, blue: 0.30)
+
     @State private var isHovered = false
 
     var body: some View {
@@ -13,7 +15,7 @@ struct ActionCardView: View {
             HStack(spacing: 14) {
                 Image(systemName: icon)
                     .font(.title2)
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(Self.iconColor)
                     .frame(width: 36, height: 36)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -35,13 +37,14 @@ struct ActionCardView: View {
             .padding(14)
             .background {
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(isHovered ? Color.accentColor.opacity(0.06) : Color(nsColor: .controlBackgroundColor))
-                    .shadow(color: Color(nsColor: .shadowColor).opacity(0.08), radius: isHovered ? 4 : 2, y: 1)
+                    .fill(isHovered ? Self.iconColor.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
+                    .shadow(color: Color(nsColor: .shadowColor).opacity(isHovered ? 0.12 : 0.08), radius: isHovered ? 6 : 2, y: isHovered ? 2 : 1)
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(Color.primary.opacity(isHovered ? 0.1 : 0.04), lineWidth: 0.5)
+                    .strokeBorder(isHovered ? Self.iconColor.opacity(0.3) : Color.primary.opacity(0.04), lineWidth: 0.5)
             }
+            .offset(y: isHovered ? -1 : 0)
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }

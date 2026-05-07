@@ -47,6 +47,7 @@ struct DocumentView: View {
                             Text("\(document.pageCount) pages \u{2022} \(Formatting.fileSize(fileSize))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                                .contentTransition(.numericText())
                                 .scaleEffect(pageCountScale)
                                 .onAppear {
                                     withAnimation(.spring(duration: 0.3, bounce: 0.5).delay(0.15)) {

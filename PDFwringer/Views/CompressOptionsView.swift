@@ -10,6 +10,7 @@ struct CompressOptionsView: View {
 
     @State private var vm = CompressViewModel()
     @State private var isDropTargeted = false
+    @Namespace private var qualityNamespace
 
     var body: some View {
         HStack(spacing: 0) {
@@ -59,6 +60,7 @@ struct CompressOptionsView: View {
                     Text("\(vm.sourcePageCount) pages, \(Formatting.fileSize(vm.sourceFileSize))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
                 }
 
                 Divider()
@@ -82,6 +84,7 @@ struct CompressOptionsView: View {
                                     Text(Formatting.fileSize(size))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
+                                        .contentTransition(.numericText())
                                 } else {
                                     ProgressView()
                                         .controlSize(.mini)
@@ -116,13 +119,18 @@ struct CompressOptionsView: View {
                                 .foregroundColor(vm.selectedQuality == q ? .accentColor : .primary)
                                 .padding(.vertical, 4)
                                 .padding(.horizontal, 8)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 5)
-                                        .fill(vm.selectedQuality == q ? Color.accentColor.opacity(0.12) : Color.clear)
-                                )
+                                .background {
+                                    if vm.selectedQuality == q {
+                                        RoundedRectangle(cornerRadius: 5)
+                                            .fill(Color.accentColor.opacity(0.12))
+                                            .matchedGeometryEffect(id: "quality", in: qualityNamespace)
+                                    }
+                                }
                                 .contentShape(Rectangle())
                                 .onTapGesture {
-                                    vm.selectedQuality = q
+                                    withAnimation(.spring(duration: 0.25)) {
+                                        vm.selectedQuality = q
+                                    }
                                     vm.onSettingsChanged()
                                 }
                                 .accessibilityAddTraits(.isButton)
@@ -180,24 +188,12 @@ struct CompressOptionsView: View {
                 }
 
                 if let msg = vm.resultMessage {
-                    HStack {
-                        Text(msg)
-                            .font(.caption)
-                            .foregroundStyle(vm.isError ? .red : .green)
-                            .lineLimit(3)
-                        Spacer()
-                        if vm.isError {
-                            Button("Try Again") {
-                                Task { await vm.performCompression() }
-                            }
-                            .font(.caption)
-                        } else if let outputURL = vm.lastOutputURL {
-                            Button("Reveal in Finder") {
-                                NSWorkspace.shared.activateFileViewerSelecting([outputURL])
-                            }
-                            .font(.caption)
-                        }
-                    }
+                    ResultMessageView(
+                        message: msg,
+                        isError: vm.isError,
+                        outputURL: vm.lastOutputURL,
+                        onRetry: vm.isError ? { Task { await vm.performCompression() } } : nil
+                    )
                 }
 
                 Spacer()

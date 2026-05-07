@@ -123,11 +123,13 @@ struct MergeOptionsView: View {
                     Text("\(files.count) files")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
                     Text("\u{2022}")
                         .foregroundStyle(.quaternary)
                     Text("\(totalPages) total pages")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
                 }
 
                 HStack {
@@ -147,24 +149,12 @@ struct MergeOptionsView: View {
                 }
 
                 if let msg = vm.resultMessage {
-                    HStack {
-                        Text(msg)
-                            .font(.caption)
-                            .foregroundStyle(vm.isError ? .red : .green)
-                            .lineLimit(3)
-                        Spacer()
-                        if vm.isError {
-                            Button("Try Again") {
-                                Task { await performMerge() }
-                            }
-                            .font(.caption)
-                        } else if let outputURL = vm.lastOutputURL {
-                            Button("Reveal in Finder") {
-                                NSWorkspace.shared.activateFileViewerSelecting([outputURL])
-                            }
-                            .font(.caption)
-                        }
-                    }
+                    ResultMessageView(
+                        message: msg,
+                        isError: vm.isError,
+                        outputURL: vm.lastOutputURL,
+                        onRetry: vm.isError ? { Task { await performMerge() } } : nil
+                    )
                 }
 
                 Spacer()

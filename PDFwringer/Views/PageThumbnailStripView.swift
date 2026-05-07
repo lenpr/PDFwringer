@@ -21,6 +21,7 @@ struct PageThumbnailStripView: View {
                     Text("Page \((currentPage?.wrappedValue ?? 0) + 1) of \(document.pageCount)")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
                         .padding(.horizontal, 8)
                         .padding(.vertical, 2)
                 }
@@ -75,8 +76,7 @@ struct PageThumbnailStripView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                 } else {
-                    Rectangle()
-                        .fill(Color(nsColor: .controlBackgroundColor))
+                    ShimmerPlaceholder()
                 }
             }
             .frame(width: thumbWidth, height: thumbHeight)
@@ -193,5 +193,31 @@ final class ThumbnailCache {
         }
 
         return nil
+    }
+}
+
+private struct ShimmerPlaceholder: View {
+    @State private var phase: CGFloat = -1
+
+    var body: some View {
+        Rectangle()
+            .fill(Color(nsColor: .controlBackgroundColor))
+            .overlay {
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [.clear, Color.white.opacity(0.15), .clear],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .offset(x: phase * 60)
+            }
+            .clipShape(Rectangle())
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: false)) {
+                    phase = 1
+                }
+            }
     }
 }

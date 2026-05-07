@@ -17,6 +17,7 @@ struct MetadataView: View {
     @State private var lastOutputURL: URL?
     @State private var setPassword = false
     @State private var passwordText = ""
+    @State private var confirmPasswordText = ""
     @State private var removeProtection = false
 
     private let editor = PDFMetadataEditor()
@@ -68,6 +69,7 @@ struct MetadataView: View {
                     Text("\(document.pageCount) pages")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
                 }
 
                 Divider()
@@ -112,6 +114,17 @@ struct MetadataView: View {
                     if setPassword {
                         SecureField("Password", text: $passwordText)
                             .textFieldStyle(.roundedBorder)
+                        SecureField("Confirm password", text: $confirmPasswordText)
+                            .textFieldStyle(.roundedBorder)
+                        if !confirmPasswordText.isEmpty && passwordText != confirmPasswordText {
+                            Text("Passwords do not match")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        } else if !confirmPasswordText.isEmpty && passwordText == confirmPasswordText {
+                            Text("Passwords match")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        }
                     }
                 }
 
@@ -121,25 +134,16 @@ struct MetadataView: View {
                         .keyboardShortcut("s")
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
+                        .disabled(setPassword && (passwordText.isEmpty || passwordText != confirmPasswordText))
                 }
 
                 if let msg = resultMessage {
-                    HStack {
-                        Text(msg)
-                            .font(.caption)
-                            .foregroundStyle(isError ? .red : .green)
-                            .lineLimit(3)
-                        Spacer()
-                        if isError {
-                            Button("Try Again") { saveMetadata() }
-                                .font(.caption)
-                        } else if let outputURL = lastOutputURL {
-                            Button("Reveal in Finder") {
-                                NSWorkspace.shared.activateFileViewerSelecting([outputURL])
-                            }
-                            .font(.caption)
-                        }
-                    }
+                    ResultMessageView(
+                        message: msg,
+                        isError: isError,
+                        outputURL: lastOutputURL,
+                        onRetry: isError ? { saveMetadata() } : nil
+                    )
                 }
 
                 Spacer()
@@ -154,6 +158,12 @@ struct MetadataView: View {
         .onChange(of: metadata) {
             if metadata != initialMetadata {
                 onMutate?()
+            }
+        }
+        .onChange(of: setPassword) {
+            if !setPassword {
+                passwordText = ""
+                confirmPasswordText = ""
             }
         }
     }

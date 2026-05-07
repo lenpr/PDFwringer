@@ -50,7 +50,7 @@ struct ContentView: View {
                     },
                     currentPage: $appVM.currentPage
                 )
-                .transition(.move(edge: .trailing).combined(with: .opacity))
+                .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
 
             case .multiFile:
                 MultiFileView(
@@ -67,7 +67,7 @@ struct ContentView: View {
                         addFilesToMultiFile(urls)
                     }
                 )
-                .transition(.move(edge: .trailing).combined(with: .opacity))
+                .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
 
             case .compressing(let url, let doc):
                 CompressOptionsView(
@@ -85,7 +85,7 @@ struct ContentView: View {
                     },
                     currentPage: $appVM.currentPage
                 )
-                .transition(.move(edge: .trailing).combined(with: .opacity))
+                .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
 
             case .splitting(let url, let doc):
                 SplitOptionsView(
@@ -103,7 +103,7 @@ struct ContentView: View {
                     },
                     currentPage: $appVM.currentPage
                 )
-                .transition(.move(edge: .trailing).combined(with: .opacity))
+                .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
 
             case .merging:
                 MergeOptionsView(
@@ -117,7 +117,7 @@ struct ContentView: View {
                         addFilesToMerge(urls)
                     }
                 )
-                .transition(.move(edge: .trailing).combined(with: .opacity))
+                .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
 
             case .rotating(let url, let doc):
                 RotateOptionsView(
@@ -136,7 +136,7 @@ struct ContentView: View {
                     onMutate: { appVM.hasUnsavedChanges = true },
                     currentPage: $appVM.currentPage
                 )
-                .transition(.move(edge: .trailing).combined(with: .opacity))
+                .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
 
             case .editingMetadata(let url, let doc):
                 MetadataView(
@@ -155,7 +155,7 @@ struct ContentView: View {
                     onMutate: { appVM.hasUnsavedChanges = true },
                     currentPage: $appVM.currentPage
                 )
-                .transition(.move(edge: .trailing).combined(with: .opacity))
+                .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
             }
         }
         .frame(minWidth: 650, minHeight: 420)

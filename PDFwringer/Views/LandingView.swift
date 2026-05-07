@@ -4,6 +4,7 @@ struct LandingView: View {
     let onFilesSelected: ([URL]) -> Void
 
     @State private var isDropTargeted = false
+    @State private var dashPhase: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -25,30 +26,36 @@ struct LandingView: View {
                         .foregroundStyle(.tertiary)
                 }
 
+                Text("\u{2318}O to open")
+                    .font(.caption2)
+                    .foregroundStyle(.quaternary)
+
                 Button(action: selectFiles) {
                     Label("Select Files...", systemImage: "folder")
                         .font(.body.weight(.medium))
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-
-                Text("⌘O to open")
-                    .font(.caption2)
-                    .foregroundStyle(.quaternary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background {
+                appIconBackdrop
+            }
             .background {
                 RoundedRectangle(cornerRadius: 16)
                     .fill(.ultraThinMaterial)
                     .opacity(isDropTargeted ? 1 : 0.6)
                     .overlay {
-                        RoundedRectangle(cornerRadius: 16)
-                            .strokeBorder(
-                                isDropTargeted ? Color.accentColor : Color.clear,
-                                lineWidth: 2
-                            )
+                        if isDropTargeted {
+                            RoundedRectangle(cornerRadius: 16)
+                                .strokeBorder(
+                                    style: StrokeStyle(lineWidth: 2, dash: [8, 4], dashPhase: dashPhase)
+                                )
+                                .foregroundStyle(Color.accentColor)
+                        }
                     }
             }
+            .clipShape(RoundedRectangle(cornerRadius: 16))
             .padding(24)
             .overlay {
                 DropReceiverView(isTargeted: $isDropTargeted) { urls in
@@ -56,9 +63,27 @@ struct LandingView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.2), value: isDropTargeted)
+            .onChange(of: isDropTargeted) {
+                if isDropTargeted {
+                    withAnimation(.linear(duration: 0.8).repeatForever(autoreverses: false)) {
+                        dashPhase = 12
+                    }
+                } else {
+                    dashPhase = 0
+                }
+            }
 
             Spacer()
         }
+    }
+
+    private var appIconBackdrop: some View {
+        Image(nsImage: NSApplication.shared.applicationIconImage)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: 500, height: 500)
+            .blur(radius: 4)
+            .opacity(0.15)
     }
 
     private func selectFiles() {
