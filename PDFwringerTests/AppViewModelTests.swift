@@ -343,6 +343,41 @@ struct AppViewModelTests {
         }
     }
 
+    // MARK: - Crop transitions
+
+    @Test("selectCrop from singleFile goes to cropping")
+    func selectCrop() {
+        let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "cr.pdf")
+        defer { TestPDFGenerator.cleanup(url) }
+
+        let vm = AppViewModel()
+        vm.loadSingleFile(url)
+        vm.selectCrop()
+
+        if case .cropping(let u, _) = vm.state {
+            #expect(u == url)
+        } else {
+            Issue.record("Expected cropping state")
+        }
+    }
+
+    @Test("goBack from cropping returns to singleFile")
+    func goBackFromCrop() {
+        let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "gc.pdf")
+        defer { TestPDFGenerator.cleanup(url) }
+
+        let vm = AppViewModel()
+        vm.loadSingleFile(url)
+        vm.selectCrop()
+        vm.goBack()
+
+        if case .singleFile(let u, _) = vm.state {
+            #expect(u == url)
+        } else {
+            Issue.record("Expected singleFile state")
+        }
+    }
+
     // MARK: - File size caching
 
     @Test("loadSingleFile populates currentFileSize")

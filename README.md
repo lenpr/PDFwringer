@@ -5,7 +5,7 @@
 <h1 align="center">PDFwringer</h1>
 
 <p align="center">
-  A lightweight native macOS app for compressing, merging, splitting, rotating, and editing PDF files.<br>
+  A lightweight native macOS app for compressing, merging, splitting, rotating, cropping, and editing PDF files.<br>
   Built with SwiftUI and PDFKit — no external dependencies.
 </p>
 
@@ -51,9 +51,13 @@ Rotate all or selected pages by 90° CW, 180°, or 90° CCW with a live preview.
   <img src="screenshots/rotate.png" width="720" alt="Rotate pages">
 </p>
 
+### Crop / Resize
+
+Trim margins from any edge or resize pages to standard paper sizes (A4, Letter, A5, Legal) with portrait/landscape toggle. Operations are independent — crop without resizing or vice versa. Apply to all pages or a specific range.
+
 ### Edit Metadata
 
-View and edit title, author, subject, keywords, and creator. Set or remove password protection.
+View and edit title, author, subject, keywords, and creator. Set or remove password protection. Flatten annotations to burn highlights, comments, and form fields permanently into the page content.
 
 <p align="center">
   <img src="screenshots/metadata.png" width="720" alt="Edit PDF metadata">
@@ -63,7 +67,7 @@ View and edit title, author, subject, keywords, and creator. Set or remove passw
 
 ## Page Range Syntax
 
-Used in Split / Extract and Rotate operations:
+Used in Split / Extract, Rotate, and Crop operations:
 
 | Input | Meaning |
 |-------|---------|
@@ -104,7 +108,7 @@ cp -R .build/PDFwringer.app ~/Applications/
 ### Test
 
 ```bash
-make test    # 110 tests across 9 suites
+make test    # 125 tests across 11 suites
 ```
 
 Uses [Swift Testing](https://developer.apple.com/documentation/testing). Tests cover the service/model/utility layers without requiring a running app. PDFs are generated programmatically — no fixture files.

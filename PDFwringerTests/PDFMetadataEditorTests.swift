@@ -192,6 +192,30 @@ struct PDFMetadataEditorTests {
         #expect(doc.pageCount == 2)
     }
 
+    // MARK: - Flatten annotations
+
+    @Test("Flatten annotations produces valid output with same page count")
+    func flattenAnnotations() throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 3)
+        let output = TestPDFGenerator.makeTempDirectory().appending(component: "flattened.pdf")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(output)
+        }
+
+        let meta = PDFMetadataEditor.Metadata(
+            title: "Flattened", author: "", subject: "", keywords: "", creator: ""
+        )
+        try editor.write(metadata: meta, source: source, destination: output, flattenAnnotations: true)
+
+        let doc = PDFDocument(url: output)
+        #expect(doc != nil)
+        #expect(doc?.pageCount == 3)
+
+        let readBack = editor.read(from: output)
+        #expect(readBack.title == "Flattened")
+    }
+
     // MARK: - Helpers
 
     private func makePDFWithMetadata(title: String, author: String) -> URL {

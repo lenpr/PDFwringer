@@ -21,7 +21,7 @@ make test       # compile + run all tests via Swift Testing
 
 Uses Swift Testing (`import Testing`, `@Test`, `#expect`). Tests compile the Services/Models/Utilities layer without SwiftUI.
 
-Test suites cover: `PageRangeParser`, `PDFConcatenator`, `PDFSplitter`, `PDFCompressor`, `PDFRotator`, `PDFMetadataEditor`, `AppViewModel`, `PDFFileItem`, end-to-end workflows. Tests generate PDFs programmatically — no fixture files needed.
+Test suites cover: `PageRangeParser`, `PDFConcatenator`, `PDFSplitter`, `PDFCompressor`, `PDFRotator`, `PDFMetadataEditor`, `AppViewModel`, `PDFFileItem`, `FailureModeTests`, `UtilityTests`, end-to-end workflows. Tests generate PDFs programmatically — no fixture files needed.
 
 ## Architecture
 
@@ -31,8 +31,8 @@ MVVM with a service layer. All code is `@MainActor`.
 Models/       → Value types: CompressionLevel, JPEGQuality, PDFFileItem
 Services/     → Stateless PDF operations: PDFCompressor, PDFConcatenator, PDFSplitter, PDFRotator, PDFMetadataEditor, PageRangeParser
 ViewModels/   → @Observable classes: AppViewModel, CompressViewModel, ConcatenateViewModel, SplitViewModel
-Views/        → SwiftUI views + DropReceiverView (NSViewRepresentable drop overlay)
-Utilities/    → PDFwringerError, FileDialogHelper, Formatting (shared formatBytes + triggerShake)
+Views/        → SwiftUI views: CropOptionsView (with PaperSize enum), DropReceiverView (NSViewRepresentable drop overlay), ResultMessageView, ActionCardView, etc.
+Utilities/    → PDFwringerError, FileDialogHelper, Formatting, AtomicFileWriter, Log (all in PDFwringerError.swift)
 Resources/    → Asset catalog, AppIcon.icns
 ```
 
@@ -41,10 +41,10 @@ Resources/    → Asset catalog, AppIcon.icns
 `AppState` (in `AppViewModel.swift`) is the top-level state machine:
 
 ```
-landing → singleFile / multiFile → compressing / splitting / rotating / editingMetadata / merging → (back)
+landing → singleFile / multiFile → compressing / splitting / rotating / editingMetadata / cropping / merging → (back)
 ```
 
-`ContentView` switches on `AppState` to render the correct view. `AppViewModel` owns state transitions (handleDrop, goBack, startOver, selectCompress/Split/Merge/Rotate/Metadata).
+`ContentView` switches on `AppState` to render the correct view. `AppViewModel` owns state transitions (handleDrop, goBack, startOver, selectCompress/Split/Merge/Rotate/Metadata/Crop).
 
 `AppState` has custom `Equatable` because `PDFDocument` doesn't conform — equality checks compare URLs/item IDs only.
 
@@ -58,12 +58,18 @@ landing → singleFile / multiFile → compressing / splitting / rotating / edit
 - **Drop handling**: `DropReceiverView` wraps `DropNSView` (NSView subclass) for reliable drag-and-drop in sandbox. Returns `nil` from `hitTest` so SwiftUI buttons underneath remain clickable.
 - **File items**: `PDFFileItem.from(url:)` / `.from(urls:)` is the single factory for creating items from URLs (filters PDFs, reads page count). Struct is `Sendable`.
 - **Formatting**: `Formatting.fileSize(_:)` is the shared byte-formatting utility. `Formatting.triggerShake(_:)` provides the shared invalid-input shake animation.
+- **Atomic writes**: `AtomicFileWriter` (in `PDFwringerError.swift`) writes to a temp file, then uses `FileManager.replaceItemAt` for safe destination replacement. Cleans up on failure.
+- **Logging**: `Log` enum (in `PDFwringerError.swift`) provides structured `os.Logger` instances per category (compress, merge, split, rotate, metadata).
 - **Thumbnails**: `ThumbnailCache` is `@MainActor @Observable` with a generation counter for SwiftUI refresh. PDF access stays on MainActor; only bitmap rendering is detached.
 
 ## Compression dual-engine
 
 - **Lossless** (`CompressionLevel.lossless`): Strips document-level metadata, re-serializes via PDFKit. When `stripMetadata: true`, also removes all page annotations (links, highlights, etc.).
 - **Rasterize** (`CompressionLevel.high/medium/low`): Renders each page to a bitmap at target DPI, encodes as JPEG, assembles new PDF via CGContext. Flattens all content.
+
+## Annotation flattening
+
+`PDFMetadataEditor` supports flattening annotations via the `flattenAnnotations` parameter. When enabled, each page is rasterized at 300 DPI (JPEG quality 0.92) using `page.draw(with:to:)` which renders annotation appearances into the bitmap. The result is a visually identical PDF where annotations are burned into the page content and are no longer editable. Text selectability is lost.
 
 ## App bundle
 
