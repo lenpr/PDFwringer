@@ -9,7 +9,6 @@ struct MetadataView: View {
     @Binding var currentPage: Int
 
     @State private var metadata: PDFMetadataEditor.Metadata = .empty
-    @State private var isProcessing = false
     @State private var resultMessage: String?
     @State private var isError = false
     @State private var isDropTargeted = false
@@ -136,7 +135,6 @@ struct MetadataView: View {
                         .keyboardShortcut("s")
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
-                        .disabled(isProcessing)
                 }
             }
             .padding(24)
@@ -166,7 +164,6 @@ struct MetadataView: View {
         let suggestedName = url.deletingPathExtension().lastPathComponent + "_metadata.pdf"
         guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
 
-        isProcessing = true
         resultMessage = nil
         isError = false
 
@@ -193,7 +190,5 @@ struct MetadataView: View {
             resultMessage = error.localizedDescription
             isError = true
         }
-
-        isProcessing = false
     }
 }
