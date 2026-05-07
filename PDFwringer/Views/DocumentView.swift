@@ -36,6 +36,8 @@ struct DocumentView: View {
                 }
             }
 
+            Divider()
+
             // Right: File info + action cards
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {

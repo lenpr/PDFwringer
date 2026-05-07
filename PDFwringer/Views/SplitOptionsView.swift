@@ -32,6 +32,8 @@ struct SplitOptionsView: View {
                 }
             }
 
+            Divider()
+
             // Right: Split options
             VStack(alignment: .leading, spacing: 16) {
                 // Header with back button
@@ -119,8 +121,6 @@ struct SplitOptionsView: View {
                     }
                 }
 
-                Spacer()
-
                 if vm.isProcessing {
                     ProgressView(value: vm.progress)
                         .progressViewStyle(.linear)
@@ -146,6 +146,8 @@ struct SplitOptionsView: View {
                         }
                     }
                 }
+
+                Spacer()
             }
             .padding(24)
             .frame(minWidth: 300, idealWidth: 340)

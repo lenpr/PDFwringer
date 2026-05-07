@@ -68,6 +68,8 @@ struct MultiFileView: View {
             }
             .frame(minWidth: 260, idealWidth: 300)
 
+            Divider()
+
             // Right: Actions
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top) {
@@ -108,7 +110,7 @@ struct MultiFileView: View {
                 Spacer()
             }
             .padding(24)
-            .frame(minWidth: 260, idealWidth: 300)
+            .frame(minWidth: 300, idealWidth: 340)
         }
     }
 

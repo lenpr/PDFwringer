@@ -96,6 +96,8 @@ struct MergeOptionsView: View {
             }
             .frame(minWidth: 260, idealWidth: 300)
 
+            Divider()
+
             // Right: Merge action
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
@@ -128,7 +130,16 @@ struct MergeOptionsView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Spacer()
+                HStack {
+                    Spacer()
+                    Button("Merge") {
+                        Task { await performMerge() }
+                    }
+                    .keyboardShortcut("s")
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(files.count < 2 || vm.isProcessing)
+                }
 
                 if vm.isProcessing {
                     ProgressView(value: vm.progress)
@@ -156,19 +167,10 @@ struct MergeOptionsView: View {
                     }
                 }
 
-                HStack {
-                    Spacer()
-                    Button("Merge") {
-                        Task { await performMerge() }
-                    }
-                    .keyboardShortcut("s")
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .disabled(files.count < 2 || vm.isProcessing)
-                }
+                Spacer()
             }
             .padding(24)
-            .frame(minWidth: 260, idealWidth: 300)
+            .frame(minWidth: 300, idealWidth: 340)
         }
     }
 

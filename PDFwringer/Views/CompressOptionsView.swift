@@ -30,8 +30,10 @@ struct CompressOptionsView: View {
                 }
             }
 
+            Divider()
+
             // Right: Compression options
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 16) {
                 // Header with back button
                 HStack {
                     Button(action: onBack) {
@@ -153,8 +155,6 @@ struct CompressOptionsView: View {
                 }
                 .toggleStyle(.checkbox)
 
-                Spacer()
-
                 if let warning = vm.largeFileWarning {
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -164,6 +164,17 @@ struct CompressOptionsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                }
+
+                HStack {
+                    Spacer()
+                    Button("Compress") {
+                        Task { await vm.performCompression() }
+                    }
+                    .keyboardShortcut("s")
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(!vm.canCompress)
                 }
 
                 if vm.isProcessing {
@@ -192,16 +203,7 @@ struct CompressOptionsView: View {
                     }
                 }
 
-                HStack {
-                    Spacer()
-                    Button("Compress") {
-                        Task { await vm.performCompression() }
-                    }
-                    .keyboardShortcut("s")
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .disabled(!vm.canCompress)
-                }
+                Spacer()
             }
             .padding(24)
             .frame(minWidth: 300, idealWidth: 340)

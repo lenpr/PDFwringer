@@ -38,6 +38,8 @@ struct MetadataView: View {
                 }
             }
 
+            Divider()
+
             // Right: Metadata fields
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
@@ -60,8 +62,14 @@ struct MetadataView: View {
                         .lineLimit(1)
                 }
 
-                Text("Edit Metadata")
-                    .font(.title3.weight(.semibold))
+                HStack {
+                    Text("Edit Metadata")
+                        .font(.title3.weight(.semibold))
+                    Spacer()
+                    Text("\(document.pageCount) pages")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 Divider()
 
@@ -108,7 +116,13 @@ struct MetadataView: View {
                     }
                 }
 
-                Spacer()
+                HStack {
+                    Spacer()
+                    Button("Save Metadata") { saveMetadata() }
+                        .keyboardShortcut("s")
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                }
 
                 if let msg = resultMessage {
                     HStack {
@@ -129,13 +143,7 @@ struct MetadataView: View {
                     }
                 }
 
-                HStack {
-                    Spacer()
-                    Button("Save Metadata") { saveMetadata() }
-                        .keyboardShortcut("s")
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                }
+                Spacer()
             }
             .padding(24)
             .frame(minWidth: 300, idealWidth: 340)

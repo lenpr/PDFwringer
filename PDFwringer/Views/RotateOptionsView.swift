@@ -47,6 +47,8 @@ struct RotateOptionsView: View {
                 }
             }
 
+            Divider()
+
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     Button(action: onBack) {
@@ -125,7 +127,12 @@ struct RotateOptionsView: View {
                             .foregroundStyle(isError ? .red : .green)
                             .lineLimit(3)
                         Spacer()
-                        if !isError, let outputURL = lastOutputURL {
+                        if isError {
+                            Button("Try Again") {
+                                Task { await saveRotated() }
+                            }
+                            .font(.caption)
+                        } else if let outputURL = lastOutputURL {
                             Button("Reveal in Finder") {
                                 NSWorkspace.shared.activateFileViewerSelecting([outputURL])
                             }
