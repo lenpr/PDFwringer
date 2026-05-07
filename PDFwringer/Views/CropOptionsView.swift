@@ -125,7 +125,6 @@ struct CropOptionsView: View {
                         Spacer()
                         Button("Crop") { applyCrop() }
                             .buttonStyle(.borderedProminent)
-                            .tint(Self.coral)
                             .disabled(cropTop == 0 && cropBottom == 0 && cropLeft == 0 && cropRight == 0)
                     }
                 }
@@ -154,7 +153,6 @@ struct CropOptionsView: View {
 
                         Button("Resize") { applyResize() }
                             .buttonStyle(.borderedProminent)
-                            .tint(Self.coral)
                     }
                 }
 
@@ -163,9 +161,8 @@ struct CropOptionsView: View {
                     Spacer()
                     Button("Save") { Task { await saveCropped() } }
                         .keyboardShortcut("s")
-                        .buttonStyle(.borderedProminent)
-                        .tint(Self.coral)
                         .controlSize(.large)
+                        .buttonStyle(.borderedProminent)
                 }
 
                 if let msg = resultMessage {
@@ -181,6 +178,7 @@ struct CropOptionsView: View {
             }
             .padding(24)
             .frame(minWidth: 300, idealWidth: 340)
+            .tint(Self.coral)
         }
     }
 

@@ -159,7 +159,6 @@ struct CompressOptionsView: View {
                     }
                     .keyboardShortcut("s")
                     .buttonStyle(.borderedProminent)
-                    .tint(Color(red: 0.91, green: 0.39, blue: 0.30))
                     .controlSize(.large)
                     .disabled(!vm.canCompress)
                 }
@@ -182,6 +181,7 @@ struct CompressOptionsView: View {
             }
             .padding(24)
             .frame(minWidth: 300, idealWidth: 340)
+            .tint(Color(red: 0.91, green: 0.39, blue: 0.30))
         }
         .onAppear {
             vm.setSource(url)

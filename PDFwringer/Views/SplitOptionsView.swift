@@ -63,7 +63,6 @@ struct SplitOptionsView: View {
                             Task { await vm.splitByPages() }
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(Color(red: 0.91, green: 0.39, blue: 0.30))
                         .disabled(!vm.canProcess)
                     }
                 }
@@ -82,7 +81,6 @@ struct SplitOptionsView: View {
                             Task { await vm.keepPages() }
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(Color(red: 0.91, green: 0.39, blue: 0.30))
                         .disabled(!vm.canProcess || vm.keepPagesText.isEmpty)
                     }
                 }
@@ -101,7 +99,6 @@ struct SplitOptionsView: View {
                             Task { await vm.removePages() }
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(Color(red: 0.91, green: 0.39, blue: 0.30))
                         .disabled(!vm.canProcess || vm.removePagesText.isEmpty)
                     }
                 }
@@ -124,6 +121,7 @@ struct SplitOptionsView: View {
             }
             .padding(24)
             .frame(minWidth: 300, idealWidth: 340)
+            .tint(Color(red: 0.91, green: 0.39, blue: 0.30))
         }
         .onAppear {
             vm.setSource(url)

@@ -129,7 +129,6 @@ struct MetadataOptionsView: View {
                     Button("Save Metadata") { saveMetadata() }
                         .keyboardShortcut("s")
                         .buttonStyle(.borderedProminent)
-                        .tint(Color(red: 0.91, green: 0.39, blue: 0.30))
                         .controlSize(.large)
                         .disabled(setPassword && (passwordText.isEmpty || passwordText != confirmPasswordText))
                 }
@@ -147,6 +146,7 @@ struct MetadataOptionsView: View {
             }
             .padding(24)
             .frame(minWidth: 300, idealWidth: 340)
+            .tint(Color(red: 0.91, green: 0.39, blue: 0.30))
         }
         .onAppear {
             metadata = editor.read(from: url)
