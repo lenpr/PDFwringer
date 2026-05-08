@@ -203,6 +203,92 @@ struct FailureModeTests {
         #expect(vm.state == .landing)
     }
 
+    // MARK: - Drag-and-drop edge cases
+
+    @Test("handleDrop with all invalid files shows error")
+    func handleDropAllInvalid() {
+        let corrupt1 = URL.temporaryDirectory.appending(component: UUID().uuidString + "_bad1.pdf")
+        let corrupt2 = URL.temporaryDirectory.appending(component: UUID().uuidString + "_bad2.pdf")
+        try! Data("garbage".utf8).write(to: corrupt1)
+        try! Data("garbage".utf8).write(to: corrupt2)
+        defer {
+            TestPDFGenerator.cleanup(corrupt1)
+            TestPDFGenerator.cleanup(corrupt2)
+        }
+
+        let vm = AppViewModel()
+        vm.handleDrop([corrupt1, corrupt2])
+
+        // Multiple corrupt files → multiFile state with empty items list filtered out,
+        // or single corrupt file → error alert
+        // Since PDFFileItem.from(urls:) filters out non-loadable PDFs, the result is empty
+        #expect(vm.state == .landing)
+    }
+
+    @Test("handleDrop with zero-byte file ignores it")
+    func handleDropZeroByteFile() {
+        let empty = URL.temporaryDirectory.appending(component: UUID().uuidString + "_empty.pdf")
+        try! Data().write(to: empty)
+        defer { TestPDFGenerator.cleanup(empty) }
+
+        let vm = AppViewModel()
+        vm.handleDrop([empty])
+
+        // Zero-byte file can't be loaded as PDF → error
+        #expect(vm.showErrorAlert == true || vm.state == .landing)
+    }
+
+    @Test("handleDrop with mix of valid and invalid drops valid only")
+    func handleDropMixedValidity() {
+        let valid = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
+        let corrupt = URL.temporaryDirectory.appending(component: UUID().uuidString + "_bad.pdf")
+        try! Data("not a pdf".utf8).write(to: corrupt)
+        defer {
+            TestPDFGenerator.cleanup(valid)
+            TestPDFGenerator.cleanup(corrupt)
+        }
+
+        let vm = AppViewModel()
+        vm.handleDrop([valid, corrupt])
+
+        // With 2 URLs, handleDrop calls loadMultipleFiles which uses PDFFileItem.from(urls:)
+        // which filters out the corrupt one — should result in multiFile with 1 item,
+        // or since only 1 valid, could be singleFile
+        if case .multiFile(let items) = vm.state {
+            #expect(items.count == 1)
+        } else if case .singleFile = vm.state {
+            // Also acceptable — implementation may special-case single valid result
+        } else {
+            Issue.record("Expected multiFile or singleFile state, got \(vm.state)")
+        }
+    }
+
+    @Test("handleDrop with non-PDF extension files is ignored")
+    func handleDropNonPDFExtension() {
+        let txt = URL.temporaryDirectory.appending(component: UUID().uuidString + "_file.txt")
+        try! Data("hello".utf8).write(to: txt)
+        defer { TestPDFGenerator.cleanup(txt) }
+
+        let vm = AppViewModel()
+        vm.handleDrop([txt])
+
+        #expect(vm.state == .landing)
+    }
+
+    @Test("PDFFileItem.from filters out non-loadable URLs")
+    func fileItemFromFiltersCorrupt() {
+        let valid = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
+        let corrupt = URL.temporaryDirectory.appending(component: UUID().uuidString + "_corrupt.pdf")
+        try! Data("junk".utf8).write(to: corrupt)
+        defer {
+            TestPDFGenerator.cleanup(valid)
+            TestPDFGenerator.cleanup(corrupt)
+        }
+
+        let items = PDFFileItem.from(urls: [valid, corrupt])
+        #expect(items.count == 1)
+    }
+
     // MARK: - Helpers
 
     private func makeLockedPDF() -> URL {

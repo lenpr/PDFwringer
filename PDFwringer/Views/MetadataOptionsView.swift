@@ -46,7 +46,7 @@ struct MetadataOptionsView: View {
                 OptionsHeaderView(url: url, onBack: onBack)
 
                 HStack {
-                    Text("Edit Metadata")
+                    Text(String(localized: "Edit Metadata"))
                         .font(.title3.weight(.semibold))
                     Spacer()
                     Text("\(document.pageCount) pages")
@@ -58,33 +58,33 @@ struct MetadataOptionsView: View {
                 Divider()
 
                 Group {
-                    metadataField("Title", text: $metadata.title)
-                    metadataField("Author", text: $metadata.author)
-                    metadataField("Subject", text: $metadata.subject)
-                    metadataField("Keywords", text: $metadata.keywords)
-                    metadataField("Creator", text: $metadata.creator)
+                    metadataField(String(localized: "Title"), text: $metadata.title)
+                    metadataField(String(localized: "Author"), text: $metadata.author)
+                    metadataField(String(localized: "Subject"), text: $metadata.subject)
+                    metadataField(String(localized: "Keywords"), text: $metadata.keywords)
+                    metadataField(String(localized: "Creator"), text: $metadata.creator)
                 }
 
-                Text("Keywords should be comma-separated")
+                Text(String(localized: "Keywords should be comma-separated"))
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
 
                 Divider()
 
-                Text("Annotations")
+                Text(String(localized: "Annotations"))
                     .font(.callout.weight(.medium))
 
-                Toggle("Flatten annotations", isOn: $flattenAnnotations)
+                Toggle(String(localized: "Flatten annotations"), isOn: $flattenAnnotations)
                     .toggleStyle(.checkbox)
                     .font(.callout)
 
-                Text("Burns highlights, comments, and form fields into the page content so they cannot be edited")
+                Text(String(localized: "Burns highlights, comments, and form fields into the page content so they cannot be edited"))
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
 
                 Divider()
 
-                Text("Security")
+                Text(String(localized: "Security"))
                     .font(.callout.weight(.medium))
 
                 if document.isEncrypted {
@@ -92,32 +92,32 @@ struct MetadataOptionsView: View {
                         Image(systemName: "lock.fill")
                             .foregroundStyle(.orange)
                             .font(.caption)
-                        Text("This document is encrypted")
+                        Text(String(localized: "This document is encrypted"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    Toggle("Remove protection on save", isOn: $removeProtection)
+                    Toggle(String(localized: "Remove protection on save"), isOn: $removeProtection)
                         .toggleStyle(.checkbox)
                         .font(.callout)
                     if !removeProtection {
-                        SecureField("Re-enter password to keep protection", text: $passwordText)
+                        SecureField(String(localized: "Re-enter password to keep protection"), text: $passwordText)
                             .textFieldStyle(.roundedBorder)
                     }
                 } else {
-                    Toggle("Set password", isOn: $setPassword)
+                    Toggle(String(localized: "Set password"), isOn: $setPassword)
                         .toggleStyle(.checkbox)
                         .font(.callout)
                     if setPassword {
-                        SecureField("Password", text: $passwordText)
+                        SecureField(String(localized: "Password"), text: $passwordText)
                             .textFieldStyle(.roundedBorder)
-                        SecureField("Confirm password", text: $confirmPasswordText)
+                        SecureField(String(localized: "Confirm password"), text: $confirmPasswordText)
                             .textFieldStyle(.roundedBorder)
                         if !confirmPasswordText.isEmpty && passwordText != confirmPasswordText {
-                            Text("Passwords do not match")
+                            Text(String(localized: "Passwords do not match"))
                                 .font(.caption)
                                 .foregroundStyle(.red)
                         } else if !confirmPasswordText.isEmpty && passwordText == confirmPasswordText {
-                            Text("Passwords match")
+                            Text(String(localized: "Passwords match"))
                                 .font(.caption)
                                 .foregroundStyle(.green)
                         }
@@ -126,7 +126,7 @@ struct MetadataOptionsView: View {
 
                 HStack {
                     Spacer()
-                    Button("Save Metadata") { saveMetadata() }
+                    Button(String(localized: "Save Metadata")) { saveMetadata() }
                         .keyboardShortcut("s")
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)

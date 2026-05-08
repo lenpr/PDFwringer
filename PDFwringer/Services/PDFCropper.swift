@@ -10,6 +10,7 @@ struct PDFCropper {
     }
 
     func crop(document: PDFDocument, indices: [Int], top: CGFloat, bottom: CGFloat, left: CGFloat, right: CGFloat) -> CropResult {
+        Log.crop.info("Starting crop: \(indices.count) pages, insets T=\(top) B=\(bottom) L=\(left) R=\(right)")
         var modified = 0
         var skipped = 0
 

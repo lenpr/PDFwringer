@@ -3,13 +3,32 @@ import SwiftUI
 struct ResultMessageView: View {
     let message: String
     let isError: Bool
+    var isWarning: Bool = false
     var outputURL: URL?
     var onRetry: (() -> Void)?
 
+    private var iconName: String {
+        if isError { return "xmark.circle.fill" }
+        if isWarning { return "exclamationmark.triangle.fill" }
+        return "checkmark.circle.fill"
+    }
+
+    private var iconColor: Color {
+        if isError { return Color(nsColor: .systemRed) }
+        if isWarning { return Color(nsColor: .systemOrange) }
+        return Color(nsColor: .systemGreen)
+    }
+
+    private var bgColor: Color {
+        if isError { return .red }
+        if isWarning { return .orange }
+        return .green
+    }
+
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: isError ? "xmark.circle.fill" : "checkmark.circle.fill")
-                .foregroundStyle(isError ? Color(nsColor: .systemRed) : Color(nsColor: .systemGreen))
+            Image(systemName: iconName)
+                .foregroundStyle(iconColor)
                 .font(.body)
 
             Text(message)
@@ -21,12 +40,12 @@ struct ResultMessageView: View {
 
             if isError {
                 if let onRetry {
-                    Button("Try Again", action: onRetry)
+                    Button(String(localized: "Try Again"), action: onRetry)
                         .controlSize(.small)
                         .buttonStyle(.bordered)
                 }
             } else if let outputURL {
-                Button("Show in Finder") {
+                Button(String(localized: "Show in Finder")) {
                     NSWorkspace.shared.activateFileViewerSelecting([outputURL])
                 }
                 .controlSize(.small)
@@ -36,10 +55,10 @@ struct ResultMessageView: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(isError ? Color.red.opacity(0.06) : Color.green.opacity(0.06))
+                .fill(bgColor.opacity(0.06))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
-                        .strokeBorder(isError ? Color.red.opacity(0.2) : Color.green.opacity(0.2), lineWidth: 0.5)
+                        .strokeBorder(bgColor.opacity(0.2), lineWidth: 0.5)
                 )
         )
         .transition(.move(edge: .bottom).combined(with: .opacity))

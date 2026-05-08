@@ -1,5 +1,6 @@
 import SwiftUI
 import PDFKit
+import OSLog
 
 @main
 struct PDFwringerApp: App {
@@ -23,13 +24,13 @@ struct PDFwringerApp: App {
         .commands {
             // File menu
             CommandGroup(replacing: .newItem) {
-                Button("Open...") {
+                Button(String(localized: "Open...")) {
                     guard let urls = FileDialogHelper.showOpenPanel(allowsMultiple: true) else { return }
                     appVM.handleDrop(urls)
                 }
                 .keyboardShortcut("o")
 
-                Menu("Open Recent") {
+                Menu(String(localized: "Open Recent")) {
                     ForEach(appVM.recentDocuments, id: \.self) { url in
                         Button(url.lastPathComponent) {
                             appVM.handleDrop([url])
@@ -37,7 +38,7 @@ struct PDFwringerApp: App {
                     }
                     if !appVM.recentDocuments.isEmpty {
                         Divider()
-                        Button("Clear Menu") {
+                        Button(String(localized: "Clear Menu")) {
                             appVM.clearRecentDocuments()
                         }
                     }
@@ -45,7 +46,7 @@ struct PDFwringerApp: App {
 
                 Divider()
 
-                Button("Close") {
+                Button(String(localized: "Close")) {
                     NSApp.keyWindow?.close()
                 }
                 .keyboardShortcut("w")
@@ -53,7 +54,7 @@ struct PDFwringerApp: App {
 
             // View menu — inject into the system-provided View menu
             CommandGroup(after: .toolbar) {
-                Picker("Appearance", selection: $appearance) {
+                Picker(String(localized: "Appearance"), selection: $appearance) {
                     ForEach(AppAppearance.allCases) { mode in
                         Text(mode.title).tag(mode)
                     }
@@ -61,13 +62,13 @@ struct PDFwringerApp: App {
 
                 Divider()
 
-                Button("Next Page") {
+                Button(String(localized: "Next Page")) {
                     appVM.nextPage()
                 }
                 .keyboardShortcut(.rightArrow, modifiers: [])
                 .disabled(!appVM.hasDocument)
 
-                Button("Previous Page") {
+                Button(String(localized: "Previous Page")) {
                     appVM.previousPage()
                 }
                 .keyboardShortcut(.leftArrow, modifiers: [])
@@ -75,13 +76,13 @@ struct PDFwringerApp: App {
 
                 Divider()
 
-                Button("First Page") {
+                Button(String(localized: "First Page")) {
                     appVM.goToFirstPage()
                 }
                 .keyboardShortcut(.leftArrow, modifiers: .command)
                 .disabled(!appVM.hasDocument)
 
-                Button("Last Page") {
+                Button(String(localized: "Last Page")) {
                     appVM.goToLastPage()
                 }
                 .keyboardShortcut(.rightArrow, modifiers: .command)
@@ -89,38 +90,38 @@ struct PDFwringerApp: App {
             }
 
             // Actions menu
-            CommandMenu("Actions") {
-                Button("Compress") {
+            CommandMenu(String(localized: "Actions")) {
+                Button(String(localized: "Compress")) {
                     appVM.selectCompress()
                 }
                 .keyboardShortcut("1", modifiers: .command)
                 .disabled(!appVM.canSelectSingleFileAction)
 
-                Button("Split / Extract") {
+                Button(String(localized: "Split / Extract")) {
                     appVM.selectSplit()
                 }
                 .keyboardShortcut("2", modifiers: .command)
                 .disabled(!appVM.canSelectSingleFileAction)
 
-                Button("Rotate Pages") {
+                Button(String(localized: "Rotate Pages")) {
                     appVM.selectRotate()
                 }
                 .keyboardShortcut("3", modifiers: .command)
                 .disabled(!appVM.canSelectSingleFileAction)
 
-                Button("Edit Metadata") {
+                Button(String(localized: "Edit Metadata")) {
                     appVM.selectMetadata()
                 }
                 .keyboardShortcut("4", modifiers: .command)
                 .disabled(!appVM.canSelectSingleFileAction)
 
-                Button("Crop / Resize") {
+                Button(String(localized: "Crop / Resize")) {
                     appVM.selectCrop()
                 }
                 .keyboardShortcut("5", modifiers: .command)
                 .disabled(!appVM.canSelectSingleFileAction)
 
-                Button("Adjust Colors") {
+                Button(String(localized: "Adjust Colors")) {
                     appVM.selectAdjustColor()
                 }
                 .keyboardShortcut("6", modifiers: .command)
@@ -128,7 +129,7 @@ struct PDFwringerApp: App {
 
                 Divider()
 
-                Button("Merge") {
+                Button(String(localized: "Merge")) {
                     appVM.selectMerge()
                 }
                 .keyboardShortcut("m", modifiers: [.command, .shift])
@@ -136,13 +137,13 @@ struct PDFwringerApp: App {
 
                 Divider()
 
-                Button("Go Back") {
+                Button(String(localized: "Go Back")) {
                     appVM.goBack()
                 }
                 .keyboardShortcut("[")
                 .disabled(!appVM.canGoBack)
 
-                Button("Start Over") {
+                Button(String(localized: "Start Over")) {
                     appVM.startOver()
                 }
                 .keyboardShortcut(.delete, modifiers: [.command, .shift])
@@ -151,11 +152,18 @@ struct PDFwringerApp: App {
 
             // Help menu
             CommandGroup(replacing: .help) {
-                Button("PDFwringer on GitHub") {
+                Button(String(localized: "PDFwringer on GitHub")) {
                     NSWorkspace.shared.open(URL(string: "https://github.com/lenpr/PDFwringer")!)
                 }
-                Button("License (MIT)") {
+                Button(String(localized: "License (MIT)")) {
                     NSWorkspace.shared.open(URL(string: "https://github.com/lenpr/PDFwringer/blob/main/LICENSE")!)
+                }
+                Button(String(localized: "Privacy Policy")) {
+                    NSWorkspace.shared.open(URL(string: "https://github.com/lenpr/PDFwringer/blob/main/PRIVACY.md")!)
+                }
+                Divider()
+                Button(String(localized: "Show Logs")) {
+                    AppDelegate.openLogDirectory()
                 }
             }
         }
@@ -168,6 +176,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var onOpenURLs: (([URL]) -> Void)?
     var hasUnsavedChanges: (() -> Bool)?
 
+    private static let logDirectory: URL = {
+        let dir = FileManager.default.homeDirectoryForCurrentUser
+            .appending(path: "Library/Logs/PDFwringer")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }()
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        Log.app.info("PDFwringer launched, version=\(appVersion)")
+        AtomicFileWriter.cleanupStaleFiles()
+        installCrashHandler()
+    }
+
     func application(_ application: NSApplication, open urls: [URL]) {
         onOpenURLs?(urls)
     }
@@ -178,16 +199,45 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard dirty else { return .terminateNow }
 
         let alert = NSAlert()
-        alert.messageText = "You have unsaved changes."
-        alert.informativeText = "If you quit now, your changes will be lost."
-        alert.addButton(withTitle: "Quit")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = String(localized: "You have unsaved changes.")
+        alert.informativeText = String(localized: "If you quit now, your changes will be lost.")
+        alert.addButton(withTitle: String(localized: "Quit"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         alert.alertStyle = .warning
 
         if alert.runModal() == .alertFirstButtonReturn {
             return .terminateNow
         }
         return .terminateCancel
+    }
+
+    static func openLogDirectory() {
+        NSWorkspace.shared.open(logDirectory)
+    }
+
+    private func installCrashHandler() {
+        NSSetUncaughtExceptionHandler { exception in
+            let logFile = AppDelegate.logDirectory.appending(component: "crash.log")
+            let timestamp = ISO8601DateFormatter().string(from: Date())
+            let info = """
+            --- Crash at \(timestamp) ---
+            \(exception.name.rawValue): \(exception.reason ?? "unknown")
+            Stack trace:
+            \(exception.callStackSymbols.joined(separator: "\n"))
+
+            """
+            if let data = info.data(using: .utf8) {
+                if FileManager.default.fileExists(atPath: logFile.path(percentEncoded: false)) {
+                    if let handle = try? FileHandle(forWritingTo: logFile) {
+                        handle.seekToEndOfFile()
+                        handle.write(data)
+                        handle.closeFile()
+                    }
+                } else {
+                    try? data.write(to: logFile)
+                }
+            }
+        }
     }
 }
 
@@ -197,9 +247,9 @@ enum AppAppearance: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .system: "System"
-        case .light: "Light"
-        case .dark: "Dark"
+        case .system: String(localized: "System")
+        case .light: String(localized: "Light")
+        case .dark: String(localized: "Dark")
         }
     }
 

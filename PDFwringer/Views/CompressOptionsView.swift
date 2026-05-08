@@ -35,7 +35,7 @@ struct CompressOptionsView: View {
                 OptionsHeaderView(url: url, onBack: onBack)
 
                 HStack {
-                    Text("Compress")
+                    Text(String(localized: "Compress"))
                         .font(.title3.weight(.semibold))
                     Spacer()
                     Text("\(vm.sourcePageCount) pages, \(Formatting.fileSize(vm.sourceFileSize))")
@@ -90,7 +90,7 @@ struct CompressOptionsView: View {
                 if vm.selectedLevel.isRasterize {
                     Divider()
 
-                    Text("JPEG Quality")
+                    Text(String(localized: "JPEG Quality"))
                         .font(.subheadline.weight(.medium))
 
                     HStack(spacing: 12) {
@@ -127,7 +127,7 @@ struct CompressOptionsView: View {
                     get: { vm.grayscale },
                     set: { vm.grayscale = $0; vm.onSettingsChanged() }
                 )) {
-                    Text("Convert to grayscale")
+                    Text(String(localized: "Convert to grayscale"))
                         .font(.callout)
                 }
                 .toggleStyle(.checkbox)
@@ -136,7 +136,7 @@ struct CompressOptionsView: View {
                     get: { vm.stripMetadata },
                     set: { vm.stripMetadata = $0 }
                 )) {
-                    Text("Strip all metadata")
+                    Text(String(localized: "Strip all metadata"))
                         .font(.callout)
                 }
                 .toggleStyle(.checkbox)
@@ -154,7 +154,7 @@ struct CompressOptionsView: View {
 
                 HStack {
                     Spacer()
-                    Button("Compress") {
+                    Button(String(localized: "Compress")) {
                         Task { await vm.performCompression() }
                     }
                     .keyboardShortcut("s")
@@ -172,6 +172,7 @@ struct CompressOptionsView: View {
                     ResultMessageView(
                         message: msg,
                         isError: vm.isError,
+                        isWarning: vm.isWarning,
                         outputURL: vm.lastOutputURL,
                         onRetry: vm.isError ? { Task { await vm.performCompression() } } : nil
                     )

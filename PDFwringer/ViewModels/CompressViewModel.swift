@@ -19,6 +19,7 @@ class CompressViewModel {
     var progress: Double = 0
     var resultMessage: String?
     var isError = false
+    var isWarning = false
     var lastOutputURL: URL?
     var pdfDocument: PDFDocument?
 
@@ -127,10 +128,11 @@ class CompressViewModel {
         progress = 0
         resultMessage = nil
         isError = false
+        isWarning = false
         lastOutputURL = nil
 
         do {
-            try await compressor.compress(
+            let result = try await compressor.compress(
                 source: source,
                 destination: destination,
                 level: selectedLevel,
@@ -140,12 +142,20 @@ class CompressViewModel {
                 progress: { [weak self] p in self?.progress = p }
             )
 
-            let newAttrs = try FileManager.default.attributesOfItem(atPath: destination.path(percentEncoded: false))
-            let newSize = newAttrs[.size] as? Int64 ?? 0
+            let newSize = result.outputSize
 
-            if newSize >= sourceFileSize && sourceFileSize > 0 {
+            if result.skippedPages > 0 {
+                let ratio = sourceFileSize > 0
+                    ? Int((1.0 - Double(newSize) / Double(sourceFileSize)) * 100)
+                    : 0
+                resultMessage = "Done (\(ratio)% smaller) but \(result.skippedPages) of \(result.totalPages) pages could not be processed."
+                isError = false
+                isWarning = true
+                lastOutputURL = destination
+            } else if newSize >= sourceFileSize && sourceFileSize > 0 {
                 resultMessage = "Result (\(Formatting.fileSize(newSize))) is not smaller than original (\(Formatting.fileSize(sourceFileSize))). File saved."
                 isError = false
+                isWarning = false
                 lastOutputURL = destination
             } else {
                 let ratio = sourceFileSize > 0
@@ -153,14 +163,17 @@ class CompressViewModel {
                     : 0
                 resultMessage = "Done! \(ratio)% smaller (\(Formatting.fileSize(sourceFileSize)) → \(Formatting.fileSize(newSize)))"
                 isError = false
+                isWarning = false
                 lastOutputURL = destination
             }
         } catch is CancellationError {
             resultMessage = "Cancelled."
             isError = false
+            isWarning = false
         } catch {
             resultMessage = error.localizedDescription
             isError = true
+            isWarning = false
         }
 
         isProcessing = false

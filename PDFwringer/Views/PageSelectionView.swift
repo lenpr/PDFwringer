@@ -10,7 +10,7 @@ struct PageSelectionView: View {
 
     @State private var syncingFromThumbnails = false
 
-    var label: String = "Apply to all pages"
+    var label: String = String(localized: "Apply to all pages")
 
     var body: some View {
         Toggle(isOn: $applyAll) {
@@ -18,11 +18,14 @@ struct PageSelectionView: View {
                 .font(.callout)
         }
         .toggleStyle(.checkbox)
+        .accessibilityLabel(label)
 
         if !applyAll {
             HStack {
-                TextField("e.g. 1, 3-5, 8-", text: $pageRangeText)
+                TextField(String(localized: "e.g. 1, 3-5, 8-"), text: $pageRangeText)
                     .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel(String(localized: "Page range"))
+                    .accessibilityHint(String(localized: "Enter page numbers or ranges separated by commas"))
                     .offset(x: shakeOffset)
                     .onChange(of: pageRangeText) {
                         guard !syncingFromThumbnails else { return }
@@ -31,7 +34,7 @@ struct PageSelectionView: View {
                         }
                     }
             }
-            Text("Tap thumbnails or type page numbers")
+            Text(String(localized: "Tap thumbnails or type page numbers"))
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }

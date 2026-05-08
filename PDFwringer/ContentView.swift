@@ -215,31 +215,31 @@ struct ContentView: View {
                 .padding(.bottom, 4)
         }
         .animation(.spring(duration: 0.3), value: appVM.state)
-        .alert("Password Required", isPresented: $appVM.showPasswordPrompt) {
-            SecureField("Password", text: $appVM.passwordText)
-            Button("Unlock") { appVM.unlockDocument() }
-            Button("Cancel", role: .cancel) { appVM.cancelPassword() }
+        .alert(String(localized: "Password Required"), isPresented: $appVM.showPasswordPrompt) {
+            SecureField(String(localized: "Password"), text: $appVM.passwordText)
+            Button(String(localized: "Unlock")) { appVM.unlockDocument() }
+            Button(String(localized: "Cancel"), role: .cancel) { appVM.cancelPassword() }
         } message: {
             if appVM.wrongPasswordAttempt {
-                Text("Incorrect password. Please try again.")
+                Text(String(localized: "Incorrect password. Please try again."))
             } else {
-                Text("This PDF is password-protected.")
+                Text(String(localized: "This PDF is password-protected."))
             }
         }
-        .alert("Cannot Open File", isPresented: $appVM.showErrorAlert) {
-            Button("OK", role: .cancel) {}
+        .alert(String(localized: "Cannot Open File"), isPresented: $appVM.showErrorAlert) {
+            Button(String(localized: "OK"), role: .cancel) {}
         } message: {
             Text(appVM.errorMessage)
         }
-        .alert("Start Over?", isPresented: $appVM.showStartOverConfirm) {
-            Button("Start Over", role: .destructive) {
+        .alert(String(localized: "Start Over?"), isPresented: $appVM.showStartOverConfirm) {
+            Button(String(localized: "Start Over"), role: .destructive) {
                 withAnimation(.spring(duration: 0.35)) {
                     appVM.startOver()
                 }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(String(localized: "Cancel"), role: .cancel) {}
         } message: {
-            Text("This will discard your current selection.")
+            Text(String(localized: "This will discard your current selection."))
         }
         .onAppear {
             // Wire AppDelegate to forward Finder-opened files and check dirty state
@@ -251,6 +251,8 @@ struct ContentView: View {
                     appVM?.hasUnsavedChanges ?? false
                 }
             }
+            // Persist window frame across launches
+            NSApp.keyWindow?.setFrameAutosaveName("MainWindow")
         }
     }
 

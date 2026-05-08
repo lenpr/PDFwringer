@@ -36,7 +36,7 @@ struct SplitOptionsView: View {
                 OptionsHeaderView(url: url, onBack: onBack)
 
                 HStack {
-                    Text("Split / Extract")
+                    Text(String(localized: "Split / Extract"))
                         .font(.title3.weight(.semibold))
                     Spacer()
                     Text("\(vm.sourcePageCount) pages")
@@ -49,17 +49,17 @@ struct SplitOptionsView: View {
 
                 // Split every N pages
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Split document")
+                    Text(String(localized: "Split document"))
                         .font(.callout.weight(.medium))
                     HStack {
                         TextField("1", value: $vm.splitPagesPerFile, format: .number)
                             .frame(width: 50)
                             .textFieldStyle(.roundedBorder)
-                        Text("page(s) per file")
+                        Text(String(localized: "page(s) per file"))
                             .font(.callout)
                             .foregroundStyle(.secondary)
                         Spacer()
-                        Button("Split") {
+                        Button(String(localized: "Split")) {
                             Task { await vm.splitByPages() }
                         }
                         .buttonStyle(.borderedProminent)
@@ -71,13 +71,13 @@ struct SplitOptionsView: View {
 
                 // Keep pages
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Keep only these pages")
+                    Text(String(localized: "Keep only these pages"))
                         .font(.callout.weight(.medium))
                     HStack {
-                        TextField("e.g. 1, 3-5, 8-", text: $vm.keepPagesText)
+                        TextField(String(localized: "e.g. 1, 3-5, 8-"), text: $vm.keepPagesText)
                             .textFieldStyle(.roundedBorder)
                             .offset(x: keepShakeOffset)
-                        Button("Extract") {
+                        Button(String(localized: "Extract")) {
                             Task { await vm.keepPages() }
                         }
                         .buttonStyle(.borderedProminent)
@@ -89,13 +89,13 @@ struct SplitOptionsView: View {
 
                 // Remove pages
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Remove these pages")
+                    Text(String(localized: "Remove these pages"))
                         .font(.callout.weight(.medium))
                     HStack {
-                        TextField("e.g. 1, 3-5, 8-", text: $vm.removePagesText)
+                        TextField(String(localized: "e.g. 1, 3-5, 8-"), text: $vm.removePagesText)
                             .textFieldStyle(.roundedBorder)
                             .offset(x: removeShakeOffset)
-                        Button("Remove") {
+                        Button(String(localized: "Remove")) {
                             Task { await vm.removePages() }
                         }
                         .buttonStyle(.borderedProminent)

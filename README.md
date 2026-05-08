@@ -112,10 +112,48 @@ cp -R .build/PDFwringer.app ~/Applications/
 ### Test
 
 ```bash
-make test    # 132 tests across 12 suites
+make test    # 148 tests across 13 suites
 ```
 
 Uses [Swift Testing](https://developer.apple.com/documentation/testing). Tests cover the service/model/utility layers without requiring a running app. PDFs are generated programmatically — no fixture files.
+
+---
+
+## Distribution
+
+### Code Signing & Notarization
+
+To distribute outside the App Store, sign and notarize the app bundle:
+
+```bash
+# 1. Build the app
+make app
+
+# 2. Sign with hardened runtime
+codesign --force --options runtime \
+  --entitlements PDFwringer/PDFwringer.entitlements \
+  --sign "Developer ID Application: Your Name (TEAM_ID)" \
+  .build/PDFwringer.app
+
+# 3. Create a zip for notarization
+ditto -c -k --keepParent .build/PDFwringer.app PDFwringer.zip
+
+# 4. Submit for notarization
+xcrun notarytool submit PDFwringer.zip \
+  --apple-id your@email.com \
+  --team-id TEAM_ID \
+  --password @keychain:notarytool-password \
+  --wait
+
+# 5. Staple the ticket
+xcrun stapler staple .build/PDFwringer.app
+```
+
+The app is already sandboxed with `com.apple.security.files.user-selected.read-write` entitlement — no additional entitlements are needed for hardened runtime unless accessing protected resources.
+
+### Privacy
+
+See [PRIVACY.md](PRIVACY.md). The app makes no network requests and collects no data.
 
 ---
 

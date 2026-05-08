@@ -17,23 +17,25 @@ struct LandingView: View {
                     .symbolEffect(.pulse, options: .repeating.speed(0.3), value: isDropTargeted)
 
                 VStack(spacing: 6) {
-                    Text("Drop PDF files here")
+                    Text(String(localized: "Drop PDF files here"))
                         .font(.title2.weight(.medium))
                         .foregroundStyle(.primary)
 
-                    Text("or click to select (\u{2318}O)")
+                    Text(String(localized: "or click to select (\u{2318}O)"))
                         .font(.callout)
                         .foregroundStyle(.tertiary)
                 }
 
                 Button(action: selectFiles) {
-                    Label("Select Files...", systemImage: "folder")
+                    Label(String(localized: "Select Files..."), systemImage: "folder")
                         .font(.body.weight(.medium))
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.coral)
                 .controlSize(.large)
             }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(String(localized: "Drop zone for PDF files"))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background {
                 appIconBackdrop

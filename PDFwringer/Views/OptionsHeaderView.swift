@@ -7,7 +7,7 @@ struct OptionsHeaderView: View {
     var body: some View {
         HStack {
             Button(action: onBack) {
-                Label("Back", systemImage: "chevron.left")
+                Label(String(localized: "Back"), systemImage: "chevron.left")
                     .font(.caption.weight(.medium))
                     .padding(.vertical, 8)
                     .padding(.horizontal, 10)

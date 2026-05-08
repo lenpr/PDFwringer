@@ -17,17 +17,17 @@ enum PDFwringerError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .cannotOpenDocument: "Cannot open the PDF document. It may be corrupted or have zero pages."
-        case .documentIsLocked: "This PDF is password-protected."
-        case .cannotCreateOutput: "Cannot create the output file."
-        case .cannotWriteOutput: "Failed to write the output PDF."
-        case .invalidPageRange(let range): "Invalid page range: '\(range)'"
-        case .noSourceFile: "No source file selected."
-        case .emptyFileList: "No files to process."
-        case .accessDenied: "Cannot access the file. Try selecting it again."
-        case .fileNotReadable(let name): "Cannot read '\(name)'. The file may have been moved or deleted."
+        case .cannotOpenDocument: String(localized: "Cannot open the PDF document. It may be corrupted or have zero pages.")
+        case .documentIsLocked: String(localized: "This PDF is password-protected.")
+        case .cannotCreateOutput: String(localized: "Cannot create the output file.")
+        case .cannotWriteOutput: String(localized: "Failed to write the output PDF.")
+        case .invalidPageRange(let range): String(localized: "Invalid page range: '\(range)'")
+        case .noSourceFile: String(localized: "No source file selected.")
+        case .emptyFileList: String(localized: "No files to process.")
+        case .accessDenied: String(localized: "Cannot access the file. Try selecting it again.")
+        case .fileNotReadable(let name): String(localized: "Cannot read '\(name)'. The file may have been moved or deleted.")
         case .insufficientDiskSpace(let needed, let available):
-            "Not enough disk space. Need \(Formatting.fileSize(needed)), only \(Formatting.fileSize(available)) available."
+            String(localized: "Not enough disk space. Need \(Formatting.fileSize(needed)), only \(Formatting.fileSize(available)) available.")
         }
     }
 }
@@ -68,8 +68,15 @@ enum Formatting {
 /// Writes content to a temporary file then atomically replaces the destination.
 /// Cleans up the temp file on failure.
 enum AtomicFileWriter {
+    static let tempDirectory: URL = {
+        let dir = URL.temporaryDirectory.appending(component: "PDFwringer")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }()
+
     static func write(to destination: URL, using block: (URL) throws -> Bool) throws {
-        let tempURL = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
+        let tempURL = tempDirectory.appending(component: UUID().uuidString + ".pdf")
+        Log.fileIO.debug("AtomicWrite: temp=\(tempURL.lastPathComponent) → \(destination.lastPathComponent)")
         let success = try block(tempURL)
         guard success else {
             try? FileManager.default.removeItem(at: tempURL)
@@ -82,6 +89,23 @@ enum AtomicFileWriter {
             throw error
         }
     }
+
+    static func cleanupStaleFiles() {
+        let fm = FileManager.default
+        guard let contents = try? fm.contentsOfDirectory(at: tempDirectory, includingPropertiesForKeys: [.creationDateKey]) else { return }
+        let cutoff = Date().addingTimeInterval(-3600)
+        var removed = 0
+        for file in contents {
+            guard let attrs = try? file.resourceValues(forKeys: [.creationDateKey]),
+                  let created = attrs.creationDate,
+                  created < cutoff else { continue }
+            try? fm.removeItem(at: file)
+            removed += 1
+        }
+        if removed > 0 {
+            Log.fileIO.info("Cleaned up \(removed) stale temp file(s)")
+        }
+    }
 }
 
 /// Shared loggers for structured diagnostics.
@@ -91,6 +115,10 @@ enum Log {
     static let split = Logger(subsystem: "com.pdfwringer.app", category: "split")
     static let rotate = Logger(subsystem: "com.pdfwringer.app", category: "rotate")
     static let metadata = Logger(subsystem: "com.pdfwringer.app", category: "metadata")
+    static let crop = Logger(subsystem: "com.pdfwringer.app", category: "crop")
+    static let colorAdjust = Logger(subsystem: "com.pdfwringer.app", category: "colorAdjust")
+    static let app = Logger(subsystem: "com.pdfwringer.app", category: "app")
+    static let fileIO = Logger(subsystem: "com.pdfwringer.app", category: "fileIO")
 }
 
 extension Color {

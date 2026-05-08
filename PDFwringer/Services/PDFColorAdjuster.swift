@@ -18,6 +18,11 @@ struct PDFColorAdjuster {
         }
     }
 
+    struct Result {
+        var skippedPages: Int
+        var totalPages: Int
+    }
+
     private static let ciContext = CIContext(options: [.useSoftwareRenderer: false])
 
     nonisolated static func adjustImage(_ image: CGImage, settings: Settings) -> CGImage? {
@@ -37,6 +42,7 @@ struct PDFColorAdjuster {
         return cgResult
     }
 
+    @discardableResult
     func adjust(
         source: URL,
         destination: URL,
@@ -45,11 +51,15 @@ struct PDFColorAdjuster {
         dpi: CGFloat = 150,
         quality: CGFloat = 0.85,
         progress: (Double) -> Void
-    ) async throws {
+    ) async throws -> Result {
+        let start = ContinuousClock.now
+        Log.colorAdjust.info("Starting color adjust: brightness=\(settings.brightness), contrast=\(settings.contrast), saturation=\(settings.saturation)")
+
         guard !settings.isIdentity else {
             try FileManager.default.copyItem(at: source, to: destination)
             progress(1.0)
-            return
+            Log.colorAdjust.info("Identity settings — copied source unchanged")
+            return Result(skippedPages: 0, totalPages: 0)
         }
 
         guard let doc = PDFCompressor.openPDF(at: source) else {
@@ -66,7 +76,7 @@ struct PDFColorAdjuster {
             targetPages = Set(1...pageCount)
         }
 
-        let tempURL = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
+        let tempURL = AtomicFileWriter.tempDirectory.appending(component: UUID().uuidString + ".pdf")
 
         var emptyBox = CGRect.zero
         guard let outputCtx = CGContext(tempURL as CFURL, mediaBox: &emptyBox, nil) else {
@@ -74,12 +84,13 @@ struct PDFColorAdjuster {
         }
 
         do {
+            var skippedPages = 0
             for i in 1...pageCount {
                 try Task.checkCancellation()
 
                 autoreleasepool {
-                    guard let page = doc.page(at: i) else { return }
-                    guard let (rendered, displaySize) = PDFCompressor.renderPage(page, dpi: dpi, grayscale: false) else { return }
+                    guard let page = doc.page(at: i) else { skippedPages += 1; return }
+                    guard let (rendered, displaySize) = PDFCompressor.renderPage(page, dpi: dpi, grayscale: false) else { skippedPages += 1; return }
 
                     let finalImage: CGImage
                     if targetPages.contains(i) {
@@ -88,7 +99,7 @@ struct PDFColorAdjuster {
                         finalImage = rendered
                     }
 
-                    guard let jpegData = PDFCompressor.jpegEncode(image: finalImage, quality: quality) else { return }
+                    guard let jpegData = PDFCompressor.jpegEncode(image: finalImage, quality: quality) else { skippedPages += 1; return }
 
                     guard let provider = CGDataProvider(data: jpegData as CFData),
                           let jpegImage = CGImage(
@@ -97,7 +108,7 @@ struct PDFColorAdjuster {
                               shouldInterpolate: true,
                               intent: .defaultIntent
                           )
-                    else { return }
+                    else { skippedPages += 1; return }
 
                     var outBox = CGRect(origin: .zero, size: displaySize)
                     outputCtx.beginPage(mediaBox: &outBox)
@@ -115,6 +126,9 @@ struct PDFColorAdjuster {
                 try FileManager.default.moveItem(at: tempURL, to: tempDest)
                 return true
             }
+            let elapsed = ContinuousClock.now - start
+            Log.colorAdjust.info("Color adjust complete: \(pageCount) pages, skipped=\(skippedPages), duration=\(elapsed)")
+            return Result(skippedPages: skippedPages, totalPages: pageCount)
         } catch {
             outputCtx.closePDF()
             try? FileManager.default.removeItem(at: tempURL)

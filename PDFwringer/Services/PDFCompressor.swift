@@ -9,9 +9,16 @@ import UniformTypeIdentifiers
 @MainActor
 struct PDFCompressor {
 
+    struct Result {
+        var outputSize: Int64
+        var skippedPages: Int
+        var totalPages: Int
+    }
+
     nonisolated private static let sRGBColorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
 
     /// Compresses a PDF from `source` to `destination` using the selected strategy.
+    @discardableResult
     func compress(
         source: URL,
         destination: URL,
@@ -20,11 +27,12 @@ struct PDFCompressor {
         grayscale: Bool,
         stripMetadata: Bool,
         progress: (Double) -> Void
-    ) async throws {
+    ) async throws -> Result {
         let start = ContinuousClock.now
         Log.compress.info("Starting compression: level=\(level.title), quality=\(quality.title), grayscale=\(grayscale)")
+        var skipped = 0
         if level.isRasterize {
-            try await compressRasterize(
+            skipped = try await compressRasterize(
                 source: source,
                 destination: destination,
                 dpi: level.dpi,
@@ -43,6 +51,8 @@ struct PDFCompressor {
         let outputSize = (try? FileManager.default.attributesOfItem(atPath: destination.path(percentEncoded: false))[.size] as? Int64) ?? 0
         let elapsed = ContinuousClock.now - start
         Log.compress.info("Compression complete: output=\(Formatting.fileSize(outputSize)), duration=\(elapsed)")
+        let totalPages = PDFDocument(url: source)?.pageCount ?? 0
+        return Result(outputSize: outputSize, skippedPages: skipped, totalPages: totalPages)
     }
 
     /// Compress a single page to estimate total output size without processing the entire document.
@@ -131,7 +141,7 @@ struct PDFCompressor {
         quality: CGFloat,
         grayscale: Bool,
         progress: (Double) -> Void
-    ) async throws {
+    ) async throws -> Int {
         guard FileManager.default.isReadableFile(atPath: source.path(percentEncoded: false)) else {
             throw PDFwringerError.fileNotReadable(source.lastPathComponent)
         }
@@ -152,7 +162,7 @@ struct PDFCompressor {
             }
         }
 
-        let tempURL = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
+        let tempURL = AtomicFileWriter.tempDirectory.appending(component: UUID().uuidString + ".pdf")
 
         var emptyBox = CGRect.zero
         guard let outputCtx = CGContext(tempURL as CFURL, mediaBox: &emptyBox, nil) else {
@@ -201,6 +211,7 @@ struct PDFCompressor {
             }
 
             _ = try FileManager.default.replaceItemAt(destination, withItemAt: tempURL)
+            return skippedPages
         } catch {
             outputCtx.closePDF()
             try? FileManager.default.removeItem(at: tempURL)

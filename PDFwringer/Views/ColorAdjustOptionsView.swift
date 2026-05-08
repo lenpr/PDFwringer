@@ -21,9 +21,11 @@ struct ColorAdjustOptionsView: View {
 
     @State private var previewImage: NSImage?
     @State private var previewTask: Task<Void, Never>?
+    @State private var previewGeneration: Int = 0
 
     @State private var resultMessage: String?
     @State private var isError = false
+    @State private var isWarning = false
     @State private var lastOutputURL: URL?
     @State private var isDropTargeted = false
     @State private var isSaving = false
@@ -61,7 +63,7 @@ struct ColorAdjustOptionsView: View {
                 OptionsHeaderView(url: url, onBack: onBack)
 
                 HStack {
-                    Text("Adjust Colors")
+                    Text(String(localized: "Adjust Colors"))
                         .font(.title3.weight(.semibold))
                     Spacer()
                     Text("\(document.pageCount) pages")
@@ -77,7 +79,7 @@ struct ColorAdjustOptionsView: View {
                     pageRangeText: $pageRangeText,
                     selectedPages: $selectedPages,
                     shakeOffset: $shakeOffset,
-                    label: "Adjust all pages"
+                    label: String(localized: "Adjust all pages")
                 )
 
                 Divider()
@@ -90,7 +92,7 @@ struct ColorAdjustOptionsView: View {
 
                 HStack {
                     Spacer()
-                    Button("Save") { Task { await save() } }
+                    Button(String(localized: "Save")) { Task { await save() } }
                         .keyboardShortcut("s")
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
@@ -101,6 +103,7 @@ struct ColorAdjustOptionsView: View {
                     ResultMessageView(
                         message: msg,
                         isError: isError,
+                        isWarning: isWarning,
                         outputURL: lastOutputURL,
                         onRetry: isError ? { Task { await save() } } : nil
                     )
@@ -141,9 +144,11 @@ struct ColorAdjustOptionsView: View {
 
     private func updatePreview() {
         previewTask?.cancel()
+        previewGeneration += 1
+        let generation = previewGeneration
         previewTask = Task {
-            try? await Task.sleep(for: .milliseconds(50))
-            guard !Task.isCancelled else { return }
+            try? await Task.sleep(for: .milliseconds(100))
+            guard !Task.isCancelled, generation == previewGeneration else { return }
 
             guard let pdfPage = document.page(at: currentPage) else { return }
             let cgPage = pdfPage.pageRef
@@ -151,10 +156,10 @@ struct ColorAdjustOptionsView: View {
 
             let currentSettings = settings
             guard let (rendered, _) = PDFCompressor.renderPage(page, dpi: 150, grayscale: false) else { return }
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == previewGeneration else { return }
 
             let adjusted = PDFColorAdjuster.adjustImage(rendered, settings: currentSettings) ?? rendered
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == previewGeneration else { return }
 
             let nsImage = NSImage(cgImage: adjusted, size: NSSize(width: adjusted.width, height: adjusted.height))
             previewImage = nsImage
@@ -165,9 +170,9 @@ struct ColorAdjustOptionsView: View {
 
     private var sliderSection: some View {
         VStack(spacing: 12) {
-            sliderRow(label: "Brightness", value: $brightness, range: -1...1)
-            sliderRow(label: "Contrast", value: $contrast, range: 0.25...4.0)
-            sliderRow(label: "Saturation", value: $saturation, range: 0...4.0)
+            sliderRow(label: String(localized: "Brightness"), value: $brightness, range: -1...1)
+            sliderRow(label: String(localized: "Contrast"), value: $contrast, range: 0.25...4.0)
+            sliderRow(label: String(localized: "Saturation"), value: $saturation, range: 0...4.0)
         }
     }
 
@@ -182,6 +187,8 @@ struct ColorAdjustOptionsView: View {
                     .foregroundStyle(.secondary)
             }
             Slider(value: value, in: range)
+                .accessibilityLabel(label)
+                .accessibilityValue(String(format: "%.2f", value.wrappedValue))
         }
     }
 
@@ -201,7 +208,7 @@ struct ColorAdjustOptionsView: View {
                 .controlSize(.small)
             }
 
-            Button("Reset") {
+            Button(String(localized: "Reset")) {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     brightness = 0
                     contrast = 1
@@ -239,7 +246,7 @@ struct ColorAdjustOptionsView: View {
 
         do {
             let adjuster = PDFColorAdjuster()
-            try await adjuster.adjust(
+            let result = try await adjuster.adjust(
                 source: url,
                 destination: destination,
                 settings: settings,
@@ -248,12 +255,20 @@ struct ColorAdjustOptionsView: View {
                 quality: 0.85,
                 progress: { _ in }
             )
-            resultMessage = "Saved."
-            isError = false
+            if result.skippedPages > 0 {
+                resultMessage = "Saved with \(result.skippedPages) of \(result.totalPages) pages skipped due to rendering issues."
+                isError = false
+                isWarning = true
+            } else {
+                resultMessage = "Saved."
+                isError = false
+                isWarning = false
+            }
             lastOutputURL = destination
         } catch {
             resultMessage = error.localizedDescription
             isError = true
+            isWarning = false
         }
 
         isSaving = false
@@ -270,10 +285,10 @@ enum ColorPreset: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .vivid: "Vivid"
-        case .muted: "Muted"
-        case .blackAndWhite: "B&W"
-        case .highContrast: "Hi-Con"
+        case .vivid: String(localized: "Vivid")
+        case .muted: String(localized: "Muted")
+        case .blackAndWhite: String(localized: "B&W")
+        case .highContrast: String(localized: "Hi-Con")
         }
     }
 

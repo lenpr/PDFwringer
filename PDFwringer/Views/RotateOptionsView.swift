@@ -48,7 +48,7 @@ struct RotateOptionsView: View {
                 OptionsHeaderView(url: url, onBack: onBack)
 
                 HStack {
-                    Text("Rotate Pages")
+                    Text(String(localized: "Rotate Pages"))
                         .font(.title3.weight(.semibold))
                     Spacer()
                     Text("\(document.pageCount) pages")
@@ -65,19 +65,19 @@ struct RotateOptionsView: View {
                     pageRangeText: $pageRangeText,
                     selectedPages: $selectedPages,
                     shakeOffset: $shakeOffset,
-                    label: "Rotate all pages"
+                    label: String(localized: "Rotate all pages")
                 )
 
                 HStack(spacing: 12) {
-                    Button("90° CW") { rotateInPlace(angle: .ninety) }
+                    Button(String(localized: "90° CW")) { rotateInPlace(angle: .ninety) }
                         .keyboardShortcut("r")
-                    Button("180°") { rotateInPlace(angle: .oneEighty) }
-                    Button("90° CCW") { rotateInPlace(angle: .twoSeventy) }
+                    Button(String(localized: "180°")) { rotateInPlace(angle: .oneEighty) }
+                    Button(String(localized: "90° CCW")) { rotateInPlace(angle: .twoSeventy) }
                         .keyboardShortcut("r", modifiers: [.command, .shift])
 
                     Spacer()
 
-                    Button("Save") { Task { await saveRotated() } }
+                    Button(String(localized: "Save")) { Task { await saveRotated() } }
                         .keyboardShortcut("s")
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)

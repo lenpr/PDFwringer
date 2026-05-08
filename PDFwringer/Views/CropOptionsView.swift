@@ -70,7 +70,7 @@ struct CropOptionsView: View {
                 OptionsHeaderView(url: url, onBack: onBack)
 
                 HStack {
-                    Text("Crop / Resize")
+                    Text(String(localized: "Crop / Resize"))
                         .font(.title3.weight(.semibold))
                     Spacer()
                     Text("\(document.pageCount) pages")
@@ -93,36 +93,36 @@ struct CropOptionsView: View {
 
                 // Crop margins section
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Crop margins (points)")
+                    Text(String(localized: "Crop margins (points)"))
                         .font(.callout.weight(.medium))
 
                     HStack(spacing: 12) {
                         VStack(spacing: 2) {
-                            Text("Top").font(.caption2).foregroundStyle(.secondary)
+                            Text(String(localized: "Top")).font(.caption2).foregroundStyle(.secondary)
                             TextField("0", value: $cropTop, format: .number)
                                 .frame(width: 50)
                                 .textFieldStyle(.roundedBorder)
                         }
                         VStack(spacing: 2) {
-                            Text("Bottom").font(.caption2).foregroundStyle(.secondary)
+                            Text(String(localized: "Bottom")).font(.caption2).foregroundStyle(.secondary)
                             TextField("0", value: $cropBottom, format: .number)
                                 .frame(width: 50)
                                 .textFieldStyle(.roundedBorder)
                         }
                         VStack(spacing: 2) {
-                            Text("Left").font(.caption2).foregroundStyle(.secondary)
+                            Text(String(localized: "Left")).font(.caption2).foregroundStyle(.secondary)
                             TextField("0", value: $cropLeft, format: .number)
                                 .frame(width: 50)
                                 .textFieldStyle(.roundedBorder)
                         }
                         VStack(spacing: 2) {
-                            Text("Right").font(.caption2).foregroundStyle(.secondary)
+                            Text(String(localized: "Right")).font(.caption2).foregroundStyle(.secondary)
                             TextField("0", value: $cropRight, format: .number)
                                 .frame(width: 50)
                                 .textFieldStyle(.roundedBorder)
                         }
                         Spacer()
-                        Button("Crop") { applyCrop() }
+                        Button(String(localized: "Crop")) { applyCrop() }
                             .buttonStyle(.borderedProminent)
                             .disabled(cropTop == 0 && cropBottom == 0 && cropLeft == 0 && cropRight == 0)
                     }
@@ -132,7 +132,7 @@ struct CropOptionsView: View {
 
                 // Resize section
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Resize to paper size")
+                    Text(String(localized: "Resize to paper size"))
                         .font(.callout.weight(.medium))
 
                     HStack(spacing: 12) {
@@ -144,13 +144,13 @@ struct CropOptionsView: View {
                         .labelsHidden()
                         .frame(width: 80)
 
-                        Toggle("Landscape", isOn: $landscape)
+                        Toggle(String(localized: "Landscape"), isOn: $landscape)
                             .toggleStyle(.checkbox)
                             .font(.caption)
 
                         Spacer()
 
-                        Button("Resize") { applyResize() }
+                        Button(String(localized: "Resize")) { applyResize() }
                             .buttonStyle(.borderedProminent)
                     }
                 }
@@ -158,7 +158,7 @@ struct CropOptionsView: View {
                 // Save button
                 HStack {
                     Spacer()
-                    Button("Save") { Task { await saveCropped() } }
+                    Button(String(localized: "Save")) { Task { await saveCropped() } }
                         .keyboardShortcut("s")
                         .controlSize(.large)
                         .buttonStyle(.borderedProminent)

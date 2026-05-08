@@ -66,55 +66,55 @@ struct DocumentView: View {
                                 .foregroundStyle(.tertiary)
                         }
                         .buttonStyle(.plain)
-                        .help("Start over")
-                        .accessibilityLabel("Start over")
+                        .help(String(localized: "Start over"))
+                        .accessibilityLabel(String(localized: "Start over"))
                     }
 
                     Divider()
 
-                    Text("What would you like to do?")
+                    Text(String(localized: "What would you like to do?"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
 
                     ActionCardView(
                         icon: "arrow.down.doc",
-                        title: "Compress",
-                        description: "Reduce file size with lossless or lossy compression",
+                        title: String(localized: "Compress"),
+                        description: String(localized: "Reduce file size with lossless or lossy compression"),
                         action: onCompress
                     )
 
                     ActionCardView(
                         icon: "scissors",
-                        title: "Split / Extract",
-                        description: "Split into chunks or extract specific pages",
+                        title: String(localized: "Split / Extract"),
+                        description: String(localized: "Split into chunks or extract specific pages"),
                         action: onSplit
                     )
 
                     ActionCardView(
                         icon: "rotate.right",
-                        title: "Rotate Pages",
-                        description: "Rotate all or specific pages by 90°, 180°, or 270°",
+                        title: String(localized: "Rotate Pages"),
+                        description: String(localized: "Rotate all or specific pages by 90°, 180°, or 270°"),
                         action: onRotate
                     )
 
                     ActionCardView(
                         icon: "crop",
-                        title: "Crop / Resize",
-                        description: "Trim margins or resize pages to standard paper sizes",
+                        title: String(localized: "Crop / Resize"),
+                        description: String(localized: "Trim margins or resize pages to standard paper sizes"),
                         action: onCrop
                     )
 
                     ActionCardView(
                         icon: "slider.horizontal.3",
-                        title: "Adjust Colors",
-                        description: "Tweak brightness, contrast, and saturation",
+                        title: String(localized: "Adjust Colors"),
+                        description: String(localized: "Tweak brightness, contrast, and saturation"),
                         action: onAdjustColor
                     )
 
                     ActionCardView(
                         icon: "info.circle",
-                        title: "Edit Metadata",
-                        description: "View and edit title, author, subject, and keywords",
+                        title: String(localized: "Edit Metadata"),
+                        description: String(localized: "View and edit title, author, subject, and keywords"),
                         action: onMetadata
                     )
                 }

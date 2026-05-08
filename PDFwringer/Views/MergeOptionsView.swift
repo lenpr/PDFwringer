@@ -17,10 +17,10 @@ struct MergeOptionsView: View {
                         Image(systemName: "doc.on.doc")
                             .font(.system(size: 32))
                             .foregroundStyle(.quaternary)
-                        Text("No files added")
+                        Text(String(localized: "No files added"))
                             .font(.callout)
                             .foregroundStyle(.secondary)
-                        Text("Drop PDF files here or click Add Files")
+                        Text(String(localized: "Drop PDF files here or click Add Files"))
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                     }
@@ -84,7 +84,7 @@ struct MergeOptionsView: View {
 
                     Spacer()
 
-                    Button("Add Files...") {
+                    Button(String(localized: "Add Files...")) {
                         guard let urls = FileDialogHelper.showOpenPanel(allowsMultiple: true) else { return }
                         addFiles(urls)
                     }
@@ -112,10 +112,10 @@ struct MergeOptionsView: View {
                     Spacer()
                 }
 
-                Text("Merge")
+                Text(String(localized: "Merge"))
                     .font(.title3.weight(.semibold))
 
-                Text("Drag files to reorder. They will be merged top to bottom.")
+                Text(String(localized: "Drag files to reorder. They will be merged top to bottom."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
 
@@ -134,7 +134,7 @@ struct MergeOptionsView: View {
 
                 HStack {
                     Spacer()
-                    Button("Merge") {
+                    Button(String(localized: "Merge")) {
                         Task { await performMerge() }
                     }
                     .keyboardShortcut("s")

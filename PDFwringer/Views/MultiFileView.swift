@@ -56,7 +56,7 @@ struct MultiFileView: View {
 
                     Spacer()
 
-                    Button("Add Files...") {
+                    Button(String(localized: "Add Files...")) {
                         guard let urls = FileDialogHelper.showOpenPanel(allowsMultiple: true) else { return }
                         addFiles(urls)
                     }
@@ -87,23 +87,23 @@ struct MultiFileView: View {
                             .foregroundStyle(.tertiary)
                     }
                     .buttonStyle(.plain)
-                    .help("Start over")
+                    .help(String(localized: "Start over"))
                 }
 
                 Divider()
 
-                Text("What would you like to do?")
+                Text(String(localized: "What would you like to do?"))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
                 ActionCardView(
                     icon: "doc.on.doc",
-                    title: "Merge",
-                    description: "Combine all files into a single PDF in the order shown",
+                    title: String(localized: "Merge"),
+                    description: String(localized: "Combine all files into a single PDF in the order shown"),
                     action: onMerge
                 )
 
-                Text("Drag to reorder files in the list.")
+                Text(String(localized: "Drag to reorder files in the list."))
                     .font(.caption)
                     .foregroundStyle(.tertiary)
 

@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import OSLog
 import PDFKit
 import SwiftUI
 
@@ -130,6 +131,7 @@ class AppViewModel {
 
     func loadSingleFile(_ url: URL) {
         guard let doc = PDFDocument(url: url) else {
+            Log.app.warning("Cannot open file: \(url.lastPathComponent)")
             errorMessage = "Cannot open '\(url.lastPathComponent)'. The file may be corrupted or not a valid PDF."
             showErrorAlert = true
             return
