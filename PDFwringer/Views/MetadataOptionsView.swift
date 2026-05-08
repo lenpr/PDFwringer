@@ -20,6 +20,8 @@ struct MetadataOptionsView: View {
     @State private var confirmPasswordText = ""
     @State private var removeProtection = false
     @State private var flattenAnnotations = false
+    @State private var isSaving = false
+    @State private var saveProgress: Double?
 
     private let editor = PDFMetadataEditor()
 
@@ -126,11 +128,16 @@ struct MetadataOptionsView: View {
 
                 HStack {
                     Spacer()
-                    Button(String(localized: "Save Metadata")) { saveMetadata() }
+                    Button(String(localized: "Save Metadata")) { Task { await saveMetadata() } }
                         .keyboardShortcut("s")
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
-                        .disabled(setPassword && (passwordText.isEmpty || passwordText != confirmPasswordText))
+                        .disabled(isSaving || (setPassword && (passwordText.isEmpty || passwordText != confirmPasswordText)))
+                }
+
+                if let progress = saveProgress {
+                    ProgressView(value: progress)
+                        .progressViewStyle(.linear)
                 }
 
                 if let msg = resultMessage {
@@ -138,7 +145,7 @@ struct MetadataOptionsView: View {
                         message: msg,
                         isError: isError,
                         outputURL: lastOutputURL,
-                        onRetry: isError ? { saveMetadata() } : nil
+                        onRetry: isError ? { Task { await saveMetadata() } } : nil
                     )
                 }
 
@@ -180,12 +187,15 @@ struct MetadataOptionsView: View {
         }
     }
 
-    private func saveMetadata() {
+    private func saveMetadata() async {
         let suggestedName = url.deletingPathExtension().lastPathComponent + "_metadata.pdf"
         guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
 
         resultMessage = nil
         isError = false
+        isSaving = true
+        saveProgress = flattenAnnotations ? 0 : nil
+        onMutate?()
 
         let password: String? = if document.isEncrypted && !removeProtection && !passwordText.isEmpty {
             passwordText
@@ -196,7 +206,14 @@ struct MetadataOptionsView: View {
         }
 
         do {
-            try editor.write(metadata: metadata, source: url, destination: destination, password: password, flattenAnnotations: flattenAnnotations)
+            try await editor.write(
+                metadata: metadata,
+                source: url,
+                destination: destination,
+                password: password,
+                flattenAnnotations: flattenAnnotations,
+                progress: flattenAnnotations ? { p in saveProgress = p } : nil
+            )
             if flattenAnnotations {
                 resultMessage = "Saved with annotations flattened."
             } else if password != nil {
@@ -212,5 +229,8 @@ struct MetadataOptionsView: View {
             resultMessage = error.localizedDescription
             isError = true
         }
+
+        isSaving = false
+        saveProgress = nil
     }
 }

@@ -4,7 +4,8 @@
 
 ```bash
 make build      # swiftc → .build/PDFwringer (arm64, macOS 26)
-make app        # build + .app bundle at .build/PDFwringer.app
+make app        # build + .app bundle at .build/PDFwringer.app (ad-hoc codesigned)
+make release    # optimized build (-O -whole-module-optimization) + app bundle
 make run        # build + launch (bare executable, needs Terminal)
 make clean      # rm -rf .build
 ```
@@ -50,7 +51,8 @@ landing → singleFile / multiFile → compressing / splitting / rotating / edit
 
 ## Key conventions
 
-- **Concurrency**: Most service methods are `async throws` with cooperative cancellation (`Task.checkCancellation()`). Progress reported via `(Double) -> Void` closure (range 0.0–1.0). `PDFMetadataEditor` is synchronous (small data). `PDFCompressor.compressFirstPage` is `nonisolated` for background estimation.
+- **Concurrency**: Most service methods are `async throws` with cooperative cancellation (`Task.checkCancellation()`). Progress reported via `(Double) -> Void` closure (range 0.0–1.0). `PDFMetadataEditor.write()` is `async throws` with optional progress (needed for flatten which rasterizes pages). `PDFCompressor.compressFirstPage` is `nonisolated` for background estimation.
+- **Source/dest guard**: All services that take both source and destination URLs guard against `source == destination` at the top, throwing `PDFwringerError.sourceEqualsDestination`.
 - **Sandbox**: App is sandboxed with `com.apple.security.files.user-selected.read-write`. File access uses `NSSavePanel`/`NSOpenPanel` — never raw path construction.
 - **PDF reading**: `PDFCompressor.openPDF(at:)` reads file data into memory first (works around CGPDFDocument sandbox restrictions). Other services use `PDFDocument(url:)`.
 - **Temp files**: Operations write to `URL.temporaryDirectory` then atomically replace the destination via `FileManager.replaceItemAt(_:withItemAt:)`.
@@ -58,7 +60,7 @@ landing → singleFile / multiFile → compressing / splitting / rotating / edit
 - **Drop handling**: `DropReceiverView` wraps `DropNSView` (NSView subclass) for reliable drag-and-drop in sandbox. Returns `nil` from `hitTest` so SwiftUI buttons underneath remain clickable.
 - **File items**: `PDFFileItem.from(url:)` / `.from(urls:)` is the single factory for creating items from URLs (filters PDFs, reads page count). Struct is `Sendable`.
 - **Formatting**: `Formatting.fileSize(_:)` is the shared byte-formatting utility. `Formatting.triggerShake(_:)` provides the shared invalid-input shake animation.
-- **Atomic writes**: `AtomicFileWriter` (in `PDFwringerError.swift`) writes to a temp file, then uses `FileManager.replaceItemAt` for safe destination replacement. Cleans up on failure.
+- **Atomic writes**: `AtomicFileWriter` (in `PDFwringerError.swift`) writes to a temp file in a dedicated subdirectory (`URL.temporaryDirectory/PDFwringer/`), then uses `FileManager.replaceItemAt` for safe destination replacement. Cleans up on failure. All services use this consistently.
 - **Logging**: `Log` enum (in `PDFwringerError.swift`) provides structured `os.Logger` instances per category (compress, merge, split, rotate, metadata).
 - **Thumbnails**: `ThumbnailCache` is `@MainActor @Observable` with a generation counter for SwiftUI refresh. PDF access stays on MainActor; only bitmap rendering is detached.
 
@@ -69,8 +71,8 @@ landing → singleFile / multiFile → compressing / splitting / rotating / edit
 
 ## Annotation flattening
 
-`PDFMetadataEditor` supports flattening annotations via the `flattenAnnotations` parameter. When enabled, each page is rasterized at 300 DPI (JPEG quality 0.92) using `page.draw(with:to:)` which renders annotation appearances into the bitmap. The result is a visually identical PDF where annotations are burned into the page content and are no longer editable. Text selectability is lost.
+`PDFMetadataEditor` supports flattening annotations via the `flattenAnnotations` parameter. When enabled, each page is rasterized at 300 DPI (JPEG quality 0.92) using `page.draw(with:to:)` which renders annotation appearances into the bitmap. The result is a visually identical PDF where annotations are burned into the page content and are no longer editable. Text selectability is lost. The operation is async with progress reporting and cancellation support.
 
 ## App bundle
 
-`make app` creates `.build/PDFwringer.app` with proper `Info.plist` (bundle ID, icon reference, activation). The `init()` in `PDFwringerApp` also sets `.regular` activation policy so the app works correctly when launched as a bare executable via `make run`.
+`make app` creates `.build/PDFwringer.app` with proper `Info.plist` (bundle ID, icon reference, activation) and ad-hoc codesigning. `make release` adds `-O -whole-module-optimization` for distribution builds. The `init()` in `PDFwringerApp` also sets `.regular` activation policy so the app works correctly when launched as a bare executable via `make run`.

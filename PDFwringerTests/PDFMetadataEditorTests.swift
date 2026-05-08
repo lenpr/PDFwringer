@@ -32,7 +32,7 @@ struct PDFMetadataEditorTests {
     }
 
     @Test("Write and read back metadata round-trip")
-    func writeReadRoundTrip() throws {
+    func writeReadRoundTrip() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
         let output = TestPDFGenerator.makeTempDirectory().appending(component: "meta.pdf")
         defer {
@@ -48,7 +48,7 @@ struct PDFMetadataEditorTests {
             creator: "PDFwringer"
         )
 
-        try editor.write(metadata: newMeta, source: source, destination: output)
+        try await editor.write(metadata: newMeta, source: source, destination: output)
 
         let readBack = editor.read(from: output)
         #expect(readBack.title == "My Doc")
@@ -61,7 +61,7 @@ struct PDFMetadataEditorTests {
     }
 
     @Test("Write empty fields clears existing metadata")
-    func writeEmptyClears() throws {
+    func writeEmptyClears() async throws {
         let source = makePDFWithMetadata(title: "Old Title", author: "Old Author")
         let output = TestPDFGenerator.makeTempDirectory().appending(component: "cleared.pdf")
         defer {
@@ -69,7 +69,7 @@ struct PDFMetadataEditorTests {
             TestPDFGenerator.cleanup(output)
         }
 
-        try editor.write(metadata: .empty, source: source, destination: output)
+        try await editor.write(metadata: .empty, source: source, destination: output)
 
         let readBack = editor.read(from: output)
         #expect(readBack.title == "")
@@ -77,7 +77,7 @@ struct PDFMetadataEditorTests {
     }
 
     @Test("Write preserves page count")
-    func writePreservesPages() throws {
+    func writePreservesPages() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 5)
         let output = TestPDFGenerator.makeTempDirectory().appending(component: "pages.pdf")
         defer {
@@ -88,20 +88,20 @@ struct PDFMetadataEditorTests {
         let meta = PDFMetadataEditor.Metadata(
             title: "Titled", author: "", subject: "", keywords: "", creator: ""
         )
-        try editor.write(metadata: meta, source: source, destination: output)
+        try await editor.write(metadata: meta, source: source, destination: output)
 
         let doc = PDFDocument(url: output)
         #expect(doc?.pageCount == 5)
     }
 
     @Test("Write to unreadable source throws")
-    func writeUnreadableThrows() {
+    func writeUnreadableThrows() async {
         let bogus = URL.temporaryDirectory.appending(component: "nope.pdf")
         let output = TestPDFGenerator.makeTempDirectory().appending(component: "out.pdf")
         defer { TestPDFGenerator.cleanup(output) }
 
         do {
-            try editor.write(metadata: .empty, source: bogus, destination: output)
+            try await editor.write(metadata: .empty, source: bogus, destination: output)
             Issue.record("Expected error")
         } catch let error as PDFwringerError {
             if case .fileNotReadable = error { } else {
@@ -113,7 +113,7 @@ struct PDFMetadataEditorTests {
     }
 
     @Test("Keywords are split by comma and trimmed")
-    func keywordsParsing() throws {
+    func keywordsParsing() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
         let output = TestPDFGenerator.makeTempDirectory().appending(component: "kw.pdf")
         defer {
@@ -126,7 +126,7 @@ struct PDFMetadataEditorTests {
             keywords: " alpha , beta,  gamma ",
             creator: ""
         )
-        try editor.write(metadata: meta, source: source, destination: output)
+        try await editor.write(metadata: meta, source: source, destination: output)
 
         let readBack = editor.read(from: output)
         #expect(readBack.keywords.contains("alpha"))
@@ -137,7 +137,7 @@ struct PDFMetadataEditorTests {
     // MARK: - Encryption
 
     @Test("Write with password produces encrypted document")
-    func writeWithPassword() throws {
+    func writeWithPassword() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
         let output = TestPDFGenerator.makeTempDirectory().appending(component: "encrypted.pdf")
         defer {
@@ -148,7 +148,7 @@ struct PDFMetadataEditorTests {
         let meta = PDFMetadataEditor.Metadata(
             title: "Secret", author: "", subject: "", keywords: "", creator: ""
         )
-        try editor.write(metadata: meta, source: source, destination: output, password: "test123")
+        try await editor.write(metadata: meta, source: source, destination: output, password: "test123")
 
         let doc = PDFDocument(url: output)
         #expect(doc != nil)
@@ -157,7 +157,7 @@ struct PDFMetadataEditorTests {
     }
 
     @Test("Write without password from source produces unencrypted document")
-    func writeWithoutPassword() throws {
+    func writeWithoutPassword() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
         let output = TestPDFGenerator.makeTempDirectory().appending(component: "plain.pdf")
         defer {
@@ -165,7 +165,7 @@ struct PDFMetadataEditorTests {
             TestPDFGenerator.cleanup(output)
         }
 
-        try editor.write(metadata: .empty, source: source, destination: output, password: nil)
+        try await editor.write(metadata: .empty, source: source, destination: output, password: nil)
 
         let doc = PDFDocument(url: output)
         #expect(doc != nil)
@@ -173,7 +173,7 @@ struct PDFMetadataEditorTests {
     }
 
     @Test("Encrypted document can be unlocked and read")
-    func encryptedRoundTrip() throws {
+    func encryptedRoundTrip() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
         let encrypted = TestPDFGenerator.makeTempDirectory().appending(component: "enc.pdf")
         defer {
@@ -184,7 +184,7 @@ struct PDFMetadataEditorTests {
         let meta = PDFMetadataEditor.Metadata(
             title: "Locked Doc", author: "Author", subject: "", keywords: "", creator: ""
         )
-        try editor.write(metadata: meta, source: source, destination: encrypted, password: "pw")
+        try await editor.write(metadata: meta, source: source, destination: encrypted, password: "pw")
 
         let doc = PDFDocument(url: encrypted)!
         #expect(doc.isLocked == true)
@@ -195,7 +195,7 @@ struct PDFMetadataEditorTests {
     // MARK: - Flatten annotations
 
     @Test("Flatten annotations produces valid output with same page count")
-    func flattenAnnotations() throws {
+    func flattenAnnotations() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 3)
         let output = TestPDFGenerator.makeTempDirectory().appending(component: "flattened.pdf")
         defer {
@@ -206,7 +206,7 @@ struct PDFMetadataEditorTests {
         let meta = PDFMetadataEditor.Metadata(
             title: "Flattened", author: "", subject: "", keywords: "", creator: ""
         )
-        try editor.write(metadata: meta, source: source, destination: output, flattenAnnotations: true)
+        try await editor.write(metadata: meta, source: source, destination: output, flattenAnnotations: true)
 
         let doc = PDFDocument(url: output)
         #expect(doc != nil)

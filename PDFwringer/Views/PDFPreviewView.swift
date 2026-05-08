@@ -143,12 +143,15 @@ struct PDFPreviewPanel: View {
                 Button { proxy.zoomOut() } label: {
                     Image(systemName: "minus.magnifyingglass")
                 }
+                .accessibilityLabel(String(localized: "Zoom out"))
                 Button { proxy.fitToView() } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
                 }
+                .accessibilityLabel(String(localized: "Fit to view"))
                 Button { proxy.zoomIn() } label: {
                     Image(systemName: "plus.magnifyingglass")
                 }
+                .accessibilityLabel(String(localized: "Zoom in"))
             }
             .buttonStyle(.plain)
             .font(.caption)

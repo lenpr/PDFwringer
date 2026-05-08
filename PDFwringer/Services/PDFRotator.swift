@@ -31,6 +31,10 @@ struct PDFRotator {
         pageIndices: [Int]?,
         progress: (Double) -> Void
     ) async throws {
+        guard source.standardizedFileURL != destination.standardizedFileURL else {
+            throw PDFwringerError.sourceEqualsDestination
+        }
+
         guard FileManager.default.isReadableFile(atPath: source.path(percentEncoded: false)) else {
             throw PDFwringerError.fileNotReadable(source.lastPathComponent)
         }

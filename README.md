@@ -96,8 +96,9 @@ Used in Split / Extract, Rotate, and Crop operations:
 
 ```bash
 # Command line
-make app     # produces .build/PDFwringer.app
-make run     # build + launch
+make app       # produces .build/PDFwringer.app (ad-hoc codesigned)
+make release   # optimized build (-O) + app bundle
+make run       # build + launch
 
 # Or open PDFwringer.xcodeproj in Xcode (Cmd+B)
 ```

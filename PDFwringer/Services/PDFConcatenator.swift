@@ -21,6 +21,12 @@ struct PDFConcatenator {
         progress: (Double) -> Void
     ) async throws -> Result {
         guard !sources.isEmpty else { throw PDFwringerError.emptyFileList }
+
+        let destStandardized = destination.standardizedFileURL
+        if sources.contains(where: { $0.standardizedFileURL == destStandardized }) {
+            throw PDFwringerError.sourceEqualsDestination
+        }
+
         let start = ContinuousClock.now
         Log.merge.info("Starting merge: \(sources.count) files")
 
@@ -31,27 +37,30 @@ struct PDFConcatenator {
             }
         }
 
-        // Single pass: count total pages and check for locked docs, then build output
+        // Pass 1: validate all sources and count pages (release docs immediately)
         var totalPages = 0
-        var sourceDocs: [(PDFDocument, Int)] = []
+        var pageCounts: [Int] = []
         var skippedFiles: [String] = []
         for url in sources {
             guard let doc = PDFDocument(url: url) else {
                 skippedFiles.append(url.lastPathComponent)
+                pageCounts.append(0)
                 continue
             }
             if doc.isLocked { throw PDFwringerError.documentIsLocked }
+            pageCounts.append(doc.pageCount)
             totalPages += doc.pageCount
-            sourceDocs.append((doc, doc.pageCount))
         }
         guard totalPages > 0 else { throw PDFwringerError.emptyFileList }
 
-        // Build output one source at a time
+        // Pass 2: build output one source at a time to limit memory
         let output = PDFDocument()
         var insertIndex = 0
 
-        for (sourceDoc, pageCount) in sourceDocs {
-            for pageIdx in 0..<pageCount {
+        for (idx, url) in sources.enumerated() {
+            guard pageCounts[idx] > 0, let sourceDoc = PDFDocument(url: url) else { continue }
+
+            for pageIdx in 0..<pageCounts[idx] {
                 try Task.checkCancellation()
 
                 autoreleasepool {

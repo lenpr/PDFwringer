@@ -14,6 +14,7 @@ enum PDFwringerError: LocalizedError {
     case accessDenied
     case fileNotReadable(String)
     case insufficientDiskSpace(needed: Int64, available: Int64)
+    case sourceEqualsDestination
 
     var errorDescription: String? {
         switch self {
@@ -28,6 +29,8 @@ enum PDFwringerError: LocalizedError {
         case .fileNotReadable(let name): String(localized: "Cannot read '\(name)'. The file may have been moved or deleted.")
         case .insufficientDiskSpace(let needed, let available):
             String(localized: "Not enough disk space. Need \(Formatting.fileSize(needed)), only \(Formatting.fileSize(available)) available.")
+        case .sourceEqualsDestination:
+            String(localized: "Source and destination cannot be the same file. Choose a different location.")
         }
     }
 }

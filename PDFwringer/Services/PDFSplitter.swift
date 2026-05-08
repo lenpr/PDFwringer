@@ -23,6 +23,16 @@ struct PDFSplitter {
         destination: URL,
         progress: (Double) -> Void
     ) async throws -> [URL] {
+        if case .keepPages = mode {
+            guard source.standardizedFileURL != destination.standardizedFileURL else {
+                throw PDFwringerError.sourceEqualsDestination
+            }
+        } else if case .removePages = mode {
+            guard source.standardizedFileURL != destination.standardizedFileURL else {
+                throw PDFwringerError.sourceEqualsDestination
+            }
+        }
+
         guard FileManager.default.isReadableFile(atPath: source.path(percentEncoded: false)) else {
             throw PDFwringerError.fileNotReadable(source.lastPathComponent)
         }
@@ -162,6 +172,10 @@ struct PDFSplitter {
             if (i + 1) % 10 == 0 {
                 await Task.yield()
             }
+        }
+
+        guard outputDoc.pageCount > 0 else {
+            throw PDFwringerError.invalidPageRange("no valid pages in range")
         }
 
         try AtomicFileWriter.write(to: destination) { tempURL in

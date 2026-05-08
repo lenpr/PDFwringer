@@ -40,8 +40,13 @@ struct PDFMetadataEditor {
         source: URL,
         destination: URL,
         password: String? = nil,
-        flattenAnnotations: Bool = false
-    ) throws {
+        flattenAnnotations: Bool = false,
+        progress: ((Double) -> Void)? = nil
+    ) async throws {
+        guard source.standardizedFileURL != destination.standardizedFileURL else {
+            throw PDFwringerError.sourceEqualsDestination
+        }
+
         guard FileManager.default.isReadableFile(atPath: source.path(percentEncoded: false)) else {
             throw PDFwringerError.fileNotReadable(source.lastPathComponent)
         }
@@ -54,9 +59,10 @@ struct PDFMetadataEditor {
         Log.metadata.info("Writing metadata: title=\(metadata.title.isEmpty ? "(empty)" : metadata.title), encrypted=\(password != nil), flatten=\(flattenAnnotations)")
 
         if flattenAnnotations {
-            try writeFlattenedPDF(doc: doc, metadata: metadata, destination: destination, password: password)
+            try await writeFlattenedPDF(doc: doc, metadata: metadata, destination: destination, password: password, progress: progress)
         } else {
             try writeNormalPDF(doc: doc, metadata: metadata, destination: destination, password: password)
+            progress?(1.0)
         }
     }
 
@@ -98,15 +104,16 @@ struct PDFMetadataEditor {
         doc: PDFDocument,
         metadata: Metadata,
         destination: URL,
-        password: String?
-    ) throws {
+        password: String?,
+        progress: ((Double) -> Void)?
+    ) async throws {
         let pageCount = doc.pageCount
         guard pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
 
         let dpi: CGFloat = 300
         let quality: CGFloat = 0.92
 
-        let tempURL = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
+        let tempURL = AtomicFileWriter.tempDirectory.appending(component: UUID().uuidString + ".pdf")
         var emptyBox = CGRect.zero
         guard let outputCtx = CGContext(tempURL as CFURL, mediaBox: &emptyBox, nil) else {
             throw PDFwringerError.cannotCreateOutput
@@ -115,13 +122,15 @@ struct PDFMetadataEditor {
         var skippedPages = 0
 
         for i in 0..<pageCount {
+            try Task.checkCancellation()
+
             autoreleasepool {
                 guard let page = doc.page(at: i) else { skippedPages += 1; return }
                 let bounds = page.bounds(for: .cropBox)
                 let rotation = page.rotation
+                let angle = ((rotation % 360) + 360) % 360
 
                 let displaySize: CGSize
-                let angle = ((rotation % 360) + 360) % 360
                 if angle == 90 || angle == 270 {
                     displaySize = CGSize(width: bounds.height, height: bounds.width)
                 } else {
@@ -142,24 +151,12 @@ struct PDFMetadataEditor {
                 bitmap.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
                 bitmap.fill(CGRect(x: 0, y: 0, width: pixelW, height: pixelH))
 
-                let nsSize = NSSize(width: pixelW, height: pixelH)
-                let image = NSImage(size: nsSize)
-                image.lockFocus()
-                if let ctx = NSGraphicsContext.current?.cgContext {
-                    ctx.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
-                    ctx.fill(CGRect(origin: .zero, size: nsSize))
+                bitmap.scaleBy(x: scale, y: scale)
+                page.transform(bitmap, for: .cropBox)
+                page.draw(with: .cropBox, to: bitmap)
 
-                    ctx.saveGState()
-                    ctx.scaleBy(x: scale, y: scale)
-                    page.draw(with: .cropBox, to: ctx)
-                    ctx.restoreGState()
-                }
-                image.unlockFocus()
-
-                guard let tiffData = image.tiffRepresentation,
-                      let bitmapRep = NSBitmapImageRep(data: tiffData),
-                      let jpegData = bitmapRep.representation(using: .jpeg, properties: [.compressionFactor: quality])
-                else { skippedPages += 1; return }
+                guard let rendered = bitmap.makeImage() else { skippedPages += 1; return }
+                guard let jpegData = PDFCompressor.jpegEncode(image: rendered, quality: quality) else { skippedPages += 1; return }
 
                 guard let provider = CGDataProvider(data: jpegData as CFData),
                       let jpegImage = CGImage(
@@ -175,6 +172,9 @@ struct PDFMetadataEditor {
                 outputCtx.draw(jpegImage, in: outBox)
                 outputCtx.endPage()
             }
+
+            progress?(Double(i + 1) / Double(pageCount))
+            await Task.yield()
         }
 
         if skippedPages == pageCount {
@@ -213,26 +213,14 @@ struct PDFMetadataEditor {
             writeOptions[.userPasswordOption] = pw
         }
 
-        let finalTempURL = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
-        let writeSuccess: Bool
-        if writeOptions.isEmpty {
-            writeSuccess = flatDoc.write(to: finalTempURL)
-        } else {
-            writeSuccess = flatDoc.write(to: finalTempURL, withOptions: writeOptions)
-        }
-
         try? FileManager.default.removeItem(at: tempURL)
 
-        guard writeSuccess else {
-            try? FileManager.default.removeItem(at: finalTempURL)
-            throw PDFwringerError.cannotWriteOutput
-        }
-
-        do {
-            _ = try FileManager.default.replaceItemAt(destination, withItemAt: finalTempURL)
-        } catch {
-            try? FileManager.default.removeItem(at: finalTempURL)
-            throw error
+        try AtomicFileWriter.write(to: destination) { finalTemp in
+            if writeOptions.isEmpty {
+                flatDoc.write(to: finalTemp)
+            } else {
+                flatDoc.write(to: finalTemp, withOptions: writeOptions)
+            }
         }
     }
 }

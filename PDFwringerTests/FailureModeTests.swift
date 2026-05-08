@@ -150,14 +150,17 @@ struct FailureModeTests {
     // MARK: - Write failures
 
     @Test("Metadata write to unwritable destination throws")
-    func metadataWriteFailure() throws {
+    func metadataWriteFailure() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
         let unwritable = URL(filePath: "/nonexistent_dir/output.pdf")
         defer { TestPDFGenerator.cleanup(source) }
 
         let editor = PDFMetadataEditor()
-        #expect(throws: (any Error).self) {
-            try editor.write(metadata: .empty, source: source, destination: unwritable)
+        do {
+            try await editor.write(metadata: .empty, source: source, destination: unwritable)
+            Issue.record("Expected error")
+        } catch {
+            // Expected
         }
     }
 

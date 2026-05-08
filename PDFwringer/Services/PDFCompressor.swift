@@ -30,6 +30,10 @@ struct PDFCompressor {
     ) async throws -> Result {
         let start = ContinuousClock.now
         Log.compress.info("Starting compression: level=\(level.title), quality=\(quality.title), grayscale=\(grayscale)")
+
+        guard source.standardizedFileURL != destination.standardizedFileURL else {
+            throw PDFwringerError.sourceEqualsDestination
+        }
         var skipped = 0
         if level.isRasterize {
             skipped = try await compressRasterize(
@@ -210,7 +214,10 @@ struct PDFCompressor {
                 Log.compress.warning("Rasterization skipped \(skippedPages) of \(pageCount) pages")
             }
 
-            _ = try FileManager.default.replaceItemAt(destination, withItemAt: tempURL)
+            try AtomicFileWriter.write(to: destination) { destTemp in
+                try FileManager.default.moveItem(at: tempURL, to: destTemp)
+                return true
+            }
             return skippedPages
         } catch {
             outputCtx.closePDF()

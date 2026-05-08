@@ -1,9 +1,13 @@
 SDK := $(shell xcrun --show-sdk-path)
 TARGET := arm64-apple-macosx26.0
 SWIFT_FLAGS := -target $(TARGET) -sdk $(SDK) -parse-as-library -framework SwiftUI -framework PDFKit -framework AppKit
+RELEASE_FLAGS := -O -whole-module-optimization
 VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
-# Generate version file before evaluating SOURCES so find picks it up
-$(shell echo 'let appVersion = "$(VERSION)"' > PDFwringer/GeneratedVersion.swift)
+# Generate version file only when content changes
+$(shell NEW_VER='let appVersion = "$(VERSION)"'; \
+    if [ ! -f PDFwringer/GeneratedVersion.swift ] || [ "$$(cat PDFwringer/GeneratedVersion.swift)" != "$$NEW_VER" ]; then \
+        printf '%s' "$$NEW_VER" > PDFwringer/GeneratedVersion.swift; \
+    fi)
 SOURCES := $(shell find PDFwringer -name '*.swift')
 TEST_SOURCES := $(shell find PDFwringerTests -name '*.swift')
 TESTABLE_SOURCES := $(shell find PDFwringer/Services PDFwringer/Models PDFwringer/Utilities PDFwringer/ViewModels -name '*.swift')
@@ -12,7 +16,19 @@ APP_NAME := PDFwringer
 APP_BUNDLE := $(BUILD_DIR)/$(APP_NAME).app
 TEST_NAME := PDFwringerTests
 
-.PHONY: build clean run test app
+# Derive Testing framework paths from active toolchain
+SWIFT_LIB_DIR := $(shell dirname $$(dirname $$(xcrun --find swift)))/lib
+TESTING_PLUGIN := $(SWIFT_LIB_DIR)/swift/host/plugins/testing/libTestingMacros.dylib
+DEVELOPER_DIR := $(shell xcode-select -p)
+TESTING_FW_DIR := $(DEVELOPER_DIR)/Library/Developer/Frameworks
+TESTING_RPATH_DIR := $(DEVELOPER_DIR)/Library/Developer/usr/lib
+# Fallback for CommandLineTools layout
+ifeq ($(wildcard $(TESTING_FW_DIR)/Testing.framework),)
+    TESTING_FW_DIR := /Library/Developer/CommandLineTools/Library/Developer/Frameworks
+    TESTING_RPATH_DIR := /Library/Developer/CommandLineTools/Library/Developer/usr/lib
+endif
+
+.PHONY: build clean run test app release
 
 build: $(BUILD_DIR)/$(APP_NAME)
 
@@ -44,6 +60,8 @@ $(APP_BUNDLE): $(BUILD_DIR)/$(APP_NAME)
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:LSItemContentTypes array" $(APP_BUNDLE)/Contents/Info.plist
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:LSItemContentTypes:0 string com.adobe.pdf" $(APP_BUNDLE)/Contents/Info.plist
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:LSHandlerRank string Alternate" $(APP_BUNDLE)/Contents/Info.plist
+	@xattr -cr $(APP_BUNDLE) 2>/dev/null || true
+	@codesign --force --sign - $(APP_BUNDLE)
 	@echo "Built $(APP_BUNDLE)"
 
 test: $(BUILD_DIR)/$(TEST_NAME)
@@ -53,14 +71,17 @@ $(BUILD_DIR)/$(TEST_NAME): $(TESTABLE_SOURCES) $(TEST_SOURCES)
 	@mkdir -p $(BUILD_DIR)
 	swiftc -target $(TARGET) -sdk $(SDK) -parse-as-library \
 		-framework PDFKit -framework AppKit -framework Foundation \
-		-F /Library/Developer/CommandLineTools/Library/Developer/Frameworks \
+		-F $(TESTING_FW_DIR) \
 		-framework Testing \
-		-Xlinker -rpath -Xlinker /Library/Developer/CommandLineTools/Library/Developer/Frameworks \
-		-Xlinker -rpath -Xlinker /Library/Developer/CommandLineTools/Library/Developer/usr/lib \
-		-load-plugin-library /Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing/libTestingMacros.dylib \
+		-Xlinker -rpath -Xlinker $(TESTING_FW_DIR) \
+		-Xlinker -rpath -Xlinker $(TESTING_RPATH_DIR) \
+		-load-plugin-library $(TESTING_PLUGIN) \
 		-module-name PDFwringer \
 		-o $@ \
 		$(TESTABLE_SOURCES) $(TEST_SOURCES)
+
+release: SWIFT_FLAGS += $(RELEASE_FLAGS)
+release: clean build app
 
 clean:
 	rm -rf $(BUILD_DIR)

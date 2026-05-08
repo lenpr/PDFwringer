@@ -259,7 +259,7 @@ struct EndToEndTests {
             creator: "PDFwringer E2E"
         )
 
-        try editor.write(metadata: newMeta, source: source, destination: output)
+        try await editor.write(metadata: newMeta, source: source, destination: output)
 
         let readBack = editor.read(from: output)
         #expect(readBack.title == "My Custom Title")

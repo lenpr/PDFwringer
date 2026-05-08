@@ -23,7 +23,7 @@ struct PDFColorAdjuster {
         var totalPages: Int
     }
 
-    private static let ciContext = CIContext(options: [.useSoftwareRenderer: false])
+    private nonisolated static let ciContext = CIContext(options: [.useSoftwareRenderer: false])
 
     nonisolated static func adjustImage(_ image: CGImage, settings: Settings) -> CGImage? {
         guard !settings.isIdentity else { return image }
@@ -37,8 +37,7 @@ struct PDFColorAdjuster {
 
         guard let output = filter.outputImage else { return image }
 
-        let ctx = CIContext(options: [.useSoftwareRenderer: false])
-        guard let cgResult = ctx.createCGImage(output, from: output.extent) else { return image }
+        guard let cgResult = ciContext.createCGImage(output, from: output.extent) else { return image }
         return cgResult
     }
 
@@ -55,8 +54,15 @@ struct PDFColorAdjuster {
         let start = ContinuousClock.now
         Log.colorAdjust.info("Starting color adjust: brightness=\(settings.brightness), contrast=\(settings.contrast), saturation=\(settings.saturation)")
 
+        guard source.standardizedFileURL != destination.standardizedFileURL else {
+            throw PDFwringerError.sourceEqualsDestination
+        }
+
         guard !settings.isIdentity else {
-            try FileManager.default.copyItem(at: source, to: destination)
+            try AtomicFileWriter.write(to: destination) { tempURL in
+                try FileManager.default.copyItem(at: source, to: tempURL)
+                return true
+            }
             progress(1.0)
             Log.colorAdjust.info("Identity settings — copied source unchanged")
             return Result(skippedPages: 0, totalPages: 0)
