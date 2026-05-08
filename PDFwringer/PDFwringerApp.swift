@@ -51,17 +51,16 @@ struct PDFwringerApp: App {
                 .keyboardShortcut("w")
             }
 
-            // View menu
-            CommandMenu("View") {
+            // View menu — inject into the system-provided View menu
+            CommandGroup(after: .toolbar) {
                 Picker("Appearance", selection: $appearance) {
                     ForEach(AppAppearance.allCases) { mode in
                         Text(mode.title).tag(mode)
                     }
                 }
-            }
 
-            // Navigate menu
-            CommandMenu("Navigate") {
+                Divider()
+
                 Button("Next Page") {
                     appVM.nextPage()
                 }
@@ -150,8 +149,15 @@ struct PDFwringerApp: App {
                 .disabled(appVM.state == .landing)
             }
 
-            // Keep default Edit menu (Undo/Redo/Cut/Copy/Paste)
-            // Keep default Window menu (Minimize/Zoom/Bring All to Front)
+            // Help menu
+            CommandGroup(replacing: .help) {
+                Button("PDFwringer on GitHub") {
+                    NSWorkspace.shared.open(URL(string: "https://github.com/lenpr/PDFwringer")!)
+                }
+                Button("License (MIT)") {
+                    NSWorkspace.shared.open(URL(string: "https://github.com/lenpr/PDFwringer/blob/main/LICENSE")!)
+                }
+            }
         }
     }
 }

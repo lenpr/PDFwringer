@@ -1,6 +1,9 @@
 SDK := $(shell xcrun --show-sdk-path)
 TARGET := arm64-apple-macosx26.0
 SWIFT_FLAGS := -target $(TARGET) -sdk $(SDK) -parse-as-library -framework SwiftUI -framework PDFKit -framework AppKit
+VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+# Generate version file before evaluating SOURCES so find picks it up
+$(shell echo 'let appVersion = "$(VERSION)"' > PDFwringer/GeneratedVersion.swift)
 SOURCES := $(shell find PDFwringer -name '*.swift')
 TEST_SOURCES := $(shell find PDFwringerTests -name '*.swift')
 TESTABLE_SOURCES := $(shell find PDFwringer/Services PDFwringer/Models PDFwringer/Utilities PDFwringer/ViewModels -name '*.swift')
@@ -29,7 +32,7 @@ $(APP_BUNDLE): $(BUILD_DIR)/$(APP_NAME)
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string com.pdfwringer.app" $(APP_BUNDLE)/Contents/Info.plist
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleName string $(APP_NAME)" $(APP_BUNDLE)/Contents/Info.plist
 	@/usr/libexec/PlistBuddy -c "Add :CFBundlePackageType string APPL" $(APP_BUNDLE)/Contents/Info.plist
-	@/usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string 1.0" $(APP_BUNDLE)/Contents/Info.plist
+	@/usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $(VERSION)" $(APP_BUNDLE)/Contents/Info.plist
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string 1" $(APP_BUNDLE)/Contents/Info.plist
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string AppIcon" $(APP_BUNDLE)/Contents/Info.plist
 	@/usr/libexec/PlistBuddy -c "Add :LSMinimumSystemVersion string 26.0" $(APP_BUNDLE)/Contents/Info.plist
