@@ -28,7 +28,7 @@ ifeq ($(wildcard $(TESTING_FW_DIR)/Testing.framework),)
     TESTING_RPATH_DIR := /Library/Developer/CommandLineTools/Library/Developer/usr/lib
 endif
 
-.PHONY: build clean run test app release
+.PHONY: build clean run test app release dmg
 
 build: $(BUILD_DIR)/$(APP_NAME)
 
@@ -82,6 +82,22 @@ $(BUILD_DIR)/$(TEST_NAME): $(TESTABLE_SOURCES) $(TEST_SOURCES)
 
 release: SWIFT_FLAGS += $(RELEASE_FLAGS)
 release: clean build app
+
+dmg: app
+	@rm -rf $(BUILD_DIR)/dmg_staging $(BUILD_DIR)/$(APP_NAME).dmg
+	@mkdir -p $(BUILD_DIR)/dmg_staging
+	@cp -R $(APP_BUNDLE) $(BUILD_DIR)/dmg_staging/
+	@ln -s /Applications $(BUILD_DIR)/dmg_staging/Applications
+	@hdiutil create -volname "$(APP_NAME)" -srcfolder $(BUILD_DIR)/dmg_staging \
+		-ov -format UDRW $(BUILD_DIR)/$(APP_NAME)_rw.dmg >/dev/null
+	@hdiutil attach $(BUILD_DIR)/$(APP_NAME)_rw.dmg >/dev/null
+	@osascript scripts/dmg_layout.applescript
+	@sync && sleep 1
+	@hdiutil detach /Volumes/$(APP_NAME) >/dev/null
+	@hdiutil convert $(BUILD_DIR)/$(APP_NAME)_rw.dmg -format UDZO \
+		-o $(BUILD_DIR)/$(APP_NAME).dmg >/dev/null
+	@rm -rf $(BUILD_DIR)/dmg_staging $(BUILD_DIR)/$(APP_NAME)_rw.dmg
+	@echo "Built $(BUILD_DIR)/$(APP_NAME).dmg"
 
 clean:
 	rm -rf $(BUILD_DIR)
