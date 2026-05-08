@@ -15,6 +15,7 @@ enum AppState: Equatable {
     case rotating(URL, PDFDocument)
     case editingMetadata(URL, PDFDocument)
     case cropping(URL, PDFDocument)
+    case adjustingColor(URL, PDFDocument)
 
     // PDFDocument doesn't conform to Equatable; compare by URL/item identity only.
     static func == (lhs: AppState, rhs: AppState) -> Bool {
@@ -28,6 +29,7 @@ enum AppState: Equatable {
         case (.rotating(let a, _), .rotating(let b, _)): a == b
         case (.editingMetadata(let a, _), .editingMetadata(let b, _)): a == b
         case (.cropping(let a, _), .cropping(let b, _)): a == b
+        case (.adjustingColor(let a, _), .adjustingColor(let b, _)): a == b
         default: false
         }
     }
@@ -62,7 +64,8 @@ class AppViewModel {
         case .landing:
             return "PDFwringer"
         case .singleFile(let url, _), .compressing(let url, _), .splitting(let url, _),
-             .rotating(let url, _), .editingMetadata(let url, _), .cropping(let url, _):
+             .rotating(let url, _), .editingMetadata(let url, _), .cropping(let url, _),
+             .adjustingColor(let url, _):
             return url.lastPathComponent
         case .multiFile(let items), .merging(let items):
             return "\(items.count) files"
@@ -81,7 +84,7 @@ class AppViewModel {
 
     var canGoBack: Bool {
         switch state {
-        case .compressing, .splitting, .rotating, .editingMetadata, .merging, .cropping:
+        case .compressing, .splitting, .rotating, .editingMetadata, .merging, .cropping, .adjustingColor:
             return true
         default:
             return false
@@ -91,7 +94,8 @@ class AppViewModel {
     var currentPageCount: Int {
         switch state {
         case .singleFile(_, let doc), .compressing(_, let doc), .splitting(_, let doc),
-             .rotating(_, let doc), .editingMetadata(_, let doc), .cropping(_, let doc):
+             .rotating(_, let doc), .editingMetadata(_, let doc), .cropping(_, let doc),
+             .adjustingColor(_, let doc):
             return doc.pageCount
         default:
             return 0
@@ -216,12 +220,18 @@ class AppViewModel {
         state = .cropping(url, doc)
     }
 
+    func selectAdjustColor() {
+        guard case .singleFile(let url, let doc) = state else { return }
+        navigationDirection = .trailing
+        state = .adjustingColor(url, doc)
+    }
+
     func goBack() {
         navigationDirection = .leading
         switch state {
         case .compressing(let url, let doc), .splitting(let url, let doc),
              .rotating(let url, let doc), .editingMetadata(let url, let doc),
-             .cropping(let url, let doc):
+             .cropping(let url, let doc), .adjustingColor(let url, let doc):
             state = .singleFile(url, doc)
         case .merging(let items):
             state = .multiFile(items)

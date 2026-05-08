@@ -5,7 +5,7 @@
 <h1 align="center">PDFwringer</h1>
 
 <p align="center">
-  A lightweight native macOS app for compressing, merging, splitting, rotating, cropping, and editing PDF files.<br>
+  A lightweight native macOS app for compressing, merging, splitting, rotating, cropping, color-adjusting, and editing PDF files.<br>
   Built with SwiftUI and PDFKit — no external dependencies.
 </p>
 
@@ -54,6 +54,10 @@ Rotate all or selected pages by 90° CW, 180°, or 90° CCW with a live preview.
 ### Crop / Resize
 
 Trim margins from any edge or resize pages to standard paper sizes (A4, Letter, A5, Legal) with portrait/landscape toggle. Operations are independent — crop without resizing or vice versa. Apply to all pages or a specific range.
+
+### Adjust Colors
+
+Tweak brightness, contrast, and saturation with a live preview. Includes named presets (Vivid, Muted, B&W, High Contrast) and a Reset button. Apply to all pages or a specific range.
 
 ### Edit Metadata
 
@@ -122,7 +126,7 @@ MVVM with a stateless service layer. Navigation is a state machine driven by `Ap
 ```
 PDFwringer/
 ├── Models/          Value types (CompressionLevel, JPEGQuality, PDFFileItem, PaperSize)
-├── Services/        Stateless PDF ops (Compressor, Concatenator, Splitter, Rotator, Cropper, MetadataEditor, PageRangeParser)
+├── Services/        Stateless PDF ops (Compressor, Concatenator, Splitter, Rotator, Cropper, ColorAdjuster, MetadataEditor, PageRangeParser)
 ├── ViewModels/      @Observable classes (AppViewModel, CompressViewModel, ConcatenateViewModel, SplitViewModel)
 ├── Views/           SwiftUI views, shared components (OptionsHeaderView, PageSelectionView, PDFPreviewView, CropPreviewPanel)
 ├── Utilities/       Error types, file dialogs, formatting helpers, Color.coral

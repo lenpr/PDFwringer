@@ -10,6 +10,7 @@ struct DocumentView: View {
     let onRotate: () -> Void
     let onMetadata: () -> Void
     let onCrop: () -> Void
+    let onAdjustColor: () -> Void
     let onStartOver: () -> Void
     let onFilesDropped: ([URL]) -> Void
     @Binding var currentPage: Int
@@ -101,6 +102,13 @@ struct DocumentView: View {
                         title: "Crop / Resize",
                         description: "Trim margins or resize pages to standard paper sizes",
                         action: onCrop
+                    )
+
+                    ActionCardView(
+                        icon: "slider.horizontal.3",
+                        title: "Adjust Colors",
+                        description: "Tweak brightness, contrast, and saturation",
+                        action: onAdjustColor
                     )
 
                     ActionCardView(

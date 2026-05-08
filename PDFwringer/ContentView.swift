@@ -45,6 +45,11 @@ struct ContentView: View {
                             appVM.selectCrop()
                         }
                     },
+                    onAdjustColor: {
+                        withAnimation(.spring(duration: 0.3)) {
+                            appVM.selectAdjustColor()
+                        }
+                    },
                     onStartOver: {
                         appVM.confirmStartOver()
                     },
@@ -180,11 +185,30 @@ struct ContentView: View {
                     currentPage: $appVM.currentPage
                 )
                 .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
+
+            case .adjustingColor(let url, let doc):
+                ColorAdjustOptionsView(
+                    url: url,
+                    document: doc,
+                    onBack: {
+                        withAnimation(.spring(duration: 0.3)) {
+                            appVM.goBack()
+                        }
+                    },
+                    onFilesDropped: { urls in
+                        withAnimation(.spring(duration: 0.35)) {
+                            appVM.handleDrop(urls)
+                        }
+                    },
+                    onMutate: { appVM.hasUnsavedChanges = true },
+                    currentPage: $appVM.currentPage
+                )
+                .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
             }
         }
         .frame(minWidth: 650, minHeight: 420)
         .overlay(alignment: .bottomTrailing) {
-            Text("v0.1.7")
+            Text("v0.1.8")
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
                 .padding(.trailing, 8)

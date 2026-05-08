@@ -121,6 +121,12 @@ struct PDFwringerApp: App {
                 .keyboardShortcut("5", modifiers: .command)
                 .disabled(!appVM.canSelectSingleFileAction)
 
+                Button("Adjust Colors") {
+                    appVM.selectAdjustColor()
+                }
+                .keyboardShortcut("6", modifiers: .command)
+                .disabled(!appVM.canSelectSingleFileAction)
+
                 Divider()
 
                 Button("Merge") {
