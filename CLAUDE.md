@@ -6,6 +6,7 @@
 make build      # swiftc → .build/PDFwringer (arm64, macOS 26)
 make app        # build + .app bundle at .build/PDFwringer.app (ad-hoc codesigned)
 make release    # optimized build (-O -whole-module-optimization) + app bundle
+make dmg        # build app + create .build/PDFwringer.dmg (drag-to-install disk image)
 make run        # build + launch (bare executable, needs Terminal)
 make clean      # rm -rf .build
 ```
@@ -75,4 +76,4 @@ landing → singleFile / multiFile → compressing / splitting / rotating / edit
 
 ## App bundle
 
-`make app` creates `.build/PDFwringer.app` with proper `Info.plist` (bundle ID, icon reference, activation) and ad-hoc codesigning. `make release` adds `-O -whole-module-optimization` for distribution builds. The `init()` in `PDFwringerApp` also sets `.regular` activation policy so the app works correctly when launched as a bare executable via `make run`.
+`make app` creates `.build/PDFwringer.app` with proper `Info.plist` (bundle ID, icon reference, activation) and ad-hoc codesigning. `make release` adds `-O -whole-module-optimization` for distribution builds. `make dmg` wraps the app in a disk image with an Applications symlink and Finder layout (icon view, app on left, Applications on right) for drag-to-install UX. The `init()` in `PDFwringerApp` also sets `.regular` activation policy so the app works correctly when launched as a bare executable via `make run`.

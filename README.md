@@ -98,6 +98,7 @@ Used in Split / Extract, Rotate, and Crop operations:
 # Command line
 make app       # produces .build/PDFwringer.app (ad-hoc codesigned)
 make release   # optimized build (-O) + app bundle
+make dmg       # app + drag-to-install disk image (.build/PDFwringer.dmg)
 make run       # build + launch
 
 # Or open PDFwringer.xcodeproj in Xcode (Cmd+B)
