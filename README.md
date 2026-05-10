@@ -25,7 +25,7 @@
 
 ### Compress
 
-Reduce file size with lossless metadata stripping or lossy rasterization at configurable DPI (72–300) and JPEG quality. Live size estimates let you compare options before committing. Optional grayscale conversion and metadata stripping.
+Reduce file size with lossless metadata stripping or lossy rasterization at configurable DPI (72–300) and JPEG quality. Instant heuristic estimates let you compare options before committing. Oversized pages (common in scanned PDFs and iPhone photos) are automatically capped to A3 dimensions to prevent file inflation. Optional grayscale conversion and metadata stripping.
 
 <p align="center">
   <img src="screenshots/compress.png" width="720" alt="Compression options with live size estimates">
@@ -114,7 +114,7 @@ cp -R .build/PDFwringer.app ~/Applications/
 ### Test
 
 ```bash
-make test    # 148 tests across 13 suites
+make test    # 153 tests across 13 suites
 ```
 
 Uses [Swift Testing](https://developer.apple.com/documentation/testing). Tests cover the service/model/utility layers without requiring a running app. PDFs are generated programmatically — no fixture files.
@@ -125,33 +125,20 @@ Uses [Swift Testing](https://developer.apple.com/documentation/testing). Tests c
 
 ### Code Signing & Notarization
 
-To distribute outside the App Store, sign and notarize the app bundle:
+The Makefile includes targets for signing and notarizing with a Developer ID certificate:
 
 ```bash
-# 1. Build the app
-make app
-
-# 2. Sign with hardened runtime
-codesign --force --options runtime \
-  --entitlements PDFwringer/PDFwringer.entitlements \
-  --sign "Developer ID Application: Your Name (TEAM_ID)" \
-  .build/PDFwringer.app
-
-# 3. Create a zip for notarization
-ditto -c -k --keepParent .build/PDFwringer.app PDFwringer.zip
-
-# 4. Submit for notarization
-xcrun notarytool submit PDFwringer.zip \
-  --apple-id your@email.com \
-  --team-id TEAM_ID \
-  --password @keychain:notarytool-password \
-  --wait
-
-# 5. Staple the ticket
-xcrun stapler staple .build/PDFwringer.app
+make sign       # build + sign with hardened runtime (Developer ID)
+make notarize   # sign + submit to Apple + staple notarization ticket
+make dmg        # full pipeline: release build + signed DMG + notarize
 ```
 
-The app is already sandboxed with `com.apple.security.files.user-selected.read-write` entitlement — no additional entitlements are needed for hardened runtime unless accessing protected resources.
+Prerequisites:
+- A "Developer ID Application" certificate installed in your keychain
+- A notarytool keychain profile (set up once via `xcrun notarytool store-credentials`)
+- Update `SIGN_IDENTITY` and `NOTARY_PROFILE` in the Makefile for your team
+
+The app is sandboxed with `com.apple.security.files.user-selected.read-write` entitlement — no additional entitlements are needed for hardened runtime unless accessing protected resources.
 
 ### Privacy
 

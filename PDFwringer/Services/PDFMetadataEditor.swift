@@ -138,8 +138,20 @@ struct PDFMetadataEditor {
                 }
 
                 let scale = dpi / 72.0
-                let pixelW = max(1, Int(displaySize.width * scale))
-                let pixelH = max(1, Int(displaySize.height * scale))
+                var pixelW = max(1, Int(displaySize.width * scale))
+                var pixelH = max(1, Int(displaySize.height * scale))
+
+                let maxLong = Int(16.5 * dpi)
+                let maxShort = Int(11.7 * dpi)
+                let longSide = max(pixelW, pixelH)
+                let shortSide = min(pixelW, pixelH)
+                var effectiveScale = scale
+                if longSide > maxLong || shortSide > maxShort {
+                    let downscale = min(Double(maxLong) / Double(longSide), Double(maxShort) / Double(shortSide))
+                    pixelW = max(1, Int(Double(pixelW) * downscale))
+                    pixelH = max(1, Int(Double(pixelH) * downscale))
+                    effectiveScale = scale * downscale
+                }
 
                 guard let bitmap = CGContext(
                     data: nil, width: pixelW, height: pixelH,
@@ -151,7 +163,7 @@ struct PDFMetadataEditor {
                 bitmap.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
                 bitmap.fill(CGRect(x: 0, y: 0, width: pixelW, height: pixelH))
 
-                bitmap.scaleBy(x: scale, y: scale)
+                bitmap.scaleBy(x: effectiveScale, y: effectiveScale)
                 page.transform(bitmap, for: .cropBox)
                 page.draw(with: .cropBox, to: bitmap)
 

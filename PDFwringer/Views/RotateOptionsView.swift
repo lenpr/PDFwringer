@@ -130,23 +130,9 @@ struct RotateOptionsView: View {
         resultMessage = nil
         isError = false
 
-        guard let data = document.dataRepresentation() else {
-            resultMessage = "Failed to serialize document."
-            isError = true
-            return
-        }
-
-        do {
-            try AtomicFileWriter.write(to: destination) { tempURL in
-                try data.write(to: tempURL)
-                return true
-            }
-            resultMessage = "Saved."
-            isError = false
-            lastOutputURL = destination
-        } catch {
-            resultMessage = error.localizedDescription
-            isError = true
-        }
+        let result = DocumentSaver.save(document: document, to: destination)
+        resultMessage = result.message
+        isError = result.isError
+        lastOutputURL = result.outputURL
     }
 }

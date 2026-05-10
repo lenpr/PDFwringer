@@ -6,7 +6,9 @@
 make build      # swiftc → .build/PDFwringer (arm64, macOS 26)
 make app        # build + .app bundle at .build/PDFwringer.app (ad-hoc codesigned)
 make release    # optimized build (-O -whole-module-optimization) + app bundle
-make dmg        # build app + create .build/PDFwringer.dmg (drag-to-install disk image)
+make sign       # release + codesign with Developer ID (hardened runtime)
+make notarize   # sign + submit to Apple notary service + staple ticket
+make dmg        # release + notarized .dmg with drag-to-install layout
 make run        # build + launch (bare executable, needs Terminal)
 make clean      # rm -rf .build
 ```
@@ -68,7 +70,8 @@ landing → singleFile / multiFile → compressing / splitting / rotating / edit
 ## Compression dual-engine
 
 - **Lossless** (`CompressionLevel.lossless`): Strips document-level metadata, re-serializes via PDFKit. When `stripMetadata: true`, also removes all page annotations (links, highlights, etc.).
-- **Rasterize** (`CompressionLevel.high/medium/low`): Renders each page to a bitmap at target DPI, encodes as JPEG, assembles new PDF via CGContext. Flattens all content.
+- **Rasterize** (`CompressionLevel.high/medium/low`): Renders each page to a bitmap at target DPI, encodes as JPEG, assembles new PDF via CGContext. Flattens all content. Oversized pages (where point dimensions exceed A3 at the target DPI — common in scanned PDFs and iPhone photos) are automatically capped to prevent bitmap inflation.
+- **Size estimation**: `CompressViewModel` provides instant heuristic estimates (based on page dimensions × DPI × JPEG ratio) shown with "~" prefix, then replaces them with real first-page estimates computed in a background task.
 
 ## Annotation flattening
 
@@ -76,4 +79,4 @@ landing → singleFile / multiFile → compressing / splitting / rotating / edit
 
 ## App bundle
 
-`make app` creates `.build/PDFwringer.app` with proper `Info.plist` (bundle ID, icon reference, activation) and ad-hoc codesigning. `make release` adds `-O -whole-module-optimization` for distribution builds. `make dmg` wraps the app in a disk image with an Applications symlink and Finder layout (icon view, app on left, Applications on right) for drag-to-install UX. The `init()` in `PDFwringerApp` also sets `.regular` activation policy so the app works correctly when launched as a bare executable via `make run`.
+`make app` creates `.build/PDFwringer.app` with proper `Info.plist` (bundle ID, icon reference, activation) and ad-hoc codesigning. `make release` adds `-O -whole-module-optimization` for distribution builds. `make sign` codesigns with a Developer ID certificate and hardened runtime (copies to `/tmp` first to avoid iCloud Drive xattr issues). `make notarize` submits to Apple's notary service and staples the ticket. `make dmg` wraps the app in a notarized disk image with an Applications symlink and Finder layout (icon view, app on left, Applications on right) for drag-to-install UX. The `init()` in `PDFwringerApp` also sets `.regular` activation policy so the app works correctly when launched as a bare executable via `make run`.

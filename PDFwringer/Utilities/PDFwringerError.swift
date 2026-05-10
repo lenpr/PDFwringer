@@ -1,5 +1,6 @@
 import Foundation
 import OSLog
+import PDFKit
 import SwiftUI
 
 /// Domain-specific errors surfaced to users via `LocalizedError`.
@@ -126,4 +127,31 @@ enum Log {
 
 extension Color {
     static let coral = Color(red: 0.91, green: 0.39, blue: 0.30)
+}
+
+/// Saves a PDFDocument to a user-chosen destination via AtomicFileWriter.
+/// Returns (message, isError, outputURL) for use in result message display.
+@MainActor
+enum DocumentSaver {
+    struct Result {
+        var message: String
+        var isError: Bool
+        var outputURL: URL?
+    }
+
+    static func save(document: PDFDocument, to destination: URL) -> Result {
+        guard let data = document.dataRepresentation() else {
+            return Result(message: "Failed to serialize document.", isError: true, outputURL: nil)
+        }
+
+        do {
+            try AtomicFileWriter.write(to: destination) { tempURL in
+                try data.write(to: tempURL)
+                return true
+            }
+            return Result(message: "Saved.", isError: false, outputURL: destination)
+        } catch {
+            return Result(message: error.localizedDescription, isError: true, outputURL: nil)
+        }
+    }
 }
