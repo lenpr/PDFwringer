@@ -3,6 +3,9 @@ TARGET := arm64-apple-macosx26.0
 SWIFT_FLAGS := -target $(TARGET) -sdk $(SDK) -parse-as-library -framework SwiftUI -framework PDFKit -framework AppKit
 RELEASE_FLAGS := -O -whole-module-optimization
 VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+SIGN_IDENTITY := Developer ID Application: Lukas N.P. Egger (7DGU3C2XRL)
+ENTITLEMENTS := PDFwringer/PDFwringer.entitlements
+NOTARY_PROFILE := notarytool-profile
 # Generate version file only when content changes
 $(shell NEW_VER='let appVersion = "$(VERSION)"'; \
     if [ ! -f PDFwringer/GeneratedVersion.swift ] || [ "$$(cat PDFwringer/GeneratedVersion.swift)" != "$$NEW_VER" ]; then \
@@ -28,7 +31,7 @@ ifeq ($(wildcard $(TESTING_FW_DIR)/Testing.framework),)
     TESTING_RPATH_DIR := /Library/Developer/CommandLineTools/Library/Developer/usr/lib
 endif
 
-.PHONY: build clean run test app release dmg
+.PHONY: build clean run test app release dmg sign notarize
 
 build: $(BUILD_DIR)/$(APP_NAME)
 
@@ -61,8 +64,30 @@ $(APP_BUNDLE): $(BUILD_DIR)/$(APP_NAME)
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:LSItemContentTypes:0 string com.adobe.pdf" $(APP_BUNDLE)/Contents/Info.plist
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:LSHandlerRank string Alternate" $(APP_BUNDLE)/Contents/Info.plist
 	@xattr -cr $(APP_BUNDLE) 2>/dev/null || true
-	@codesign --force --sign - $(APP_BUNDLE)
+	@codesign --force --sign - $(APP_BUNDLE) 2>/dev/null || true
 	@echo "Built $(APP_BUNDLE)"
+
+sign: app
+	@rm -rf /tmp/PDFwringer_build
+	@mkdir -p /tmp/PDFwringer_build
+	@cp -R $(APP_BUNDLE) /tmp/PDFwringer_build/$(APP_NAME).app
+	@xattr -cr /tmp/PDFwringer_build/$(APP_NAME).app
+	@codesign --force --options runtime --sign "$(SIGN_IDENTITY)" \
+		--entitlements $(ENTITLEMENTS) /tmp/PDFwringer_build/$(APP_NAME).app
+	@rm -rf $(APP_BUNDLE)
+	@cp -R /tmp/PDFwringer_build/$(APP_NAME).app $(APP_BUNDLE)
+	@rm -rf /tmp/PDFwringer_build
+	@echo "Signed $(APP_BUNDLE) with Developer ID"
+
+notarize: sign
+	@echo "Creating zip for notarization..."
+	@ditto -c -k --keepParent $(APP_BUNDLE) $(BUILD_DIR)/$(APP_NAME).zip
+	@echo "Submitting to Apple for notarization..."
+	@xcrun notarytool submit $(BUILD_DIR)/$(APP_NAME).zip \
+		--keychain-profile "$(NOTARY_PROFILE)" --wait
+	@xcrun stapler staple $(APP_BUNDLE)
+	@rm -f $(BUILD_DIR)/$(APP_NAME).zip
+	@echo "Notarized and stapled $(APP_BUNDLE)"
 
 test: $(BUILD_DIR)/$(TEST_NAME)
 	$(BUILD_DIR)/$(TEST_NAME)
@@ -81,9 +106,10 @@ $(BUILD_DIR)/$(TEST_NAME): $(TESTABLE_SOURCES) $(TEST_SOURCES)
 		$(TESTABLE_SOURCES) $(TEST_SOURCES)
 
 release: SWIFT_FLAGS += $(RELEASE_FLAGS)
-release: clean build app
+release: clean build app sign
+	@echo "Release build ready at $(APP_BUNDLE)"
 
-dmg: app
+dmg: release
 	@rm -rf $(BUILD_DIR)/dmg_staging $(BUILD_DIR)/$(APP_NAME).dmg
 	@mkdir -p $(BUILD_DIR)/dmg_staging
 	@cp -R $(APP_BUNDLE) $(BUILD_DIR)/dmg_staging/
@@ -97,7 +123,11 @@ dmg: app
 	@hdiutil convert $(BUILD_DIR)/$(APP_NAME)_rw.dmg -format UDZO \
 		-o $(BUILD_DIR)/$(APP_NAME).dmg >/dev/null
 	@rm -rf $(BUILD_DIR)/dmg_staging $(BUILD_DIR)/$(APP_NAME)_rw.dmg
-	@echo "Built $(BUILD_DIR)/$(APP_NAME).dmg"
+	@echo "Submitting DMG for notarization..."
+	@xcrun notarytool submit $(BUILD_DIR)/$(APP_NAME).dmg \
+		--keychain-profile "$(NOTARY_PROFILE)" --wait
+	@xcrun stapler staple $(BUILD_DIR)/$(APP_NAME).dmg
+	@echo "Built and notarized $(BUILD_DIR)/$(APP_NAME).dmg"
 
 clean:
 	rm -rf $(BUILD_DIR)

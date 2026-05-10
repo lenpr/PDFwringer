@@ -29,10 +29,10 @@ enum JPEGQuality: String, CaseIterable, Identifiable {
 
     var value: CGFloat {
         switch self {
-        case .best: 0.90
-        case .good: 0.75
-        case .moderate: 0.55
-        case .low: 0.35
+        case .best: 0.85
+        case .good: 0.60
+        case .moderate: 0.40
+        case .low: 0.25
         }
     }
 }

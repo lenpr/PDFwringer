@@ -246,14 +246,32 @@ struct PDFCompressor {
     }
 
     /// Renders a PDF page to a CGImage at the given DPI, optionally in grayscale.
+    /// For oversized pages (common in scanned PDFs where point dimensions match scanner
+    /// pixels rather than physical page size), caps the output to A3 dimensions to avoid
+    /// producing absurdly large bitmaps that defeat the purpose of compression.
     nonisolated static func renderPage(_ page: CGPDFPage, dpi: CGFloat, grayscale: Bool) -> (image: CGImage, displaySize: CGSize)? {
         let cropBox = page.getBoxRect(.cropBox)
         let rotation = page.rotationAngle
         let displaySize = Self.displaySize(for: cropBox.size, rotation: rotation)
 
         let scale = dpi / 72.0
-        let pixelW = max(1, Int(displaySize.width * scale))
-        let pixelH = max(1, Int(displaySize.height * scale))
+        var pixelW = max(1, Int(displaySize.width * scale))
+        var pixelH = max(1, Int(displaySize.height * scale))
+
+        // Cap output pixels: the target DPI should produce pixels as if the page were
+        // at most A3 size (11.7 x 16.5 inches). Pages larger than this in points are
+        // typically scanned PDFs with raw pixel dimensions as page size.
+        let maxLong = Int(16.5 * dpi)
+        let maxShort = Int(11.7 * dpi)
+        let longSide = max(pixelW, pixelH)
+        let shortSide = min(pixelW, pixelH)
+        var effectiveScale = scale
+        if longSide > maxLong || shortSide > maxShort {
+            let downscale = min(Double(maxLong) / Double(longSide), Double(maxShort) / Double(shortSide))
+            pixelW = max(1, Int(Double(pixelW) * downscale))
+            pixelH = max(1, Int(Double(pixelH) * downscale))
+            effectiveScale = scale * downscale
+        }
 
         let colorSpace: CGColorSpace
         let bitmapInfo: UInt32
@@ -278,7 +296,7 @@ struct PDFCompressor {
         }
         bitmap.fill(CGRect(x: 0, y: 0, width: pixelW, height: pixelH))
 
-        bitmap.scaleBy(x: scale, y: scale)
+        bitmap.scaleBy(x: effectiveScale, y: effectiveScale)
         let drawRect = CGRect(origin: .zero, size: displaySize)
         let transform = page.getDrawingTransform(.cropBox, rect: drawRect, rotate: 0, preserveAspectRatio: true)
         bitmap.concatenate(transform)

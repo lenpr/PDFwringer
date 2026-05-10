@@ -25,6 +25,8 @@ class CompressViewModel {
 
     // Background-computed real sizes per level (keyed by "level-quality-grayscale")
     var estimatedSizes: [String: Int64] = [:]
+    // Instant heuristic estimates (available immediately on file load)
+    var heuristicSizes: [String: Int64] = [:]
     private var estimationTask: Task<Void, Never>?
 
     private let compressor = PDFCompressor()
@@ -63,6 +65,7 @@ class CompressViewModel {
         resultMessage = nil
         isError = false
         estimatedSizes = [:]
+        heuristicSizes = [:]
 
         if let doc = PDFDocument(url: url) {
             sourcePageCount = doc.pageCount
@@ -79,6 +82,7 @@ class CompressViewModel {
             sourceFileSize = 0
         }
 
+        computeHeuristics()
         startBackgroundEstimation()
     }
 
@@ -86,6 +90,73 @@ class CompressViewModel {
         // If we don't have an estimate for the current settings, compute it
         if estimatedSizes[currentEstimateKey] == nil {
             startBackgroundEstimation()
+        }
+    }
+
+    private func computeHeuristics() {
+        guard sourceFileSize > 0, sourcePageCount > 0 else { return }
+
+        let pageCount = sourcePageCount
+
+        // Try to get page dimensions from the document; fall back to A4
+        var avgPixelsAt72: Double = 595.0 * 842.0
+        if let doc = pdfDocument {
+            var totalPixels: Double = 0
+            var validPages = 0
+            for i in 0..<pageCount {
+                if let page = doc.page(at: i) {
+                    let bounds = page.bounds(for: .cropBox)
+                    if bounds.width > 0 && bounds.height > 0 {
+                        totalPixels += Double(bounds.width) * Double(bounds.height)
+                        validPages += 1
+                    }
+                }
+            }
+            if validPages > 0 {
+                avgPixelsAt72 = totalPixels / Double(validPages)
+            }
+        }
+
+        for level in CompressionLevel.allCases {
+            let dpi = Double(level.dpi)
+            let maxLong = 16.5 * dpi
+            let maxShort = 11.7 * dpi
+
+            for quality in JPEGQuality.allCases {
+                for gs in [false, true] {
+                    let key = "\(level.rawValue)-\(quality.rawValue)-\(gs)"
+                    let estimate: Int64
+
+                    if !level.isRasterize {
+                        estimate = Int64(Double(sourceFileSize) * 0.95)
+                    } else {
+                        let scale = dpi / 72.0
+                        let rawW = sqrt(avgPixelsAt72) * scale
+                        let rawH = sqrt(avgPixelsAt72) * scale
+                        var pixW = rawW
+                        var pixH = rawH
+                        let longSide = max(pixW, pixH)
+                        let shortSide = min(pixW, pixH)
+                        if longSide > maxLong || shortSide > maxShort {
+                            let downscale = min(maxLong / longSide, maxShort / shortSide)
+                            pixW *= downscale
+                            pixH *= downscale
+                        }
+                        let pixelsPerPage = pixW * pixH
+                        let channels: Double = gs ? 1.0 : 3.0
+                        let jpegRatio: Double
+                        switch quality {
+                        case .best: jpegRatio = 0.12
+                        case .good: jpegRatio = 0.07
+                        case .moderate: jpegRatio = 0.04
+                        case .low: jpegRatio = 0.025
+                        }
+                        estimate = Int64(pixelsPerPage * Double(pageCount) * channels * jpegRatio) + 1000
+                    }
+
+                    heuristicSizes[key] = estimate
+                }
+            }
         }
     }
 

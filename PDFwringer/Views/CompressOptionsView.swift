@@ -50,6 +50,9 @@ struct CompressOptionsView: View {
                 ForEach(CompressionLevel.allCases) { level in
                     let key = "\(level.rawValue)-\(vm.selectedQuality.rawValue)-\(vm.grayscale)"
                     let estimatedSize = vm.estimatedSizes[key]
+                    let heuristicSize = vm.heuristicSizes[key]
+                    let displaySize = estimatedSize ?? heuristicSize
+                    let isHeuristic = estimatedSize == nil && heuristicSize != nil
 
                     HStack(alignment: .top, spacing: 8) {
                         Image(systemName: vm.selectedLevel == level ? "largecircle.fill.circle" : "circle")
@@ -57,23 +60,31 @@ struct CompressOptionsView: View {
                             .font(.body)
                             .frame(width: 20)
                         VStack(alignment: .leading, spacing: 1) {
+                            let exceedsOriginal = displaySize.map { $0 >= vm.sourceFileSize && vm.sourceFileSize > 0 } ?? false
                             HStack(alignment: .firstTextBaseline) {
                                 Text(level.title)
                                     .font(.body.weight(.medium))
                                 Spacer()
-                                if let size = estimatedSize {
-                                    Text(Formatting.fileSize(size))
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .contentTransition(.numericText())
-                                } else {
+                                if let size = displaySize {
+                                    HStack(spacing: 4) {
+                                        if exceedsOriginal {
+                                            Image(systemName: "arrow.up")
+                                                .font(.caption2)
+                                        }
+                                        Text(isHeuristic ? "~\(Formatting.fileSize(size))" : Formatting.fileSize(size))
+                                            .font(.caption)
+                                            .strikethrough(exceedsOriginal)
+                                    }
+                                    .foregroundStyle(exceedsOriginal ? .red : .secondary)
+                                    .contentTransition(.numericText())
+                                } else if vm.sourceFileSize > 0 {
                                     ProgressView()
                                         .controlSize(.mini)
                                 }
                             }
-                            Text(level.subtitle)
+                            Text(exceedsOriginal ? String(localized: "Larger than original") : level.subtitle)
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(exceedsOriginal ? .red.opacity(0.8) : .secondary)
                         }
                     }
                     .contentShape(Rectangle())
