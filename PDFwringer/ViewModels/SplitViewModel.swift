@@ -20,6 +20,7 @@ class SplitViewModel {
 
     private let splitter = PDFSplitter()
     private var lastOperation: ErrorSource?
+    private var operationTask: Task<Void, Never>?
 
     var canProcess: Bool {
         sourceURL != nil && !isProcessing
@@ -58,26 +59,30 @@ class SplitViewModel {
         resultMessage = nil
         isError = false
 
-        do {
-            let outputs = try await splitter.split(
-                source: source,
-                mode: .splitEveryN(splitPagesPerFile),
-                destination: outputDir,
-                progress: { [weak self] p in self?.progress = p }
-            )
-            resultMessage = "Done! Created \(outputs.count) files."
-            isError = false
-            lastOutputURL = outputDir
-        } catch is CancellationError {
-            resultMessage = "Cancelled."
-            isError = false
-        } catch {
-            resultMessage = error.localizedDescription
-            isError = true
-            errorSource = .split
-        }
+        operationTask = Task {
+            defer { operationTask = nil }
+            do {
+                let outputs = try await splitter.split(
+                    source: source,
+                    mode: .splitEveryN(splitPagesPerFile),
+                    destination: outputDir,
+                    progress: { [weak self] p in self?.progress = p }
+                )
+                resultMessage = "Done! Created \(outputs.count) files."
+                isError = false
+                lastOutputURL = outputDir
+            } catch is CancellationError {
+                resultMessage = "Cancelled."
+                isError = false
+            } catch {
+                resultMessage = error.localizedDescription
+                isError = true
+                errorSource = .split
+            }
 
-        isProcessing = false
+            isProcessing = false
+        }
+        await operationTask?.value
     }
 
     func keepPages() async {
@@ -102,26 +107,36 @@ class SplitViewModel {
             resultMessage = nil
             isError = false
 
-            let outputs = try await splitter.split(
-                source: source,
-                mode: .keepPages(indices),
-                destination: destination,
-                progress: { [weak self] p in self?.progress = p }
-            )
-            resultMessage = "Done! Extracted \(indices.count) pages."
-            isError = false
-            lastOutputURL = destination
-            _ = outputs
-        } catch is CancellationError {
-            resultMessage = "Cancelled."
-            isError = false
+            operationTask = Task {
+                defer { operationTask = nil }
+                do {
+                    let outputs = try await splitter.split(
+                        source: source,
+                        mode: .keepPages(indices),
+                        destination: destination,
+                        progress: { [weak self] p in self?.progress = p }
+                    )
+                    resultMessage = "Done! Extracted \(indices.count) pages."
+                    isError = false
+                    lastOutputURL = destination
+                    _ = outputs
+                } catch is CancellationError {
+                    resultMessage = "Cancelled."
+                    isError = false
+                } catch {
+                    resultMessage = error.localizedDescription
+                    isError = true
+                    errorSource = .keep
+                }
+
+                isProcessing = false
+            }
+            await operationTask?.value
         } catch {
             resultMessage = error.localizedDescription
             isError = true
             errorSource = .keep
         }
-
-        isProcessing = false
     }
 
     func removePages() async {
@@ -146,27 +161,37 @@ class SplitViewModel {
             resultMessage = nil
             isError = false
 
-            let outputs = try await splitter.split(
-                source: source,
-                mode: .removePages(indices),
-                destination: destination,
-                progress: { [weak self] p in self?.progress = p }
-            )
-            let remainingPages = sourcePageCount - Set(indices).count
-            resultMessage = "Done! Kept \(remainingPages) pages."
-            isError = false
-            lastOutputURL = destination
-            _ = outputs
-        } catch is CancellationError {
-            resultMessage = "Cancelled."
-            isError = false
+            operationTask = Task {
+                defer { operationTask = nil }
+                do {
+                    let outputs = try await splitter.split(
+                        source: source,
+                        mode: .removePages(indices),
+                        destination: destination,
+                        progress: { [weak self] p in self?.progress = p }
+                    )
+                    let remainingPages = sourcePageCount - Set(indices).count
+                    resultMessage = "Done! Kept \(remainingPages) pages."
+                    isError = false
+                    lastOutputURL = destination
+                    _ = outputs
+                } catch is CancellationError {
+                    resultMessage = "Cancelled."
+                    isError = false
+                } catch {
+                    resultMessage = error.localizedDescription
+                    isError = true
+                    errorSource = .remove
+                }
+
+                isProcessing = false
+            }
+            await operationTask?.value
         } catch {
             resultMessage = error.localizedDescription
             isError = true
             errorSource = .remove
         }
-
-        isProcessing = false
     }
 
     func retryLastOperation() async {
@@ -176,5 +201,9 @@ class SplitViewModel {
         case .remove: await removePages()
         case nil: break
         }
+    }
+
+    func cancel() {
+        operationTask?.cancel()
     }
 }

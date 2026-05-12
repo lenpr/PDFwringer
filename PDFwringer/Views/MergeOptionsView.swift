@@ -144,8 +144,14 @@ struct MergeOptionsView: View {
                 }
 
                 if vm.isProcessing {
-                    ProgressView(value: vm.progress)
-                        .progressViewStyle(.linear)
+                    HStack(spacing: 8) {
+                        ProgressView(value: vm.progress)
+                            .progressViewStyle(.linear)
+                        Button(String(localized: "Cancel")) { vm.cancel() }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                    }
                 }
 
                 if let msg = vm.resultMessage {

@@ -202,16 +202,18 @@ class CompressViewModel {
         isWarning = false
         lastOutputURL = nil
 
-        do {
-            let result = try await compressor.compress(
-                source: source,
-                destination: destination,
-                level: selectedLevel,
-                quality: selectedQuality,
-                grayscale: grayscale,
-                stripMetadata: stripMetadata,
-                progress: { [weak self] p in self?.progress = p }
-            )
+        operationTask = Task {
+            defer { operationTask = nil }
+            do {
+                let result = try await compressor.compress(
+                    source: source,
+                    destination: destination,
+                    level: selectedLevel,
+                    quality: selectedQuality,
+                    grayscale: grayscale,
+                    stripMetadata: stripMetadata,
+                    progress: { [weak self] p in self?.progress = p }
+                )
 
             let newSize = result.outputSize
 
@@ -247,6 +249,14 @@ class CompressViewModel {
             isWarning = false
         }
 
-        isProcessing = false
+            isProcessing = false
+        }
+        await operationTask?.value
     }
+
+    func cancel() {
+        operationTask?.cancel()
+    }
+
+    private var operationTask: Task<Void, Never>?
 }

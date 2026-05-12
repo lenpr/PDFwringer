@@ -20,6 +20,7 @@ class ColorAdjustViewModel {
     var lastOutputURL: URL?
 
     private var previewTask: Task<Void, Never>?
+    private var operationTask: Task<Void, Never>?
     private var previewGeneration = 0
     private let adjuster = PDFColorAdjuster()
 
@@ -101,32 +102,40 @@ class ColorAdjustViewModel {
             return
         }
 
-        do {
-            let result = try await adjuster.adjust(
-                source: source,
-                destination: destination,
-                settings: settings,
-                pages: pages,
-                dpi: 150,
-                quality: 0.85,
-                progress: { [weak self] p in self?.progress = p }
-            )
-            if result.skippedPages > 0 {
-                resultMessage = String(localized: "Saved with \(result.skippedPages) of \(result.totalPages) pages skipped due to rendering issues.")
-                isWarning = true
-            } else {
-                resultMessage = String(localized: "Saved.")
+        operationTask = Task {
+            defer { operationTask = nil }
+            do {
+                let result = try await adjuster.adjust(
+                    source: source,
+                    destination: destination,
+                    settings: settings,
+                    pages: pages,
+                    dpi: 150,
+                    quality: 0.85,
+                    progress: { [weak self] p in self?.progress = p }
+                )
+                if result.skippedPages > 0 {
+                    resultMessage = String(localized: "Saved with \(result.skippedPages) of \(result.totalPages) pages skipped due to rendering issues.")
+                    isWarning = true
+                } else {
+                    resultMessage = String(localized: "Saved.")
+                }
+                isError = false
+                lastOutputURL = destination
+            } catch is CancellationError {
+                resultMessage = String(localized: "Cancelled.")
+                isError = false
+            } catch {
+                resultMessage = error.localizedDescription
+                isError = true
             }
-            isError = false
-            lastOutputURL = destination
-        } catch is CancellationError {
-            resultMessage = String(localized: "Cancelled.")
-            isError = false
-        } catch {
-            resultMessage = error.localizedDescription
-            isError = true
-        }
 
-        isSaving = false
+            isSaving = false
+        }
+        await operationTask?.value
+    }
+
+    func cancel() {
+        operationTask?.cancel()
     }
 }

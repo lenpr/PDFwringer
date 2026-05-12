@@ -81,6 +81,17 @@ struct ColorAdjustOptionsView: View {
                     .disabled(vm.isIdentity || vm.isSaving)
                 }
 
+                if vm.isSaving {
+                    HStack(spacing: 8) {
+                        ProgressView(value: vm.progress)
+                            .progressViewStyle(.linear)
+                        Button(String(localized: "Cancel")) { vm.cancel() }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                    }
+                }
+
                 if let msg = vm.resultMessage {
                     ResultMessageView(
                         message: msg,
