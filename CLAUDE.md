@@ -23,18 +23,18 @@ No Swift Package Manager — the project uses an Xcode project with a parallel M
 make test       # compile + run all tests via Swift Testing
 ```
 
-Uses Swift Testing (`import Testing`, `@Test`, `#expect`). Tests compile the Services/Models/Utilities layer without SwiftUI.
+Uses Swift Testing (`import Testing`, `@Test`, `#expect`). Tests compile the Services/Models/Utilities/ViewModels layer without SwiftUI.
 
-Test suites cover: `PageRangeParser`, `PDFConcatenator`, `PDFSplitter`, `PDFCompressor`, `PDFRotator`, `PDFCropper`, `PDFMetadataEditor`, `AppViewModel`, `PDFFileItem`, `FailureModeTests`, `UtilityTests`, end-to-end workflows. Tests generate PDFs programmatically — no fixture files needed.
+Test suites cover: `PageRangeParser`, `PDFConcatenator`, `PDFSplitter`, `PDFCompressor`, `PDFRotator`, `PDFCropper`, `PDFMetadataEditor`, `PDFColorAdjuster`, `AppViewModel`, `CompressViewModel`, `SplitViewModel`, `ConcatenateViewModel`, `PDFFileItem`, `SourceEqualsDestination`, `FailureModeTests`, `UtilityTests`, end-to-end workflows. Tests generate PDFs programmatically — no fixture files needed.
 
 ## Architecture
 
 MVVM with a service layer. All code is `@MainActor`.
 
 ```
-Models/       → Value types: CompressionLevel, JPEGQuality, PDFFileItem, PaperSize
+Models/       → Value types: CompressionLevel, JPEGQuality, PDFFileItem, PaperSize, ColorPreset
 Services/     → Stateless PDF operations: PDFCompressor, PDFConcatenator, PDFSplitter, PDFRotator, PDFCropper, PDFColorAdjuster, PDFMetadataEditor, PageRangeParser
-ViewModels/   → @Observable classes: AppViewModel, CompressViewModel, ConcatenateViewModel, SplitViewModel
+ViewModels/   → @Observable classes: AppViewModel, CompressViewModel, ConcatenateViewModel, SplitViewModel, ColorAdjustViewModel
 Views/        → SwiftUI views + shared components: OptionsHeaderView, PageSelectionView, PDFPreviewView, CropPreviewPanel, PageThumbnailStripView, DropReceiverView, ResultMessageView, ActionCardView, ColorAdjustOptionsView
 Utilities/    → PDFwringerError, FileDialogHelper, Formatting, AtomicFileWriter, Log, Color.coral (all in PDFwringerError.swift)
 Resources/    → Asset catalog, AppIcon.icns
@@ -55,6 +55,7 @@ landing → singleFile / multiFile → compressing / splitting / rotating / edit
 ## Key conventions
 
 - **Concurrency**: Most service methods are `async throws` with cooperative cancellation (`Task.checkCancellation()`). Progress reported via `(Double) -> Void` closure (range 0.0–1.0). `PDFMetadataEditor.write()` is `async throws` with optional progress (needed for flatten which rasterizes pages). `PDFCompressor.compressFirstPage` is `nonisolated` for background estimation.
+- **Cancellation**: All ViewModels store an `operationTask: Task<Void, Never>?` and expose a `cancel()` method. Views show a Cancel button alongside progress indicators. Services check `Task.checkCancellation()` per page iteration, so cancellation takes effect within one page.
 - **Source/dest guard**: All services that take both source and destination URLs guard against `source == destination` at the top, throwing `PDFwringerError.sourceEqualsDestination`.
 - **Sandbox**: App is sandboxed with `com.apple.security.files.user-selected.read-write`. File access uses `NSSavePanel`/`NSOpenPanel` — never raw path construction.
 - **PDF reading**: `PDFCompressor.openPDF(at:)` reads file data into memory first (works around CGPDFDocument sandbox restrictions). Other services use `PDFDocument(url:)`.
