@@ -36,16 +36,7 @@ struct PageNumberOptionsView: View {
         HStack(spacing: 0) {
             // Left: preview with number overlay
             VStack(spacing: 0) {
-                ZStack(alignment: positionAlignment) {
-                    PDFPreviewPanel(document: document, currentPage: $currentPage)
-
-                    // Page number preview overlay (no background, just the text)
-                    Text(previewText)
-                        .font(.system(size: fontSize * 1.5))
-                        .foregroundStyle(color)
-                        .padding(12)
-                        .allowsHitTesting(false)
-                }
+                PDFPreviewPanel(document: document, currentPage: $currentPage)
 
                 PageThumbnailStripView(
                     document: document,
@@ -149,7 +140,7 @@ struct PageNumberOptionsView: View {
                     }
                 }
 
-                // Preview label
+                // Preview showing formatted number and position
                 HStack(spacing: 4) {
                     Text(String(localized: "Preview:"))
                         .font(.caption)
@@ -157,6 +148,11 @@ struct PageNumberOptionsView: View {
                     Text("\"\(previewText)\"")
                         .font(.caption.bold())
                         .foregroundStyle(color)
+                    Text("·")
+                        .foregroundStyle(.secondary)
+                    Text(position.title)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
@@ -189,17 +185,6 @@ struct PageNumberOptionsView: View {
             .padding(24)
             .frame(minWidth: 300, idealWidth: 340)
             .tint(.coral)
-        }
-    }
-
-    private var positionAlignment: Alignment {
-        switch position {
-        case .bottomLeft: .bottomLeading
-        case .bottomCenter: .bottom
-        case .bottomRight: .bottomTrailing
-        case .topLeft: .topLeading
-        case .topCenter: .top
-        case .topRight: .topTrailing
         }
     }
 
