@@ -12,6 +12,7 @@ struct DocumentView: View {
     let onCrop: () -> Void
     let onAdjustColor: () -> Void
     let onPageNumbers: () -> Void
+    let onWatermark: () -> Void
     let onExportImages: () -> Void
     let onReorderPages: () -> Void
     let onStartOver: () -> Void
@@ -119,6 +120,13 @@ struct DocumentView: View {
                         title: String(localized: "Add Page Numbers"),
                         description: String(localized: "Add page numbers at configurable positions"),
                         action: onPageNumbers
+                    )
+
+                    ActionCardView(
+                        icon: "drop.halffull",
+                        title: String(localized: "Add Watermark"),
+                        description: String(localized: "Overlay text like DRAFT or CONFIDENTIAL"),
+                        action: onWatermark
                     )
 
                     ActionCardView(

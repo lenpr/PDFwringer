@@ -54,6 +54,11 @@ struct ContentView: View {
                             appVM.selectPageNumbers()
                         }
                     },
+                    onWatermark: {
+                        withAnimation(.spring(duration: 0.3)) {
+                            appVM.selectWatermark()
+                        }
+                    },
                     onExportImages: {
                         withAnimation(.spring(duration: 0.3)) {
                             appVM.selectExportImages()
@@ -221,6 +226,25 @@ struct ContentView: View {
 
             case .addingPageNumbers(let url, let doc):
                 PageNumberOptionsView(
+                    url: url,
+                    document: doc,
+                    onBack: {
+                        withAnimation(.spring(duration: 0.3)) {
+                            appVM.goBack()
+                        }
+                    },
+                    onFilesDropped: { urls in
+                        withAnimation(.spring(duration: 0.35)) {
+                            appVM.handleDrop(urls)
+                        }
+                    },
+                    onMutate: { appVM.hasUnsavedChanges = true },
+                    currentPage: $appVM.currentPage
+                )
+                .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
+
+            case .addingWatermark(let url, let doc):
+                WatermarkOptionsView(
                     url: url,
                     document: doc,
                     onBack: {
