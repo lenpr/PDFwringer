@@ -86,21 +86,23 @@ struct PDFPageNumberer {
             try Task.checkCancellation()
 
             guard let page = doc.page(at: i) else { continue }
-            let mediaBox = page.bounds(for: .mediaBox)
-            var pageBox = mediaBox
+
+            // Use cropBox (what the user sees) normalized to origin (0,0)
+            let cropBox = page.bounds(for: .cropBox)
+            var pageBox = CGRect(origin: .zero, size: cropBox.size)
 
             outputCtx.beginPage(mediaBox: &pageBox)
 
-            // Draw the original page content using CGPDFPage for predictable coordinates
+            // Draw the original page content mapped into our normalized box
             if let cgPage = page.pageRef {
                 outputCtx.saveGState()
-                let transform = cgPage.getDrawingTransform(.mediaBox, rect: pageBox, rotate: 0, preserveAspectRatio: true)
+                let transform = cgPage.getDrawingTransform(.cropBox, rect: pageBox, rotate: 0, preserveAspectRatio: true)
                 outputCtx.concatenate(transform)
                 outputCtx.drawPDFPage(cgPage)
                 outputCtx.restoreGState()
             }
 
-            // Overlay page number in the original mediaBox coordinate space
+            // Overlay page number — coordinates are now (0,0) to (width,height) matching the visible page
             if indicesToNumber.contains(i) {
                 let displayNumber = options.startNumber + (sortedIndices.firstIndex(of: i) ?? 0)
                 let text = "\(options.prefix)\(displayNumber)\(options.suffix)"
