@@ -32,7 +32,7 @@ struct MergeOptionsView: View {
                     }
                 } else {
                     List {
-                        ForEach(Array(files.enumerated()), id: \.element.id) { index, file in
+                        ForEach(files) { file in
                             HStack(spacing: 8) {
                                 Image(systemName: "doc.fill")
                                     .foregroundColor(.coral)
@@ -48,7 +48,9 @@ struct MergeOptionsView: View {
                                 Spacer()
 
                                 Button {
-                                    files.remove(at: index)
+                                    if let idx = files.firstIndex(where: { $0.id == file.id }) {
+                                        files.remove(at: idx)
+                                    }
                                 } label: {
                                     Image(systemName: "xmark")
                                         .font(.caption2)
