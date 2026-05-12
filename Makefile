@@ -127,6 +127,8 @@ dmg: release
 	@hdiutil attach $(BUILD_DIR)/$(APP_NAME)_rw.dmg >/dev/null
 	@osascript scripts/dmg_layout.applescript
 	@sync && sleep 1
+	@chflags nohidden /Volumes/$(APP_NAME)/$(APP_NAME).app
+	@xattr -d com.apple.FinderInfo /Volumes/$(APP_NAME)/$(APP_NAME).app 2>/dev/null || true
 	@hdiutil detach /Volumes/$(APP_NAME) >/dev/null
 	@hdiutil convert $(BUILD_DIR)/$(APP_NAME)_rw.dmg -format UDZO \
 		-o $(BUILD_DIR)/$(APP_NAME).dmg >/dev/null
