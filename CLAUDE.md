@@ -33,10 +33,10 @@ MVVM with a service layer. All code is `@MainActor`.
 
 ```
 Models/       → Value types: CompressionLevel, JPEGQuality, PDFFileItem, PaperSize, ColorPreset
-Services/     → Stateless PDF operations: PDFCompressor, PDFConcatenator, PDFSplitter, PDFRotator, PDFCropper, PDFColorAdjuster, PDFMetadataEditor, PageRangeParser
+Services/     → Stateless PDF operations: PDFCompressor, PDFConcatenator, PDFSplitter, PDFRotator, PDFCropper, PDFColorAdjuster, PDFMetadataEditor, PDFPageNumberer, PDFImageExporter, PDFImageConverter, PageRangeParser
 ViewModels/   → @Observable classes: AppViewModel, CompressViewModel, ConcatenateViewModel, SplitViewModel, ColorAdjustViewModel
 Views/        → SwiftUI views + shared components: OptionsHeaderView, PageSelectionView, PDFPreviewView, CropPreviewPanel, PageThumbnailStripView, DropReceiverView, ResultMessageView, ActionCardView, ColorAdjustOptionsView
-Utilities/    → PDFwringerError, FileDialogHelper, Formatting, AtomicFileWriter, Log, Color.coral (all in PDFwringerError.swift)
+Utilities/    → PDFwringerError, FileDialogHelper, BookmarkManager, Formatting, AtomicFileWriter, Log, Color.coral (all in PDFwringerError.swift except BookmarkManager)
 Resources/    → Asset catalog, AppIcon.icns
 ```
 
@@ -45,7 +45,7 @@ Resources/    → Asset catalog, AppIcon.icns
 `AppState` (in `AppViewModel.swift`) is the top-level state machine:
 
 ```
-landing → singleFile / multiFile → compressing / splitting / rotating / editingMetadata / cropping / adjustingColor / merging → (back)
+landing → singleFile / multiFile → compressing / splitting / rotating / editingMetadata / cropping / adjustingColor / merging / addingPageNumbers / exportingImages / reorderingPages → (back)
 ```
 
 `ContentView` switches on `AppState` to render the correct view. `AppViewModel` owns state transitions (handleDrop, goBack, startOver, selectCompress/Split/Merge/Rotate/Metadata/Crop/AdjustColor).
