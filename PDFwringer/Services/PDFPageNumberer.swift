@@ -4,8 +4,8 @@ import CoreText
 import Foundation
 import PDFKit
 
-/// Adds page numbers to a PDF using custom annotations with explicit appearance rendering.
-/// The annotations draw themselves in the correct page coordinate space via PDFKit.
+/// Adds page numbers to a PDF by creating a new PDF with text overlaid on each page.
+/// Uses PDFPage.draw to preserve vector content, then overlays text via CoreText.
 @MainActor
 struct PDFPageNumberer {
 
@@ -75,125 +75,109 @@ struct PDFPageNumberer {
 
         let sortedIndices = indicesToNumber.sorted()
 
+        // Create output PDF
+        let tempURL = AtomicFileWriter.tempDirectory.appending(component: UUID().uuidString + ".pdf")
+        var emptyBox = CGRect.zero
+        guard let ctx = CGContext(tempURL as CFURL, mediaBox: &emptyBox, nil) else {
+            throw PDFwringerError.cannotCreateOutput
+        }
+
         for i in 0..<pageCount {
             try Task.checkCancellation()
 
-            if indicesToNumber.contains(i), let page = doc.page(at: i) {
-                let displayNumber = options.startNumber + (sortedIndices.firstIndex(of: i) ?? 0)
-                let text = "\(options.prefix)\(displayNumber)\(options.suffix)"
-                addNumberToPage(page, text: text, options: options)
+            guard let page = doc.page(at: i) else { continue }
+
+            // Get page dimensions accounting for rotation
+            let cropBox = page.bounds(for: .cropBox)
+            let rotation = page.rotation
+            let displayWidth: CGFloat
+            let displayHeight: CGFloat
+            if rotation == 90 || rotation == 270 {
+                displayWidth = cropBox.height
+                displayHeight = cropBox.width
+            } else {
+                displayWidth = cropBox.width
+                displayHeight = cropBox.height
             }
 
+            // Output page uses display dimensions (post-rotation)
+            var pageBox = CGRect(x: 0, y: 0, width: displayWidth, height: displayHeight)
+            ctx.beginPage(mediaBox: &pageBox)
+
+            // Draw the original page content
+            ctx.saveGState()
+            // page.transform sets up the correct coordinate mapping for the page's rotation and box
+            page.transform(ctx, for: .cropBox)
+            page.draw(with: .cropBox, to: ctx)
+            ctx.restoreGState()
+
+            // Overlay page number in the output coordinate space (0,0 = bottom-left, width×height = top-right)
+            if indicesToNumber.contains(i) {
+                let displayNumber = options.startNumber + (sortedIndices.firstIndex(of: i) ?? 0)
+                let text = "\(options.prefix)\(displayNumber)\(options.suffix)"
+                drawNumber(text: text, pageWidth: displayWidth, pageHeight: displayHeight, context: ctx, options: options)
+            }
+
+            ctx.endPage()
             progress(Double(i + 1) / Double(pageCount))
+            await Task.yield()
         }
 
-        try AtomicFileWriter.write(to: destination) { tempURL in
-            doc.write(to: tempURL)
+        ctx.closePDF()
+
+        try AtomicFileWriter.write(to: destination) { destTemp in
+            try FileManager.default.moveItem(at: tempURL, to: destTemp)
+            return true
         }
 
         let elapsed = ContinuousClock.now - start
         Log.app.info("Page numbers added: \(indicesToNumber.count) pages, duration=\(elapsed)")
     }
 
-    private func addNumberToPage(_ page: PDFPage, text: String, options: Options) {
-        let font = NSFont(name: "Helvetica", size: options.fontSize) ?? NSFont.systemFont(ofSize: options.fontSize)
+    private func drawNumber(text: String, pageWidth: CGFloat, pageHeight: CGFloat, context: CGContext, options: Options) {
+        let font = CTFontCreateWithName("Helvetica" as CFString, options.fontSize, nil)
+
+        // Get text dimensions
         let attrs: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: options.color
         ]
-        let textSize = (text as NSString).size(withAttributes: attrs)
+        let attrString = NSAttributedString(string: text, attributes: attrs)
+        let line = CTLineCreateWithAttributedString(attrString)
+        let textBounds = CTLineGetBoundsWithOptions(line, [])
+        let textWidth = ceil(textBounds.width)
+        let textHeight = ceil(textBounds.height)
 
-        let pageBounds = page.bounds(for: .cropBox)
-        let annotRect = calculateRect(
-            pageBounds: pageBounds,
-            textSize: textSize,
-            position: options.position,
-            margin: options.margin
-        )
-
-        let annotation = PageNumberAnnotation(
-            bounds: annotRect,
-            text: text,
-            font: font,
-            color: options.color
-        )
-        page.addAnnotation(annotation)
-    }
-
-    private func calculateRect(pageBounds: CGRect, textSize: CGSize, position: Position, margin: CGFloat) -> CGRect {
-        // Add padding around text
-        let padding: CGFloat = 2
-        let width = textSize.width + padding * 2
-        let height = textSize.height + padding * 2
-
+        // Calculate position in the output coordinate space
+        let margin = options.margin
         let x: CGFloat
         let y: CGFloat
 
-        switch position {
+        switch options.position {
         case .bottomLeft:
-            x = pageBounds.minX + margin
-            y = pageBounds.minY + margin
+            x = margin
+            y = margin
         case .bottomCenter:
-            x = pageBounds.midX - width / 2
-            y = pageBounds.minY + margin
+            x = (pageWidth - textWidth) / 2
+            y = margin
         case .bottomRight:
-            x = pageBounds.maxX - margin - width
-            y = pageBounds.minY + margin
+            x = pageWidth - margin - textWidth
+            y = margin
         case .topLeft:
-            x = pageBounds.minX + margin
-            y = pageBounds.maxY - margin - height
+            x = margin
+            y = pageHeight - margin - textHeight
         case .topCenter:
-            x = pageBounds.midX - width / 2
-            y = pageBounds.maxY - margin - height
+            x = (pageWidth - textWidth) / 2
+            y = pageHeight - margin - textHeight
         case .topRight:
-            x = pageBounds.maxX - margin - width
-            y = pageBounds.maxY - margin - height
+            x = pageWidth - margin - textWidth
+            y = pageHeight - margin - textHeight
         }
 
-        return CGRect(x: x, y: y, width: width, height: height)
-    }
-}
-
-/// Custom annotation that draws page number text with a proper appearance stream.
-/// PDFKit calls draw(with:in:) during serialization to generate the appearance.
-final class PageNumberAnnotation: PDFAnnotation {
-    private let text: String
-    private let numberFont: NSFont
-    private let textColor: NSColor
-
-    init(bounds: CGRect, text: String, font: NSFont, color: NSColor) {
-        self.text = text
-        self.numberFont = font
-        self.textColor = color
-        super.init(bounds: bounds, forType: .freeText, withProperties: nil)
-        // Transparent background — no visible box
-        self.color = .clear
-        self.font = font
-        self.fontColor = color
-        self.contents = text
-        self.alignment = .center
-        // Critical: disable border
-        let border = PDFBorder()
-        border.lineWidth = 0
-        self.border = border
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError() }
-
-    override func draw(with box: PDFDisplayBox, in context: CGContext) {
-        // Draw text at the annotation's bounds origin
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: numberFont,
-            .foregroundColor: textColor
-        ]
-        let attrString = NSAttributedString(string: text, attributes: attrs)
-        let line = CTLineCreateWithAttributedString(attrString)
-
+        // Draw the text
         context.saveGState()
         context.textMatrix = .identity
-        // Position text within the annotation bounds (with small padding)
-        context.textPosition = CGPoint(x: bounds.origin.x + 2, y: bounds.origin.y + 2)
+        context.textPosition = CGPoint(x: x, y: y)
         CTLineDraw(line, context)
         context.restoreGState()
     }
