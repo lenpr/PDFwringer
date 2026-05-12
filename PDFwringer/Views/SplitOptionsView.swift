@@ -55,6 +55,7 @@ struct SplitOptionsView: View {
                         TextField("1", value: $vm.splitPagesPerFile, format: .number)
                             .frame(width: 50)
                             .textFieldStyle(.roundedBorder)
+                            .accessibilityLabel(String(localized: "Pages per file"))
                         Text(String(localized: "page(s) per file"))
                             .font(.callout)
                             .foregroundStyle(.secondary)

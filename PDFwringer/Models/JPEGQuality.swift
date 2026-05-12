@@ -11,19 +11,19 @@ enum JPEGQuality: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .best: "Best"
-        case .good: "Good"
-        case .moderate: "Moderate"
-        case .low: "Low"
+        case .best: String(localized: "Best")
+        case .good: String(localized: "Good")
+        case .moderate: String(localized: "Moderate")
+        case .low: String(localized: "Low")
         }
     }
 
     var subtitle: String {
         switch self {
-        case .best: "Minimal artifacts, larger files"
-        case .good: "Balanced quality and size"
-        case .moderate: "Visible compression, smaller files"
-        case .low: "Heavy compression, smallest files"
+        case .best: String(localized: "Minimal artifacts, larger files")
+        case .good: String(localized: "Balanced quality and size")
+        case .moderate: String(localized: "Visible compression, smaller files")
+        case .low: String(localized: "Heavy compression, smallest files")
         }
     }
 

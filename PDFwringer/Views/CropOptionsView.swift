@@ -102,24 +102,28 @@ struct CropOptionsView: View {
                             TextField("0", value: $cropTop, format: .number)
                                 .frame(width: 50)
                                 .textFieldStyle(.roundedBorder)
+                                .accessibilityLabel(String(localized: "Top margin"))
                         }
                         VStack(spacing: 2) {
                             Text(String(localized: "Bottom")).font(.caption2).foregroundStyle(.secondary)
                             TextField("0", value: $cropBottom, format: .number)
                                 .frame(width: 50)
                                 .textFieldStyle(.roundedBorder)
+                                .accessibilityLabel(String(localized: "Bottom margin"))
                         }
                         VStack(spacing: 2) {
                             Text(String(localized: "Left")).font(.caption2).foregroundStyle(.secondary)
                             TextField("0", value: $cropLeft, format: .number)
                                 .frame(width: 50)
                                 .textFieldStyle(.roundedBorder)
+                                .accessibilityLabel(String(localized: "Left margin"))
                         }
                         VStack(spacing: 2) {
                             Text(String(localized: "Right")).font(.caption2).foregroundStyle(.secondary)
                             TextField("0", value: $cropRight, format: .number)
                                 .frame(width: 50)
                                 .textFieldStyle(.roundedBorder)
+                                .accessibilityLabel(String(localized: "Right margin"))
                         }
                         Spacer()
                         Button(String(localized: "Crop")) { applyCrop() }

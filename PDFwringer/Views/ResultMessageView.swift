@@ -1,4 +1,5 @@
 import SwiftUI
+import Accessibility
 
 struct ResultMessageView: View {
     let message: String
@@ -62,5 +63,8 @@ struct ResultMessageView: View {
                 )
         )
         .transition(.move(edge: .bottom).combined(with: .opacity))
+        .onAppear {
+            AccessibilityNotification.Announcement(message).post()
+        }
     }
 }

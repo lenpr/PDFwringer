@@ -57,6 +57,7 @@ struct MergeOptionsView: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityLabel(String(localized: "Remove file"))
                             }
                             .padding(.vertical, 2)
                         }
@@ -77,12 +78,14 @@ struct MergeOptionsView: View {
                     }
                     .controlSize(.small)
                     .disabled(files.count < 2)
+                    .accessibilityLabel(String(localized: "Sort ascending"))
 
                     Button("Z\u{2009}\u{2192}\u{2009}A") {
                         files.sort { $0.filename.localizedCaseInsensitiveCompare($1.filename) == .orderedDescending }
                     }
                     .controlSize(.small)
                     .disabled(files.count < 2)
+                    .accessibilityLabel(String(localized: "Sort descending"))
 
                     Spacer()
 

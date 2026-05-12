@@ -11,19 +11,19 @@ enum CompressionLevel: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .lossless: "Lossless"
-        case .high: "High (300 dpi)"
-        case .medium: "Medium (150 dpi)"
-        case .low: "Low (72 dpi)"
+        case .lossless: String(localized: "Lossless")
+        case .high: String(localized: "High (300 dpi)")
+        case .medium: String(localized: "Medium (150 dpi)")
+        case .low: String(localized: "Low (72 dpi)")
         }
     }
 
     var subtitle: String {
         switch self {
-        case .lossless: "Strips metadata, preserves everything else"
-        case .high: "Print quality, good for archival"
-        case .medium: "Good for on-screen reading"
-        case .low: "Smallest size, good for email"
+        case .lossless: String(localized: "Strips metadata, preserves everything else")
+        case .high: String(localized: "Print quality, good for archival")
+        case .medium: String(localized: "Good for on-screen reading")
+        case .low: String(localized: "Smallest size, good for email")
         }
     }
 
