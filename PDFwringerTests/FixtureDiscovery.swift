@@ -51,6 +51,17 @@ enum FixtureDiscovery {
         }
     }()
 
+    /// Fixtures that can be opened AND modified (no permission restrictions).
+    /// Use this for tests that rotate, strip annotations, or otherwise mutate content.
+    static let modifiableFixtures: [Fixture] = {
+        allFixtures.filter { fixture in
+            guard let doc = PDFDocument(url: fixture.url) else { return false }
+            guard !doc.isLocked && doc.pageCount > 0 else { return false }
+            // Check if the PDF allows modifications
+            return doc.allowsCopying && doc.allowsCommenting
+        }
+    }()
+
     /// Fixtures that are password-protected or otherwise locked.
     static let lockedFixtures: [Fixture] = {
         allFixtures.filter { fixture in
