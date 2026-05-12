@@ -11,6 +11,9 @@ struct DocumentView: View {
     let onMetadata: () -> Void
     let onCrop: () -> Void
     let onAdjustColor: () -> Void
+    let onPageNumbers: () -> Void
+    let onExportImages: () -> Void
+    let onReorderPages: () -> Void
     let onStartOver: () -> Void
     let onFilesDropped: ([URL]) -> Void
     @Binding var currentPage: Int
@@ -116,6 +119,27 @@ struct DocumentView: View {
                         title: String(localized: "Edit Metadata"),
                         description: String(localized: "View and edit title, author, subject, and keywords"),
                         action: onMetadata
+                    )
+
+                    ActionCardView(
+                        icon: "number",
+                        title: String(localized: "Add Page Numbers"),
+                        description: String(localized: "Add page numbers at configurable positions"),
+                        action: onPageNumbers
+                    )
+
+                    ActionCardView(
+                        icon: "photo.on.rectangle",
+                        title: String(localized: "Export as Images"),
+                        description: String(localized: "Export pages as JPEG or PNG files"),
+                        action: onExportImages
+                    )
+
+                    ActionCardView(
+                        icon: "arrow.up.arrow.down",
+                        title: String(localized: "Reorder Pages"),
+                        description: String(localized: "Drag pages to rearrange their order"),
+                        action: onReorderPages
                     )
                 }
                 .padding(24)
