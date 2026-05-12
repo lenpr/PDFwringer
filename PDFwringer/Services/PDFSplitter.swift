@@ -46,7 +46,7 @@ struct PDFSplitter {
         guard pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
 
         let start = ContinuousClock.now
-        Log.split.info("Starting split: \(pageCount) pages, mode=\(String(describing: mode))")
+        Log.split.info("Starting split: \(pageCount) pages")
 
         let results: [URL]
         switch mode {
@@ -102,6 +102,10 @@ struct PDFSplitter {
         var processedPages = 0
 
         let totalChunks = (pageCount + n - 1) / n
+
+        guard totalChunks <= 5_000 else {
+            throw PDFwringerError.documentTooLarge("Split would create \(totalChunks) files, exceeding the 5,000 file limit")
+        }
 
         for chunkIndex in 0..<totalChunks {
             try Task.checkCancellation()

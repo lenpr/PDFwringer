@@ -83,7 +83,7 @@ struct PDFConcatenator {
 
         let elapsed = ContinuousClock.now - start
         if !skippedFiles.isEmpty {
-            Log.merge.warning("Merge complete with \(skippedFiles.count) skipped files: \(skippedFiles.joined(separator: ", "))")
+            Log.merge.warning("Merge complete with \(skippedFiles.count) skipped file(s)")
         }
         Log.merge.info("Merge complete: \(insertIndex) pages, duration=\(elapsed)")
 

@@ -156,6 +156,9 @@ struct PDFCompressor {
 
         let pageCount = doc.numberOfPages
         guard pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
+        guard pageCount <= 10_000 else {
+            throw PDFwringerError.documentTooLarge("\(pageCount) pages exceeds the 10,000 page limit for rasterization")
+        }
 
         // Estimate output size for disk space check (rough: source size * 0.5 as lower bound)
         if let available = Formatting.availableDiskSpace(at: destination) {
@@ -228,9 +231,17 @@ struct PDFCompressor {
 
     // MARK: - Helpers
 
+    /// Maximum file size allowed for in-memory PDF loading (500 MB).
+    /// Prevents memory exhaustion from PDF bombs or extremely large scans.
+    nonisolated private static let maxFileSize: Int = 500_000_000
+
     /// Opens a PDF by reading data into memory first — works reliably in sandbox
     /// where CGPDFDocument(url) may fail due to access restrictions.
+    /// Rejects files larger than `maxFileSize` to prevent memory exhaustion.
     nonisolated static func openPDF(at url: URL) -> CGPDFDocument? {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false)),
+              let fileSize = attrs[.size] as? Int,
+              fileSize <= maxFileSize else { return nil }
         guard let data = try? Data(contentsOf: url) else { return nil }
         guard let provider = CGDataProvider(data: data as CFData) else { return nil }
         return CGPDFDocument(provider)

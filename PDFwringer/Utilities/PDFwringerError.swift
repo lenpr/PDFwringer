@@ -16,6 +16,7 @@ enum PDFwringerError: LocalizedError {
     case fileNotReadable(String)
     case insufficientDiskSpace(needed: Int64, available: Int64)
     case sourceEqualsDestination
+    case documentTooLarge(String)
 
     var errorDescription: String? {
         switch self {
@@ -32,6 +33,8 @@ enum PDFwringerError: LocalizedError {
             String(localized: "Not enough disk space. Need \(Formatting.fileSize(needed)), only \(Formatting.fileSize(available)) available.")
         case .sourceEqualsDestination:
             String(localized: "Source and destination cannot be the same file. Choose a different location.")
+        case .documentTooLarge(let detail):
+            String(localized: "Document is too large to process safely: \(detail)")
         }
     }
 }
@@ -80,7 +83,7 @@ enum AtomicFileWriter {
 
     static func write(to destination: URL, using block: (URL) throws -> Bool) throws {
         let tempURL = tempDirectory.appending(component: UUID().uuidString + ".pdf")
-        Log.fileIO.debug("AtomicWrite: temp=\(tempURL.lastPathComponent) → \(destination.lastPathComponent)")
+        Log.fileIO.debug("AtomicWrite: temp=\(tempURL.lastPathComponent, privacy: .private) → dest")
         let success = try block(tempURL)
         guard success else {
             try? FileManager.default.removeItem(at: tempURL)

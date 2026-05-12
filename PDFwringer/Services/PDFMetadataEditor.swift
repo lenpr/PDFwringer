@@ -56,7 +56,7 @@ struct PDFMetadataEditor {
         }
         if doc.isLocked { throw PDFwringerError.documentIsLocked }
 
-        Log.metadata.info("Writing metadata: title=\(metadata.title.isEmpty ? "(empty)" : metadata.title), encrypted=\(password != nil), flatten=\(flattenAnnotations)")
+        Log.metadata.info("Writing metadata: encrypted=\(password != nil), flatten=\(flattenAnnotations)")
 
         if flattenAnnotations {
             try await writeFlattenedPDF(doc: doc, metadata: metadata, destination: destination, password: password, progress: progress)
