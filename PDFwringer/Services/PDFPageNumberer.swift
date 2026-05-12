@@ -135,18 +135,13 @@ struct PDFPageNumberer {
     }
 
     private func drawNumber(text: String, pageWidth: CGFloat, pageHeight: CGFloat, context: CGContext, options: Options) {
-        let font = CTFontCreateWithName("Helvetica" as CFString, options.fontSize, nil)
-
-        // Get text dimensions
+        let font = NSFont(name: "Helvetica", size: options.fontSize) ?? NSFont.systemFont(ofSize: options.fontSize)
         let attrs: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: options.color
         ]
         let attrString = NSAttributedString(string: text, attributes: attrs)
-        let line = CTLineCreateWithAttributedString(attrString)
-        let textBounds = CTLineGetBoundsWithOptions(line, [])
-        let textWidth = ceil(textBounds.width)
-        let textHeight = ceil(textBounds.height)
+        let textSize = attrString.size()
 
         // Calculate position in the output coordinate space
         let margin = options.margin
@@ -158,27 +153,27 @@ struct PDFPageNumberer {
             x = margin
             y = margin
         case .bottomCenter:
-            x = (pageWidth - textWidth) / 2
+            x = (pageWidth - textSize.width) / 2
             y = margin
         case .bottomRight:
-            x = pageWidth - margin - textWidth
+            x = pageWidth - margin - textSize.width
             y = margin
         case .topLeft:
             x = margin
-            y = pageHeight - margin - textHeight
+            y = pageHeight - margin - textSize.height
         case .topCenter:
-            x = (pageWidth - textWidth) / 2
-            y = pageHeight - margin - textHeight
+            x = (pageWidth - textSize.width) / 2
+            y = pageHeight - margin - textSize.height
         case .topRight:
-            x = pageWidth - margin - textWidth
-            y = pageHeight - margin - textHeight
+            x = pageWidth - margin - textSize.width
+            y = pageHeight - margin - textSize.height
         }
 
-        // Draw the text
-        context.saveGState()
-        context.textMatrix = .identity
-        context.textPosition = CGPoint(x: x, y: y)
-        CTLineDraw(line, context)
-        context.restoreGState()
+        // Draw using NSAttributedString in an NSGraphicsContext (reliable for PDF contexts)
+        NSGraphicsContext.saveGraphicsState()
+        let nsContext = NSGraphicsContext(cgContext: context, flipped: false)
+        NSGraphicsContext.current = nsContext
+        attrString.draw(at: NSPoint(x: x, y: y))
+        NSGraphicsContext.restoreGraphicsState()
     }
 }

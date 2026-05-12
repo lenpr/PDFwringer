@@ -27,6 +27,7 @@ struct PageNumberOptionsView: View {
     @State private var lastOutputURL: URL?
     @State private var isDropTargeted = false
     @State private var operationTask: Task<Void, Never>?
+    @State private var previewAnnotation: PDFAnnotation?
 
     private var previewText: String {
         "\(prefix)\(startNumber + currentPage)\(suffix)"
@@ -186,11 +187,77 @@ struct PageNumberOptionsView: View {
             .frame(minWidth: 300, idealWidth: 340)
             .tint(.coral)
         }
+        .onAppear { updatePreviewAnnotation() }
+        .onDisappear { removePreviewAnnotation() }
+        .onChange(of: position) { updatePreviewAnnotation() }
+        .onChange(of: startNumber) { updatePreviewAnnotation() }
+        .onChange(of: fontSize) { updatePreviewAnnotation() }
+        .onChange(of: prefix) { updatePreviewAnnotation() }
+        .onChange(of: suffix) { updatePreviewAnnotation() }
+        .onChange(of: color) { updatePreviewAnnotation() }
+        .onChange(of: currentPage) { updatePreviewAnnotation() }
+    }
+
+    // MARK: - Preview Annotation
+
+    private func updatePreviewAnnotation() {
+        removePreviewAnnotation()
+
+        guard let page = document.page(at: currentPage) else { return }
+
+        let font = NSFont(name: "Helvetica", size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
+        let nsColor = NSColor(color)
+        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: nsColor]
+        let textSize = (previewText as NSString).size(withAttributes: attrs)
+        let pageBounds = page.bounds(for: .cropBox)
+
+        let padding: CGFloat = 4
+        let width = textSize.width + padding * 2
+        let height = textSize.height + padding * 2
+        let margin: CGFloat = 36
+
+        let x: CGFloat
+        let y: CGFloat
+        switch position {
+        case .bottomLeft:   x = pageBounds.minX + margin; y = pageBounds.minY + margin
+        case .bottomCenter: x = pageBounds.midX - width / 2; y = pageBounds.minY + margin
+        case .bottomRight:  x = pageBounds.maxX - margin - width; y = pageBounds.minY + margin
+        case .topLeft:      x = pageBounds.minX + margin; y = pageBounds.maxY - margin - height
+        case .topCenter:    x = pageBounds.midX - width / 2; y = pageBounds.maxY - margin - height
+        case .topRight:     x = pageBounds.maxX - margin - width; y = pageBounds.maxY - margin - height
+        }
+
+        let rect = CGRect(x: x, y: y, width: width, height: height)
+        let annotation = PDFAnnotation(bounds: rect, forType: .freeText, withProperties: nil)
+        annotation.font = font
+        annotation.fontColor = nsColor
+        annotation.color = .clear
+        annotation.contents = previewText
+        annotation.alignment = .center
+        let border = PDFBorder()
+        border.lineWidth = 0
+        annotation.border = border
+
+        page.addAnnotation(annotation)
+        previewAnnotation = annotation
+    }
+
+    private func removePreviewAnnotation() {
+        if let annotation = previewAnnotation, let page = annotation.page {
+            page.removeAnnotation(annotation)
+        }
+        previewAnnotation = nil
     }
 
     private func save() {
+        // Remove preview annotation so it doesn't interfere with the source
+        removePreviewAnnotation()
+
         let suggestedName = url.deletingPathExtension().lastPathComponent + "_numbered.pdf"
-        guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
+        guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else {
+            updatePreviewAnnotation()
+            return
+        }
 
         let pages: [Int]?
         if applyAll {
