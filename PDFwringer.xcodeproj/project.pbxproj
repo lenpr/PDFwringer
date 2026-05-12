@@ -9,23 +9,39 @@
 /* Begin PBXBuildFile section */
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		BB000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA000010;
+			remoteInfo = PDFwringer;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
-		AA000001 /* PDFToolkit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PDFToolkit.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA000001 /* PDFwringer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PDFwringer.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BB000010 /* PDFwringerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PDFwringerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		AA000020 /* Exceptions for "PDFToolkit" folder in "PDFToolkit" target */ = {
+		AA000020 /* Exceptions for "PDFwringer" folder in "PDFwringer" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 			);
-			target = AA000010 /* PDFToolkit */;
+			target = AA000010 /* PDFwringer */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		AA000003 /* PDFToolkit */ = {
+		AA000003 /* PDFwringer */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = PDFToolkit;
+			path = PDFwringer;
+			sourceTree = "<group>";
+		};
+		BB000003 /* PDFwringerTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PDFwringerTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -38,13 +54,21 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BB000011 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		AA000002 /* Root */ = {
 			isa = PBXGroup;
 			children = (
-				AA000003 /* PDFToolkit */,
+				AA000003 /* PDFwringer */,
+				BB000003 /* PDFwringerTests */,
 				AA000004 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -52,7 +76,8 @@
 		AA000004 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				AA000001 /* PDFToolkit.app */,
+				AA000001 /* PDFwringer.app */,
+				BB000010 /* PDFwringerTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -60,9 +85,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		AA000010 /* PDFToolkit */ = {
+		AA000010 /* PDFwringer */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = AA000030 /* Build configuration list for PBXNativeTarget "PDFToolkit" */;
+			buildConfigurationList = AA000030 /* Build configuration list for PBXNativeTarget "PDFwringer" */;
 			buildPhases = (
 				AA000012 /* Sources */,
 				AA000011 /* Frameworks */,
@@ -73,14 +98,34 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				AA000003 /* PDFToolkit */,
+				AA000003 /* PDFwringer */,
 			);
-			name = PDFToolkit;
+			name = PDFwringer;
 			packageProductDependencies = (
 			);
-			productName = PDFToolkit;
-			productReference = AA000001 /* PDFToolkit.app */;
+			productName = PDFwringer;
+			productReference = AA000001 /* PDFwringer.app */;
 			productType = "com.apple.product-type.application";
+		};
+		BB000020 /* PDFwringerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BB000030 /* Build configuration list for PBXNativeTarget "PDFwringerTests" */;
+			buildPhases = (
+				BB000012 /* Sources */,
+				BB000011 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BB000002 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				BB000003 /* PDFwringerTests */,
+			);
+			name = PDFwringerTests;
+			productName = PDFwringerTests;
+			productReference = BB000010 /* PDFwringerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -92,7 +137,7 @@
 				LastSwiftUpdateCheck = 1620;
 				LastUpgradeCheck = 1620;
 			};
-			buildConfigurationList = AA000040 /* Build configuration list for PBXProject "PDFToolkit" */;
+			buildConfigurationList = AA000040 /* Build configuration list for PBXProject "PDFwringer" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -106,7 +151,8 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				AA000010 /* PDFToolkit */,
+				AA000010 /* PDFwringer */,
+				BB000020 /* PDFwringerTests */,
 			);
 		};
 /* End PBXProject section */
@@ -129,7 +175,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BB000012 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		BB000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AA000010 /* PDFwringer */;
+			targetProxy = BB000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		AA000031 /* Debug */ = {
@@ -183,6 +244,38 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		BB000031 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pdfwringer.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PDFwringer.app/Contents/MacOS/PDFwringer";
+			};
+			name = Debug;
+		};
+		BB000032 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pdfwringer.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PDFwringer.app/Contents/MacOS/PDFwringer";
 			};
 			name = Release;
 		};
@@ -307,7 +400,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		AA000030 /* Build configuration list for PBXNativeTarget "PDFToolkit" */ = {
+		AA000030 /* Build configuration list for PBXNativeTarget "PDFwringer" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				AA000031 /* Debug */,
@@ -316,7 +409,16 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		AA000040 /* Build configuration list for PBXProject "PDFToolkit" */ = {
+		BB000030 /* Build configuration list for PBXNativeTarget "PDFwringerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BB000031 /* Debug */,
+				BB000032 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA000040 /* Build configuration list for PBXProject "PDFwringer" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				AA000041 /* Debug */,
