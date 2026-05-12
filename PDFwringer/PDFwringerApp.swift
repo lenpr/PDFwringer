@@ -33,6 +33,7 @@ struct PDFwringerApp: App {
                 Menu(String(localized: "Open Recent")) {
                     ForEach(appVM.recentDocuments, id: \.self) { url in
                         Button(url.lastPathComponent) {
+                            let _ = BookmarkManager.accessURL(from: url)
                             appVM.handleDrop([url])
                         }
                     }
