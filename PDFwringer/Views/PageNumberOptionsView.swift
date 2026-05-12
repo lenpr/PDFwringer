@@ -14,6 +14,7 @@ struct PageNumberOptionsView: View {
     @State private var fontSize: CGFloat = 11
     @State private var prefix: String = ""
     @State private var suffix: String = ""
+    @State private var color: Color = .black
     @State private var applyAll = true
     @State private var pageRangeText = ""
     @State private var selectedPages: Set<Int> = []
@@ -27,10 +28,27 @@ struct PageNumberOptionsView: View {
     @State private var isDropTargeted = false
     @State private var operationTask: Task<Void, Never>?
 
+    private var previewText: String {
+        "\(prefix)\(startNumber + currentPage)\(suffix)"
+    }
+
     var body: some View {
         HStack(spacing: 0) {
+            // Left: preview with number overlay
             VStack(spacing: 0) {
-                PDFPreviewPanel(document: document, currentPage: $currentPage)
+                ZStack(alignment: positionAlignment) {
+                    PDFPreviewPanel(document: document, currentPage: $currentPage)
+
+                    // Page number preview overlay
+                    Text(previewText)
+                        .font(.system(size: fontSize * 1.5)) // Scale up for preview visibility
+                        .foregroundStyle(color)
+                        .padding(8)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 4))
+                        .padding(12)
+                        .allowsHitTesting(false)
+                }
+
                 PageThumbnailStripView(
                     document: document,
                     currentPage: $currentPage,
@@ -91,11 +109,12 @@ struct PageNumberOptionsView: View {
                         .frame(width: 50)
                         .textFieldStyle(.roundedBorder)
                         .accessibilityLabel(String(localized: "Starting page number"))
+                    Spacer()
                 }
 
                 // Font size
                 HStack {
-                    Text(String(localized: "Font size"))
+                    Text(String(localized: "Size"))
                         .font(.callout)
                     Slider(value: $fontSize, in: 8...24, step: 1)
                     Text("\(Int(fontSize)) pt")
@@ -104,16 +123,26 @@ struct PageNumberOptionsView: View {
                         .frame(width: 35)
                 }
 
+                // Color picker
+                HStack {
+                    Text(String(localized: "Color"))
+                        .font(.callout)
+                    Spacer()
+                    ColorPicker("", selection: $color, supportsOpacity: false)
+                        .labelsHidden()
+                        .frame(width: 40)
+                }
+
                 // Prefix/suffix
                 HStack(spacing: 12) {
-                    HStack {
+                    HStack(spacing: 4) {
                         Text(String(localized: "Prefix"))
                             .font(.callout)
                         TextField("", text: $prefix)
                             .frame(width: 50)
                             .textFieldStyle(.roundedBorder)
                     }
-                    HStack {
+                    HStack(spacing: 4) {
                         Text(String(localized: "Suffix"))
                             .font(.callout)
                         TextField("", text: $suffix)
@@ -123,9 +152,14 @@ struct PageNumberOptionsView: View {
                 }
 
                 // Preview label
-                Text(String(localized: "Preview: \"\(prefix)\(startNumber)\(suffix)\""))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    Text(String(localized: "Preview:"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("\"\(previewText)\"")
+                        .font(.caption.bold())
+                        .foregroundStyle(color)
+                }
 
                 Spacer()
 
@@ -160,6 +194,17 @@ struct PageNumberOptionsView: View {
         }
     }
 
+    private var positionAlignment: Alignment {
+        switch position {
+        case .bottomLeft: .bottomLeading
+        case .bottomCenter: .bottom
+        case .bottomRight: .bottomTrailing
+        case .topLeft: .topLeading
+        case .topCenter: .top
+        case .topRight: .topTrailing
+        }
+    }
+
     private func save() {
         let suggestedName = url.deletingPathExtension().lastPathComponent + "_numbered.pdf"
         guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
@@ -182,6 +227,8 @@ struct PageNumberOptionsView: View {
         isError = false
         onMutate?()
 
+        let nsColor = NSColor(color)
+
         operationTask = Task {
             defer { operationTask = nil; isProcessing = false }
             do {
@@ -191,7 +238,8 @@ struct PageNumberOptionsView: View {
                     startNumber: startNumber,
                     fontSize: fontSize,
                     prefix: prefix,
-                    suffix: suffix
+                    suffix: suffix,
+                    color: nsColor
                 )
                 try await numberer.addPageNumbers(
                     source: url, destination: destination,
