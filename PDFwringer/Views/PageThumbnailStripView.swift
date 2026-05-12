@@ -91,7 +91,7 @@ struct PageThumbnailStripView: View {
             .animation(.spring(duration: 0.25, bounce: 0.4), value: currentPage?.wrappedValue)
 
             Text("\(index + 1)")
-                .font(.system(size: 9, weight: isSelected || isCurrent ? .bold : .regular))
+                .font(isSelected || isCurrent ? .caption2.bold() : .caption2)
                 .foregroundStyle(isSelected || isCurrent ? .primary : .secondary)
         }
         .contentShape(Rectangle())

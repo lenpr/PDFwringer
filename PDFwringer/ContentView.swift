@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ContentView: View {
     @Bindable var appVM: AppViewModel
-    @Environment(\.self) private var environment
 
     var body: some View {
         Group {

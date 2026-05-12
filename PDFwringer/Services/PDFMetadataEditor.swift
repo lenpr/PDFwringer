@@ -225,8 +225,6 @@ struct PDFMetadataEditor {
             writeOptions[.userPasswordOption] = pw
         }
 
-        try? FileManager.default.removeItem(at: tempURL)
-
         try AtomicFileWriter.write(to: destination) { finalTemp in
             if writeOptions.isEmpty {
                 flatDoc.write(to: finalTemp)
@@ -234,5 +232,7 @@ struct PDFMetadataEditor {
                 flatDoc.write(to: finalTemp, withOptions: writeOptions)
             }
         }
+
+        try? FileManager.default.removeItem(at: tempURL)
     }
 }

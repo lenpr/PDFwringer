@@ -166,7 +166,7 @@ class CompressViewModel {
         guard let source = sourceURL else { return }
         let compressor = self.compressor
 
-        estimationTask = Task.detached(priority: .utility) {
+        estimationTask = Task.detached(priority: .utility) { [weak self] in
             for level in CompressionLevel.allCases {
                 for quality in JPEGQuality.allCases {
                     for gs in [false, true] {
@@ -178,8 +178,8 @@ class CompressViewModel {
                         if Task.isCancelled { return }
 
                         if let size {
-                            await MainActor.run {
-                                self.estimatedSizes[key] = size
+                            await MainActor.run { [weak self] in
+                                self?.estimatedSizes[key] = size
                             }
                         }
                         await Task.yield()
