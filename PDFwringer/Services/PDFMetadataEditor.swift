@@ -66,12 +66,7 @@ struct PDFMetadataEditor {
         }
     }
 
-    private func writeNormalPDF(
-        doc: PDFDocument,
-        metadata: Metadata,
-        destination: URL,
-        password: String?
-    ) throws {
+    private func buildAttributes(from metadata: Metadata) -> [PDFDocumentAttribute: Any] {
         var attrs: [PDFDocumentAttribute: Any] = [:]
         if !metadata.title.isEmpty { attrs[.titleAttribute] = metadata.title }
         if !metadata.author.isEmpty { attrs[.authorAttribute] = metadata.author }
@@ -82,8 +77,16 @@ struct PDFMetadataEditor {
                 .map { $0.trimmingCharacters(in: .whitespaces) }
         }
         if !metadata.creator.isEmpty { attrs[.creatorAttribute] = metadata.creator }
+        return attrs
+    }
 
-        doc.documentAttributes = attrs
+    private func writeNormalPDF(
+        doc: PDFDocument,
+        metadata: Metadata,
+        destination: URL,
+        password: String?
+    ) throws {
+        doc.documentAttributes = buildAttributes(from: metadata)
 
         var writeOptions: [PDFDocumentWriteOption: Any] = [:]
         if let pw = password, !pw.isEmpty {
@@ -207,17 +210,7 @@ struct PDFMetadataEditor {
             throw PDFwringerError.cannotWriteOutput
         }
 
-        var attrs: [PDFDocumentAttribute: Any] = [:]
-        if !metadata.title.isEmpty { attrs[.titleAttribute] = metadata.title }
-        if !metadata.author.isEmpty { attrs[.authorAttribute] = metadata.author }
-        if !metadata.subject.isEmpty { attrs[.subjectAttribute] = metadata.subject }
-        if !metadata.keywords.isEmpty {
-            attrs[.keywordsAttribute] = metadata.keywords
-                .split(separator: ",")
-                .map { $0.trimmingCharacters(in: .whitespaces) }
-        }
-        if !metadata.creator.isEmpty { attrs[.creatorAttribute] = metadata.creator }
-        flatDoc.documentAttributes = attrs
+        flatDoc.documentAttributes = buildAttributes(from: metadata)
 
         var writeOptions: [PDFDocumentWriteOption: Any] = [:]
         if let pw = password, !pw.isEmpty {
