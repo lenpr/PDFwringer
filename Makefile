@@ -94,7 +94,7 @@ test: $(BUILD_DIR)/$(TEST_NAME)
 
 # Fast lane: unit + viewmodel + safety tests only (no fixtures, <5s)
 test-fast: $(BUILD_DIR)/$(TEST_NAME)
-	$(BUILD_DIR)/$(TEST_NAME) --filter "PageRangeParser|PDFCompressor|PDFSplitter|PDFConcatenator|PDFRotator|PDFCropper|PDFMetadataEditor|PDFColorAdjuster|PDFFileItem|Utilities|AppViewModel|CompressViewModel|SplitViewModel|ConcatenateViewModel|SourceEqualsDestination|Failure Modes|End-to-End"
+	$(BUILD_DIR)/$(TEST_NAME) --filter "PageRangeParser|PDFCompressor|PDFSplitter|PDFConcatenator|PDFRotator|PDFCropper|PDFMetadataEditor|PDFColorAdjuster|PDFFileItem|Utilities|AppViewModel|CompressViewModel|SplitViewModel|ConcatenateViewModel|SourceEqualsDestination|Failure Modes|End-to-End|PDFPageNumberer|PDFWatermarker|PDFImageExporter|PDFImageConverter"
 
 # Corpus lane: all fixture-based tests (requires PDFs in Fixtures/)
 test-corpus: $(BUILD_DIR)/$(TEST_NAME)

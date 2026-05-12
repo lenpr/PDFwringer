@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Wring every last byte out of your PDFs.</strong><br><br>
-  A lightweight native macOS app for compressing, merging, splitting, rotating, cropping, color-adjusting, and editing PDF files.<br>
+  A lightweight native macOS app for compressing, merging, splitting, rotating, cropping, color-adjusting, watermarking, and editing PDF files.<br>
   Built entirely with SwiftUI and PDFKit — zero external dependencies, zero network calls, zero data collection.
 </p>
 
@@ -79,6 +79,26 @@ View and edit title, author, subject, keywords, and creator. Set or remove passw
   <img src="screenshots/metadata.png" width="720" alt="Edit PDF metadata">
 </p>
 
+### Add Page Numbers
+
+Add page numbers at any of six positions (top/bottom, left/center/right). Configure starting number, font size, color, and optional prefix/suffix. Live preview shows exactly where numbers will land. Numbers are rendered directly into page content — visible in all PDF viewers.
+
+### Add Watermark
+
+Overlay semi-transparent text like DRAFT, CONFIDENTIAL, or any custom text across pages. Full control over font size, color, opacity, rotation angle, and position. Useful for marking documents as unofficial or internal without altering the underlying content.
+
+### Export as Images
+
+Export selected pages as JPEG or PNG files at configurable DPI (72/150/300). JPEG quality slider for size control. Exports to a directory with automatic filename numbering.
+
+### Reorder Pages
+
+Drag pages in a sidebar list to rearrange their order. Quick-actions for reversing page order or resetting to original. Saves the reordered document to a new file.
+
+### Image to PDF
+
+Drop image files (JPG, PNG, TIFF, HEIC) directly into the app to convert them into a PDF. Each image becomes one page, auto-scaled to fit reasonable dimensions.
+
 ---
 
 ## Page Range Syntax
@@ -127,10 +147,11 @@ cp -R .build/PDFwringer.app ~/Applications/
 ### Test
 
 ```bash
-make test    # 153 tests across 13 suites — runs in seconds
+make test       # 259 tests across 41 suites
+make test-fast  # 143 unit tests in ~2 seconds (no fixtures needed)
 ```
 
-Uses [Swift Testing](https://developer.apple.com/documentation/testing). Tests cover the service/model/utility layers without requiring a running app. PDFs are generated programmatically — no fixture files needed.
+Uses [Swift Testing](https://developer.apple.com/documentation/testing). Tests cover services, models, utilities, and view models. A real-world PDF fixture corpus (36 files) exercises all operations against diverse document types. PDFs are also generated programmatically for unit tests — no setup needed.
 
 ---
 
