@@ -255,7 +255,7 @@ struct AppViewModelTests {
 
         vm.startOver()
         vm.loadMultipleFiles([url, url2])
-        #expect(vm.windowTitle == "2 files")
+        #expect(vm.windowTitle == "PDFwringer — 2 files")
     }
 
     // MARK: - Rotate and Metadata transitions

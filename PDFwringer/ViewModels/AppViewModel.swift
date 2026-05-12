@@ -74,9 +74,9 @@ class AppViewModel {
              .rotating(let url, _), .editingMetadata(let url, _), .cropping(let url, _),
              .adjustingColor(let url, _), .addingPageNumbers(let url, _),
              .exportingImages(let url, _), .reorderingPages(let url, _):
-            return url.lastPathComponent
+            return "PDFwringer — \(url.lastPathComponent)"
         case .multiFile(let items), .merging(let items):
-            return "\(items.count) files"
+            return "PDFwringer — \(items.count) files"
         }
     }
 
