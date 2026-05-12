@@ -39,12 +39,10 @@ struct PageNumberOptionsView: View {
                 ZStack(alignment: positionAlignment) {
                     PDFPreviewPanel(document: document, currentPage: $currentPage)
 
-                    // Page number preview overlay
+                    // Page number preview overlay (no background, just the text)
                     Text(previewText)
-                        .font(.system(size: fontSize * 1.5)) // Scale up for preview visibility
+                        .font(.system(size: fontSize * 1.5))
                         .foregroundStyle(color)
-                        .padding(8)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 4))
                         .padding(12)
                         .allowsHitTesting(false)
                 }

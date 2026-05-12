@@ -91,17 +91,20 @@ struct PDFPageNumberer {
 
             outputCtx.beginPage(mediaBox: &pageBox)
 
-            // Draw the original page content
-            let ctx = outputCtx
-            ctx.saveGState()
-            page.draw(with: .mediaBox, to: ctx)
-            ctx.restoreGState()
+            // Draw the original page content using CGPDFPage for predictable coordinates
+            if let cgPage = page.pageRef {
+                outputCtx.saveGState()
+                let transform = cgPage.getDrawingTransform(.mediaBox, rect: pageBox, rotate: 0, preserveAspectRatio: true)
+                outputCtx.concatenate(transform)
+                outputCtx.drawPDFPage(cgPage)
+                outputCtx.restoreGState()
+            }
 
-            // Overlay page number if this page is targeted
+            // Overlay page number in the original mediaBox coordinate space
             if indicesToNumber.contains(i) {
                 let displayNumber = options.startNumber + (sortedIndices.firstIndex(of: i) ?? 0)
                 let text = "\(options.prefix)\(displayNumber)\(options.suffix)"
-                drawPageNumber(text: text, in: mediaBox, context: ctx, options: options)
+                drawPageNumber(text: text, in: pageBox, context: outputCtx, options: options)
             }
 
             outputCtx.endPage()
