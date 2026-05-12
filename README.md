@@ -1,12 +1,13 @@
 <p align="center">
-  <img src="icon.png" width="128" height="128" alt="PDFwringer icon">
+  <img src="icon.png" width="256" height="256" alt="PDFwringer icon">
 </p>
 
 <h1 align="center">PDFwringer</h1>
 
 <p align="center">
+  <strong>Wring every last byte out of your PDFs.</strong><br><br>
   A lightweight native macOS app for compressing, merging, splitting, rotating, cropping, color-adjusting, and editing PDF files.<br>
-  Built with SwiftUI and PDFKit — no external dependencies.
+  Built entirely with SwiftUI and PDFKit — zero external dependencies, zero network calls, zero data collection.
 </p>
 
 <p align="center">
@@ -21,11 +22,22 @@
 
 ---
 
+## Why PDFwringer?
+
+Most PDF tools are either bloated Electron apps, subscription-gated web services, or privacy nightmares that upload your documents to someone else's server. PDFwringer is different:
+
+- **Fully offline** — your files never leave your machine
+- **Native performance** — instant launches, no runtime overhead
+- **Drop and done** — drag a PDF in, pick an action, save the result
+- **Sandboxed** — only touches files you explicitly select
+
+---
+
 ## Features
 
 ### Compress
 
-Reduce file size with lossless metadata stripping or lossy rasterization at configurable DPI (72–300) and JPEG quality. Instant heuristic estimates let you compare options before committing. Oversized pages (common in scanned PDFs and iPhone photos) are automatically capped to A3 dimensions to prevent file inflation. Optional grayscale conversion and metadata stripping.
+Squeeze bloated PDFs down to size. Choose lossless metadata stripping for a quick trim, or lossy rasterization at configurable DPI (72-300) and JPEG quality for dramatic reductions. Live size estimates let you compare options *before* committing — no guesswork. Oversized pages (common in scanned PDFs and iPhone photos) are automatically capped to prevent file inflation.
 
 <p align="center">
   <img src="screenshots/compress.png" width="720" alt="Compression options with live size estimates">
@@ -33,11 +45,11 @@ Reduce file size with lossless metadata stripping or lossy rasterization at conf
 
 ### Merge
 
-Drag-and-drop multiple PDFs, reorder them freely, sort alphabetically, and combine into a single file.
+Combine multiple PDFs into one. Drag-and-drop files in, reorder them freely, sort alphabetically, and merge with a single click.
 
 ### Split / Extract
 
-Split a document every N pages, keep only specific pages, or remove unwanted pages — all using flexible range syntax (`1, 3-5, 8-`).
+Pull out exactly the pages you need. Split every N pages, keep specific pages, or remove unwanted ones — all using intuitive range syntax (`1, 3-5, 8-`). Perfect for extracting chapters, removing blank pages, or breaking a monolithic PDF into manageable pieces.
 
 <p align="center">
   <img src="screenshots/split.png" width="720" alt="Split and extract pages">
@@ -45,7 +57,7 @@ Split a document every N pages, keep only specific pages, or remove unwanted pag
 
 ### Rotate Pages
 
-Rotate all or selected pages by 90° CW, 180°, or 90° CCW with a live preview.
+Fix sideways scans and upside-down pages. Rotate all or selected pages by 90° CW, 180°, or 90° CCW with a live preview showing exactly what you'll get.
 
 <p align="center">
   <img src="screenshots/rotate.png" width="720" alt="Rotate pages">
@@ -53,15 +65,15 @@ Rotate all or selected pages by 90° CW, 180°, or 90° CCW with a live preview.
 
 ### Crop / Resize
 
-Trim margins from any edge or resize pages to standard paper sizes (A4, Letter, A5, Legal) with portrait/landscape toggle. Operations are independent — crop without resizing or vice versa. Apply to all pages or a specific range.
+Trim excess whitespace or resize pages to standard paper sizes (A4, Letter, A5, Legal). Crop and resize are independent — trim margins without resizing, resize without cropping, or both at once. Portrait/landscape toggle included.
 
 ### Adjust Colors
 
-Tweak brightness, contrast, and saturation with a live preview. Includes named presets (Vivid, Muted, B&W, High Contrast) and a Reset button. Apply to all pages or a specific range.
+Fine-tune brightness, contrast, and saturation with real-time preview. Named presets (Vivid, Muted, B&W, High Contrast) get you 90% of the way with one click — then dial in the rest manually if needed.
 
 ### Edit Metadata
 
-View and edit title, author, subject, keywords, and creator. Set or remove password protection. Flatten annotations to burn highlights, comments, and form fields permanently into the page content.
+View and edit title, author, subject, keywords, and creator. Set or remove password protection. Flatten annotations to permanently burn highlights, comments, and form fields into the page content — useful for sharing documents without editable markup.
 
 <p align="center">
   <img src="screenshots/metadata.png" width="720" alt="Edit PDF metadata">
@@ -92,14 +104,14 @@ Used in Split / Extract, Rotate, and Crop operations:
 - macOS 26.0+ (Tahoe)
 - Apple Silicon (arm64)
 
-### Build
+### Build & Run
 
 ```bash
-# Command line
+# Command line — from zero to running in seconds
 make app       # produces .build/PDFwringer.app (ad-hoc codesigned)
 make release   # optimized build (-O) + app bundle
 make dmg       # app + drag-to-install disk image (.build/PDFwringer.dmg)
-make run       # build + launch
+make run       # build + launch immediately
 
 # Or open PDFwringer.xcodeproj in Xcode (Cmd+B)
 ```
@@ -109,15 +121,16 @@ make run       # build + launch
 ```bash
 make app
 cp -R .build/PDFwringer.app ~/Applications/
+# That's it. No brew, no npm, no pip.
 ```
 
 ### Test
 
 ```bash
-make test    # 153 tests across 13 suites
+make test    # 153 tests across 13 suites — runs in seconds
 ```
 
-Uses [Swift Testing](https://developer.apple.com/documentation/testing). Tests cover the service/model/utility layers without requiring a running app. PDFs are generated programmatically — no fixture files.
+Uses [Swift Testing](https://developer.apple.com/documentation/testing). Tests cover the service/model/utility layers without requiring a running app. PDFs are generated programmatically — no fixture files needed.
 
 ---
 
@@ -172,4 +185,4 @@ PDFwringer/
 
 ## License
 
-[MIT](LICENSE) — Lukas N.P. Egger
+[MIT](LICENSE) — do whatever you want with it. Lukas N.P. Egger
