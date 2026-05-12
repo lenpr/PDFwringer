@@ -31,7 +31,7 @@ ifeq ($(wildcard $(TESTING_FW_DIR)/Testing.framework),)
     TESTING_RPATH_DIR := /Library/Developer/CommandLineTools/Library/Developer/usr/lib
 endif
 
-.PHONY: build clean run test app release dmg sign notarize
+.PHONY: build clean run test test-fast test-corpus app release dmg sign notarize
 
 build: $(BUILD_DIR)/$(APP_NAME)
 
@@ -91,6 +91,14 @@ notarize: sign
 
 test: $(BUILD_DIR)/$(TEST_NAME)
 	$(BUILD_DIR)/$(TEST_NAME)
+
+# Fast lane: unit + viewmodel + safety tests only (no fixtures, <5s)
+test-fast: $(BUILD_DIR)/$(TEST_NAME)
+	$(BUILD_DIR)/$(TEST_NAME) --filter "PageRangeParser|PDFCompressor|PDFSplitter|PDFConcatenator|PDFRotator|PDFCropper|PDFMetadataEditor|PDFColorAdjuster|PDFFileItem|Utilities|AppViewModel|CompressViewModel|SplitViewModel|ConcatenateViewModel|SourceEqualsDestination|Failure Modes|End-to-End"
+
+# Corpus lane: all fixture-based tests (requires PDFs in Fixtures/)
+test-corpus: $(BUILD_DIR)/$(TEST_NAME)
+	$(BUILD_DIR)/$(TEST_NAME) --filter "Fixture|Invariant|Visual|Performance|Differential|Cancellation|Safety"
 
 $(BUILD_DIR)/$(TEST_NAME): $(TESTABLE_SOURCES) $(TEST_SOURCES)
 	@mkdir -p $(BUILD_DIR)
