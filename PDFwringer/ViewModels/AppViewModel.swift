@@ -17,8 +17,6 @@ enum AppState: Equatable {
     case editingMetadata(URL, PDFDocument)
     case cropping(URL, PDFDocument)
     case adjustingColor(URL, PDFDocument)
-    case addingPageNumbers(URL, PDFDocument)
-    case addingWatermark(URL, PDFDocument)
     case exportingImages(URL, PDFDocument)
     case reorderingPages(URL, PDFDocument)
 
@@ -35,8 +33,6 @@ enum AppState: Equatable {
         case (.editingMetadata(let a, _), .editingMetadata(let b, _)): a == b
         case (.cropping(let a, _), .cropping(let b, _)): a == b
         case (.adjustingColor(let a, _), .adjustingColor(let b, _)): a == b
-        case (.addingPageNumbers(let a, _), .addingPageNumbers(let b, _)): a == b
-        case (.addingWatermark(let a, _), .addingWatermark(let b, _)): a == b
         case (.exportingImages(let a, _), .exportingImages(let b, _)): a == b
         case (.reorderingPages(let a, _), .reorderingPages(let b, _)): a == b
         default: false
@@ -74,8 +70,7 @@ class AppViewModel {
             return "PDFwringer"
         case .singleFile(let url, _), .compressing(let url, _), .splitting(let url, _),
              .rotating(let url, _), .editingMetadata(let url, _), .cropping(let url, _),
-             .adjustingColor(let url, _), .addingPageNumbers(let url, _),
-             .addingWatermark(let url, _),
+             .adjustingColor(let url, _),
              .exportingImages(let url, _), .reorderingPages(let url, _):
             return "PDFwringer — \(url.lastPathComponent)"
         case .multiFile(let items), .merging(let items):
@@ -249,18 +244,6 @@ class AppViewModel {
         state = .adjustingColor(url, doc)
     }
 
-    func selectPageNumbers() {
-        guard case .singleFile(let url, let doc) = state else { return }
-        navigationDirection = .trailing
-        state = .addingPageNumbers(url, doc)
-    }
-
-    func selectWatermark() {
-        guard case .singleFile(let url, let doc) = state else { return }
-        navigationDirection = .trailing
-        state = .addingWatermark(url, doc)
-    }
-
     func selectExportImages() {
         guard case .singleFile(let url, let doc) = state else { return }
         navigationDirection = .trailing
@@ -279,7 +262,6 @@ class AppViewModel {
         case .compressing(let url, let doc), .splitting(let url, let doc),
              .rotating(let url, let doc), .editingMetadata(let url, let doc),
              .cropping(let url, let doc),              .adjustingColor(let url, let doc),
-             .addingPageNumbers(let url, let doc), .addingWatermark(let url, let doc),
              .exportingImages(let url, let doc),
              .reorderingPages(let url, let doc):
             state = .singleFile(url, doc)

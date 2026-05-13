@@ -79,14 +79,6 @@ View and edit title, author, subject, keywords, and creator. Set or remove passw
   <img src="screenshots/metadata.png" width="720" alt="Edit PDF metadata">
 </p>
 
-### Add Page Numbers
-
-Add page numbers at any of six positions (top/bottom, left/center/right). Configure starting number, font size, color, and optional prefix/suffix. Live preview shows exactly where numbers will land. Numbers are rendered directly into page content — visible in all PDF viewers.
-
-### Add Watermark
-
-Overlay semi-transparent text like DRAFT, CONFIDENTIAL, or any custom text across pages. Full control over font size, color, opacity, rotation angle, and position. Useful for marking documents as unofficial or internal without altering the underlying content.
-
 ### Export as Images
 
 Export selected pages as JPEG or PNG files at configurable DPI (72/150/300). JPEG quality slider for size control. Exports to a directory with automatic filename numbering.

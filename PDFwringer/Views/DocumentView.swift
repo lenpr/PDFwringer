@@ -11,8 +11,6 @@ struct DocumentView: View {
     let onMetadata: () -> Void
     let onCrop: () -> Void
     let onAdjustColor: () -> Void
-    let onPageNumbers: () -> Void
-    let onWatermark: () -> Void
     let onExportImages: () -> Void
     let onReorderPages: () -> Void
     let onStartOver: () -> Void
@@ -116,24 +114,17 @@ struct DocumentView: View {
                     )
 
                     ActionCardView(
-                        icon: "number",
-                        title: String(localized: "Add Page Numbers"),
-                        description: String(localized: "Add page numbers at configurable positions"),
-                        action: onPageNumbers
-                    )
-
-                    ActionCardView(
-                        icon: "drop.halffull",
-                        title: String(localized: "Add Watermark"),
-                        description: String(localized: "Overlay text like DRAFT or CONFIDENTIAL"),
-                        action: onWatermark
-                    )
-
-                    ActionCardView(
                         icon: "slider.horizontal.3",
                         title: String(localized: "Adjust Colors"),
                         description: String(localized: "Tweak brightness, contrast, and saturation"),
                         action: onAdjustColor
+                    )
+
+                    ActionCardView(
+                        icon: "photo.on.rectangle",
+                        title: String(localized: "Export as Images"),
+                        description: String(localized: "Export pages as JPEG or PNG files"),
+                        action: onExportImages
                     )
 
                     ActionCardView(
