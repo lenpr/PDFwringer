@@ -128,13 +128,6 @@ struct DocumentView: View {
                     )
 
                     ActionCardView(
-                        icon: "photo.on.rectangle",
-                        title: String(localized: "Export as Images"),
-                        description: String(localized: "Export pages as JPEG or PNG files"),
-                        action: onExportImages
-                    )
-
-                    ActionCardView(
                         icon: "info.circle",
                         title: String(localized: "Edit Metadata"),
                         description: String(localized: "View and edit title, author, subject, and keywords"),

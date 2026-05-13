@@ -115,13 +115,16 @@ class AppViewModel {
     func goToFirstPage() { currentPage = 0 }
     func goToLastPage() { currentPage = max(0, currentPageCount - 1) }
 
-    var recentDocuments: [URL] {
-        BookmarkManager.resolveBookmarks()
+    var recentDocuments: [URL] = []
+
+    func refreshRecentDocuments() {
+        recentDocuments = BookmarkManager.resolveBookmarks()
     }
 
     func clearRecentDocuments() {
         NSDocumentController.shared.clearRecentDocuments(nil)
         BookmarkManager.clearAll()
+        recentDocuments = []
     }
 
     func handleDrop(_ urls: [URL]) {
@@ -160,6 +163,7 @@ class AppViewModel {
         currentFileSize = (try? FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false))[.size] as? Int64) ?? 0
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
         BookmarkManager.saveBookmark(for: url)
+        refreshRecentDocuments()
         state = .singleFile(url, doc)
     }
 
@@ -199,6 +203,7 @@ class AppViewModel {
             NSDocumentController.shared.noteNewRecentDocumentURL(item.url)
             BookmarkManager.saveBookmark(for: item.url)
         }
+        refreshRecentDocuments()
         state = .multiFile(items)
     }
 

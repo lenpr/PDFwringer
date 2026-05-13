@@ -299,6 +299,8 @@ struct ContentView: View {
             }
             // Persist window frame across launches
             NSApp.keyWindow?.setFrameAutosaveName("MainWindow")
+            // Load recent documents once at launch
+            appVM.refreshRecentDocuments()
         }
     }
 
