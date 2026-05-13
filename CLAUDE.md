@@ -25,7 +25,7 @@ make test       # compile + run all tests via Swift Testing
 
 Uses Swift Testing (`import Testing`, `@Test`, `#expect`). Tests compile the Services/Models/Utilities/ViewModels layer without SwiftUI.
 
-Test suites cover: `PageRangeParser`, `PDFConcatenator`, `PDFSplitter`, `PDFCompressor`, `PDFRotator`, `PDFCropper`, `PDFMetadataEditor`, `PDFColorAdjuster`, `AppViewModel`, `CompressViewModel`, `SplitViewModel`, `ConcatenateViewModel`, `PDFFileItem`, `SourceEqualsDestination`, `FailureModeTests`, `UtilityTests`, end-to-end workflows. Tests generate PDFs programmatically — no fixture files needed.
+Test suites cover: `PageRangeParser`, `PDFConcatenator`, `PDFSplitter`, `PDFCompressor`, `PDFRotator`, `PDFCropper`, `PDFMetadataEditor`, `PDFColorAdjuster`, `PDFImageExporter`, `PDFImageConverter`, `AppViewModel`, `CompressViewModel`, `SplitViewModel`, `ConcatenateViewModel`, `PDFFileItem`, `SourceEqualsDestination`, `FailureModeTests`, `UtilityTests`, end-to-end workflows, fixture-based integration tests, and property/invariant tests. Tests generate PDFs programmatically — no fixture files needed for the fast lane.
 
 ## Architecture
 
@@ -48,7 +48,7 @@ Resources/    → Asset catalog, AppIcon.icns
 landing → singleFile / multiFile → compressing / splitting / rotating / editingMetadata / cropping / adjustingColor / merging / exportingImages / reorderingPages → (back)
 ```
 
-`ContentView` switches on `AppState` to render the correct view. `AppViewModel` owns state transitions (handleDrop, goBack, startOver, selectCompress/Split/Merge/Rotate/Metadata/Crop/AdjustColor).
+`ContentView` switches on `AppState` to render the correct view. `AppViewModel` owns state transitions (handleDrop, goBack, startOver, selectCompress/Split/Merge/Rotate/Metadata/Crop/AdjustColor/ExportImages/ReorderPages).
 
 `AppState` has custom `Equatable` because `PDFDocument` doesn't conform — equality checks compare URLs/item IDs only.
 

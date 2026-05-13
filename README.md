@@ -139,8 +139,8 @@ cp -R .build/PDFwringer.app ~/Applications/
 ### Test
 
 ```bash
-make test       # 259 tests across 41 suites
-make test-fast  # 143 unit tests in ~2 seconds (no fixtures needed)
+make test       # 263 tests across 43 suites
+make test-fast  # 147 unit tests in ~2 seconds (no fixtures needed)
 ```
 
 Uses [Swift Testing](https://developer.apple.com/documentation/testing). Tests cover services, models, utilities, and view models. A real-world PDF fixture corpus (36 files) exercises all operations against diverse document types. PDFs are also generated programmatically for unit tests — no setup needed.
