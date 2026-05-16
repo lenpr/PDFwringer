@@ -122,12 +122,18 @@ struct PDFMetadataEditor {
             throw PDFwringerError.cannotCreateOutput
         }
 
+        // Ensure the intermediate temp file is ALWAYS cleaned up on any exit path
+        // (cancellation, error, or success). This prevents leaving plaintext copies
+        // when the user requested password protection.
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
         var skippedPages = 0
 
-        for i in 0..<pageCount {
-            try Task.checkCancellation()
+        do {
+            for i in 0..<pageCount {
+                try Task.checkCancellation()
 
-            autoreleasepool {
+                autoreleasepool {
                 guard let page = doc.page(at: i) else { skippedPages += 1; return }
                 let bounds = page.bounds(for: .cropBox)
                 let rotation = page.rotation
@@ -191,10 +197,13 @@ struct PDFMetadataEditor {
             progress?(Double(i + 1) / Double(pageCount))
             await Task.yield()
         }
+        } catch {
+            outputCtx.closePDF()
+            throw error
+        }
 
         if skippedPages == pageCount {
             outputCtx.closePDF()
-            try? FileManager.default.removeItem(at: tempURL)
             throw PDFwringerError.cannotWriteOutput
         }
 
@@ -206,13 +215,8 @@ struct PDFMetadataEditor {
 
         // Apply metadata to the flattened PDF
         guard let flatDoc = PDFDocument(url: tempURL) else {
-            try? FileManager.default.removeItem(at: tempURL)
             throw PDFwringerError.cannotWriteOutput
         }
-
-        // Ensure the plaintext intermediate is always removed, even if the final write fails.
-        // This prevents leaving an unencrypted copy when the user requested password protection.
-        defer { try? FileManager.default.removeItem(at: tempURL) }
 
         flatDoc.documentAttributes = buildAttributes(from: metadata)
 
