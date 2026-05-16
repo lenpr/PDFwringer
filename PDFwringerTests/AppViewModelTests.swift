@@ -1,6 +1,18 @@
 import Testing
 import PDFKit
 
+/// Waits for AppViewModel state to transition from landing, polling every 50ms up to 5 seconds.
+@MainActor
+private func waitForStateChange(_ vm: AppViewModel) async throws {
+    for _ in 0..<100 {
+        if case .landing = vm.state {
+            try await Task.sleep(for: .milliseconds(50))
+        } else {
+            return
+        }
+    }
+}
+
 @Suite("AppViewModel")
 @MainActor
 struct AppViewModelTests {
@@ -50,7 +62,7 @@ struct AppViewModelTests {
 
         let vm = AppViewModel()
         vm.loadMultipleFiles([url1, url2])
-        try await Task.sleep(for: .milliseconds(1000))
+        try await waitForStateChange(vm)
 
         if case .multiFile(let items) = vm.state {
             #expect(items.count == 2)
@@ -73,7 +85,7 @@ struct AppViewModelTests {
 
         let vm = AppViewModel()
         vm.loadMultipleFiles([pdf, txt])
-        try await Task.sleep(for: .milliseconds(1000))
+        try await waitForStateChange(vm)
 
         if case .multiFile(let items) = vm.state {
             #expect(items.count == 1)
@@ -115,7 +127,7 @@ struct AppViewModelTests {
 
         let vm = AppViewModel()
         vm.handleDrop([url1, url2])
-        try await Task.sleep(for: .milliseconds(1000))
+        try await waitForStateChange(vm)
 
         if case .multiFile(let items) = vm.state {
             #expect(items.count == 2)
@@ -180,7 +192,7 @@ struct AppViewModelTests {
 
         let vm = AppViewModel()
         vm.loadMultipleFiles([url1, url2])
-        try await Task.sleep(for: .milliseconds(1000))
+        try await waitForStateChange(vm)
         vm.selectMerge()
 
         if case .merging(let items) = vm.state {
@@ -218,7 +230,7 @@ struct AppViewModelTests {
 
         let vm = AppViewModel()
         vm.loadMultipleFiles([url1, url2])
-        try await Task.sleep(for: .milliseconds(1000))
+        try await waitForStateChange(vm)
         vm.selectMerge()
         vm.goBack()
 
@@ -260,7 +272,7 @@ struct AppViewModelTests {
 
         vm.startOver()
         vm.loadMultipleFiles([url, url2])
-        try await Task.sleep(for: .milliseconds(1000))
+        try await waitForStateChange(vm)
         #expect(vm.windowTitle == "PDFwringer — 2 files")
     }
 

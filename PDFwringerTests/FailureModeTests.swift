@@ -242,9 +242,9 @@ struct FailureModeTests {
     }
 
     @Test("handleDrop with mix of valid and invalid drops valid only")
-    func handleDropMixedValidity() {
-        let valid = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
-        let corrupt = URL.temporaryDirectory.appending(component: UUID().uuidString + "_bad.pdf")
+    func handleDropMixedValidity() async throws {
+        let valid = TestPDFGenerator.makeRenderedPDF(pageCount: 2, filename: "valid_mix.pdf")
+        let corrupt = URL.temporaryDirectory.appending(component: UUID().uuidString + "_corrupt.pdf")
         try! Data("not a pdf".utf8).write(to: corrupt)
         defer {
             TestPDFGenerator.cleanup(valid)
@@ -253,6 +253,13 @@ struct FailureModeTests {
 
         let vm = AppViewModel()
         vm.handleDrop([valid, corrupt])
+
+        // Wait for async loadMultipleFiles to complete
+        for _ in 0..<100 {
+            if case .landing = vm.state {
+                try await Task.sleep(for: .milliseconds(50))
+            } else { break }
+        }
 
         // With 2 URLs, handleDrop calls loadMultipleFiles which uses PDFFileItem.from(urls:)
         // which filters out the corrupt one — should result in multiFile with 1 item,
