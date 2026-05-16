@@ -132,7 +132,10 @@ struct MetadataOptionsView: View {
                         .keyboardShortcut("s")
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
-                        .disabled(isSaving || (setPassword && (passwordText.isEmpty || passwordText != confirmPasswordText)))
+                        .disabled(isSaving
+                            || (setPassword && (passwordText.isEmpty || passwordText != confirmPasswordText))
+                            || (document.isEncrypted && !removeProtection && passwordText.isEmpty)
+                        )
                 }
 
                 if let progress = saveProgress {
@@ -199,10 +202,22 @@ struct MetadataOptionsView: View {
 
         let password: String? = if document.isEncrypted && !removeProtection && !passwordText.isEmpty {
             passwordText
+        } else if document.isEncrypted && !removeProtection && passwordText.isEmpty {
+            // Encrypted doc with protection toggle OFF but no password entered — block save
+            // to prevent silent deprotection
+            nil
         } else if setPassword && !passwordText.isEmpty {
             passwordText
         } else {
             nil
+        }
+
+        // Safety: refuse to silently strip encryption from a protected document
+        if document.isEncrypted && !removeProtection && password == nil {
+            resultMessage = String(localized: "Please enter a password to keep protection, or check 'Remove protection' to save without encryption.")
+            isError = true
+            isSaving = false
+            return
         }
 
         do {
