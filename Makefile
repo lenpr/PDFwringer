@@ -64,8 +64,9 @@ $(APP_BUNDLE): $(BUILD_DIR)/$(APP_NAME)
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:LSItemContentTypes:0 string com.adobe.pdf" $(APP_BUNDLE)/Contents/Info.plist
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:LSHandlerRank string Alternate" $(APP_BUNDLE)/Contents/Info.plist
 	@xattr -cr $(APP_BUNDLE) 2>/dev/null || true
-	@codesign --force --sign - $(APP_BUNDLE) 2>/dev/null || true
-	@echo "Built $(APP_BUNDLE)"
+	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(APP_BUNDLE) 2>/dev/null \
+		&& echo "Built $(APP_BUNDLE) (ad-hoc signed with sandbox entitlements)" \
+		|| (codesign --force --sign - $(APP_BUNDLE) 2>/dev/null; echo "Built $(APP_BUNDLE) (WARNING: sandbox entitlements not applied — use 'make sign' for sandboxed builds)")
 
 sign: app
 	@rm -rf /tmp/PDFwringer_build
