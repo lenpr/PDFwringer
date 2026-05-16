@@ -22,6 +22,8 @@ class ColorAdjustViewModel {
     private var previewTask: Task<Void, Never>?
     private var operationTask: Task<Void, Never>?
     private var previewGeneration = 0
+    /// Single-flight guard: prevents concurrent preview renders from exhausting resources.
+    private var isRendering = false
     private let adjuster = PDFColorAdjuster()
 
     var settings: PDFColorAdjuster.Settings {
@@ -53,8 +55,28 @@ class ColorAdjustViewModel {
         // Get CGPDFPage ref on MainActor (PDFKit thread safety)
         guard let pageRef = document.page(at: page)?.pageRef else { return }
 
+        // Single-flight: if a render is already in progress, just cancel it and
+        // let the generation check discard its result. Don't spawn concurrent renders.
+        guard !isRendering else { return }
+        isRendering = true
+
         // Render off MainActor to avoid blocking UI
         previewTask = Task.detached(priority: .userInitiated) { [weak self] in
+            defer {
+                Task { @MainActor [weak self] in
+                    self?.isRendering = false
+                    // If generation moved on while we were rendering, trigger one more update
+                    if let self, self.previewGeneration != gen {
+                        // Schedule a re-render for the latest state on next runloop cycle
+                        self.previewTask = Task { [weak self] in
+                            try? await Task.sleep(for: .milliseconds(50))
+                            guard let self else { return }
+                            self.updatePreview(document: document, page: page)
+                        }
+                    }
+                }
+            }
+
             try? await Task.sleep(for: .milliseconds(100))
             guard !Task.isCancelled else { return }
 
