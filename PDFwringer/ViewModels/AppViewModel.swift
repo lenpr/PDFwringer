@@ -197,14 +197,19 @@ class AppViewModel {
     }
 
     func loadMultipleFiles(_ urls: [URL]) {
-        let items = PDFFileItem.from(urls: urls)
-        guard !items.isEmpty else { return }
-        for item in items {
-            NSDocumentController.shared.noteNewRecentDocumentURL(item.url)
-            BookmarkManager.saveBookmark(for: item.url)
+        // Parse PDFs off the main actor to avoid UI freeze with many/large files
+        Task {
+            let items = await Task.detached(priority: .userInitiated) {
+                PDFFileItem.from(urls: urls)
+            }.value
+            guard !items.isEmpty else { return }
+            for item in items {
+                NSDocumentController.shared.noteNewRecentDocumentURL(item.url)
+                BookmarkManager.saveBookmark(for: item.url)
+            }
+            refreshRecentDocuments()
+            state = .multiFile(items)
         }
-        refreshRecentDocuments()
-        state = .multiFile(items)
     }
 
     func selectCompress() {

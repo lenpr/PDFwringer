@@ -40,7 +40,7 @@ struct AppViewModelTests {
     }
 
     @Test("loadMultipleFiles transitions to multiFile state")
-    func loadMultipleFiles() {
+    func loadMultipleFiles() async throws {
         let url1 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "a.pdf")
         let url2 = TestPDFGenerator.makeRenderedPDF(pageCount: 3, filename: "b.pdf")
         defer {
@@ -50,6 +50,7 @@ struct AppViewModelTests {
 
         let vm = AppViewModel()
         vm.loadMultipleFiles([url1, url2])
+        try await Task.sleep(for: .milliseconds(1000))
 
         if case .multiFile(let items) = vm.state {
             #expect(items.count == 2)
@@ -61,7 +62,7 @@ struct AppViewModelTests {
     }
 
     @Test("loadMultipleFiles filters non-PDF URLs")
-    func loadMultipleFilesFiltersNonPDF() {
+    func loadMultipleFilesFiltersNonPDF() async throws {
         let pdf = TestPDFGenerator.makeRenderedPDF(pageCount: 2, filename: "valid.pdf")
         let txt = URL.temporaryDirectory.appending(component: "readme.txt")
         try! "hello".write(to: txt, atomically: true, encoding: .utf8)
@@ -72,6 +73,7 @@ struct AppViewModelTests {
 
         let vm = AppViewModel()
         vm.loadMultipleFiles([pdf, txt])
+        try await Task.sleep(for: .milliseconds(1000))
 
         if case .multiFile(let items) = vm.state {
             #expect(items.count == 1)
@@ -103,7 +105,7 @@ struct AppViewModelTests {
     }
 
     @Test("handleDrop with multiple PDFs goes to multiFile")
-    func handleDropMultiple() {
+    func handleDropMultiple() async throws {
         let url1 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "x.pdf")
         let url2 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "y.pdf")
         defer {
@@ -113,6 +115,7 @@ struct AppViewModelTests {
 
         let vm = AppViewModel()
         vm.handleDrop([url1, url2])
+        try await Task.sleep(for: .milliseconds(1000))
 
         if case .multiFile(let items) = vm.state {
             #expect(items.count == 2)
@@ -167,7 +170,7 @@ struct AppViewModelTests {
     }
 
     @Test("selectMerge from multiFile goes to merging")
-    func selectMerge() {
+    func selectMerge() async throws {
         let url1 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "m1.pdf")
         let url2 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "m2.pdf")
         defer {
@@ -177,6 +180,7 @@ struct AppViewModelTests {
 
         let vm = AppViewModel()
         vm.loadMultipleFiles([url1, url2])
+        try await Task.sleep(for: .milliseconds(1000))
         vm.selectMerge()
 
         if case .merging(let items) = vm.state {
@@ -204,7 +208,7 @@ struct AppViewModelTests {
     }
 
     @Test("goBack from merging returns to multiFile")
-    func goBackFromMerge() {
+    func goBackFromMerge() async throws {
         let url1 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "g1.pdf")
         let url2 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "g2.pdf")
         defer {
@@ -214,6 +218,7 @@ struct AppViewModelTests {
 
         let vm = AppViewModel()
         vm.loadMultipleFiles([url1, url2])
+        try await Task.sleep(for: .milliseconds(1000))
         vm.selectMerge()
         vm.goBack()
 
@@ -239,7 +244,7 @@ struct AppViewModelTests {
     // MARK: - Window title
 
     @Test("windowTitle reflects current state")
-    func windowTitle() {
+    func windowTitle() async throws {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "title.pdf")
         let url2 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "t2.pdf")
         defer {
@@ -255,6 +260,7 @@ struct AppViewModelTests {
 
         vm.startOver()
         vm.loadMultipleFiles([url, url2])
+        try await Task.sleep(for: .milliseconds(1000))
         #expect(vm.windowTitle == "PDFwringer — 2 files")
     }
 
