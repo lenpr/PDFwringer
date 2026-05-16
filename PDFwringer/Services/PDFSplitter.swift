@@ -123,19 +123,24 @@ struct PDFSplitter {
             }
 
             let filename = String(format: "%@_%03d.pdf", baseName, chunkIndex + 1)
-            let outputURL = outputDir.appending(component: filename)
+            var outputURL = outputDir.appending(component: filename)
             let tempURL = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
+
+            // Avoid silently overwriting existing files — append a unique suffix on collision
+            var attempt = 0
+            while FileManager.default.fileExists(atPath: outputURL.path(percentEncoded: false)) {
+                attempt += 1
+                let uniqueName = String(format: "%@_%03d_%d.pdf", baseName, chunkIndex + 1, attempt)
+                outputURL = outputDir.appending(component: uniqueName)
+                if attempt > 100 { break } // Safety: don't loop forever
+            }
 
             guard chunkDoc.write(to: tempURL) else {
                 throw PDFwringerError.cannotWriteOutput
             }
 
             do {
-                if FileManager.default.fileExists(atPath: outputURL.path(percentEncoded: false)) {
-                    _ = try FileManager.default.replaceItemAt(outputURL, withItemAt: tempURL)
-                } else {
-                    try FileManager.default.moveItem(at: tempURL, to: outputURL)
-                }
+                try FileManager.default.moveItem(at: tempURL, to: outputURL)
             } catch {
                 try? FileManager.default.removeItem(at: tempURL)
                 throw error
