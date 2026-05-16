@@ -16,20 +16,37 @@ struct PDFMetadataEditor {
         static let empty = Metadata(title: "", author: "", subject: "", keywords: "", creator: "")
     }
 
-    /// Reads metadata from a PDF file.
+    /// Maximum length for metadata fields to prevent DoS from crafted PDFs with huge metadata.
+    private static let maxFieldLength = 10_000
+    /// Maximum number of keywords to join before truncating.
+    private static let maxKeywords = 500
+
+    /// Reads metadata from a PDF file. Truncates fields to prevent DoS.
     func read(from url: URL) -> Metadata {
         guard let doc = PDFDocument(url: url),
               let attrs = doc.documentAttributes else {
             return .empty
         }
 
+        let keywords: String
+        if let kwArray = attrs[PDFDocumentAttribute.keywordsAttribute] as? [String] {
+            keywords = kwArray.prefix(Self.maxKeywords).joined(separator: ", ")
+        } else {
+            keywords = ""
+        }
+
         return Metadata(
-            title: attrs[PDFDocumentAttribute.titleAttribute] as? String ?? "",
-            author: attrs[PDFDocumentAttribute.authorAttribute] as? String ?? "",
-            subject: attrs[PDFDocumentAttribute.subjectAttribute] as? String ?? "",
-            keywords: (attrs[PDFDocumentAttribute.keywordsAttribute] as? [String])?.joined(separator: ", ") ?? "",
-            creator: attrs[PDFDocumentAttribute.creatorAttribute] as? String ?? ""
+            title: Self.truncate(attrs[PDFDocumentAttribute.titleAttribute] as? String ?? ""),
+            author: Self.truncate(attrs[PDFDocumentAttribute.authorAttribute] as? String ?? ""),
+            subject: Self.truncate(attrs[PDFDocumentAttribute.subjectAttribute] as? String ?? ""),
+            keywords: Self.truncate(keywords),
+            creator: Self.truncate(attrs[PDFDocumentAttribute.creatorAttribute] as? String ?? "")
         )
+    }
+
+    private static func truncate(_ string: String) -> String {
+        if string.count <= maxFieldLength { return string }
+        return String(string.prefix(maxFieldLength))
     }
 
     /// Writes metadata to a PDF file, saving to destination.
