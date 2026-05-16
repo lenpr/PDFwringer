@@ -172,13 +172,14 @@ final class ThumbnailCache {
         }
         let thumbSize = size
 
-        Task.detached(priority: .userInitiated) {
+        // Render on MainActor to avoid PDFKit thread-safety issues.
+        // PDFPage/PDFDocument are not safe to use from detached tasks.
+        Task {
+            await Task.yield() // Let SwiftUI finish layout before rendering
             let img = page.thumbnail(of: thumbSize, for: .cropBox)
-            await MainActor.run {
-                self.cache.setObject(img, forKey: key)
-                self.pending.remove(index)
-                self.generation += 1
-            }
+            self.cache.setObject(img, forKey: key)
+            self.pending.remove(index)
+            self.generation += 1
         }
 
         return nil
