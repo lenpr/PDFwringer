@@ -270,9 +270,13 @@ struct CropOptionsView: View {
         resultMessage = nil
         isError = false
 
-        let result = DocumentSaver.save(document: document, to: destination)
+        let result = await DocumentSaver.save(document: document, to: destination)
         resultMessage = result.message
         isError = result.isError
         lastOutputURL = result.outputURL
+
+        if !result.isError && document.isEncrypted {
+            resultMessage = String(localized: "Saved. Note: password protection was not preserved. Use Edit Metadata to re-encrypt.")
+        }
     }
 }

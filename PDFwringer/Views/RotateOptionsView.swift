@@ -124,15 +124,25 @@ struct RotateOptionsView: View {
     }
 
     private func saveRotated() async {
+        // Warn if saving an encrypted document — rotation save cannot preserve password protection
+        if document.isEncrypted {
+            resultMessage = String(localized: "Note: The saved file will not retain password protection. Use Edit Metadata to re-apply a password after saving.")
+            isError = false
+        }
+
         let suggestedName = url.deletingPathExtension().lastPathComponent + "_rotated.pdf"
         guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
 
         resultMessage = nil
         isError = false
 
-        let result = DocumentSaver.save(document: document, to: destination)
+        let result = await DocumentSaver.save(document: document, to: destination)
         resultMessage = result.message
         isError = result.isError
         lastOutputURL = result.outputURL
+
+        if !result.isError && document.isEncrypted {
+            resultMessage = String(localized: "Saved. Note: password protection was not preserved. Use Edit Metadata to re-encrypt.")
+        }
     }
 }
