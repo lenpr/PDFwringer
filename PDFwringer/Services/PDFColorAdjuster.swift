@@ -128,6 +128,15 @@ struct PDFColorAdjuster {
 
             outputCtx.closePDF()
 
+            if skippedPages == pageCount {
+                try? FileManager.default.removeItem(at: tempURL)
+                throw PDFwringerError.cannotWriteOutput
+            }
+
+            if skippedPages > 0 {
+                Log.colorAdjust.warning("Color adjust skipped \(skippedPages) of \(pageCount) pages")
+            }
+
             try AtomicFileWriter.write(to: destination) { tempDest in
                 try FileManager.default.moveItem(at: tempURL, to: tempDest)
                 return true
