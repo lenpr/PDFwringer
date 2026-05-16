@@ -130,11 +130,24 @@ make run       # build + launch immediately
 
 ### Install
 
+The recommended way to install is via Homebrew (signed + notarized + sandboxed):
+
 ```bash
-make app
-cp -R .build/PDFwringer.app ~/Applications/
-# That's it. No brew, no npm, no pip.
+brew tap lenpr/tap
+brew install --cask pdfwringer
 ```
+
+For developers building from source:
+
+```bash
+make sign      # builds + codesigns with Developer ID + sandbox entitlements
+cp -R .build/PDFwringer.app ~/Applications/
+```
+
+> **Note:** `make app` produces a development build without sandbox entitlements.
+> Do not distribute or install `make app` output for regular use — it processes
+> untrusted PDFs without macOS App Sandbox containment. Use `make sign` or
+> `make dmg` for builds intended for installation.
 
 ### Test
 
