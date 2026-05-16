@@ -210,6 +210,10 @@ struct PDFMetadataEditor {
             throw PDFwringerError.cannotWriteOutput
         }
 
+        // Ensure the plaintext intermediate is always removed, even if the final write fails.
+        // This prevents leaving an unencrypted copy when the user requested password protection.
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
         flatDoc.documentAttributes = buildAttributes(from: metadata)
 
         var writeOptions: [PDFDocumentWriteOption: Any] = [:]
@@ -225,7 +229,5 @@ struct PDFMetadataEditor {
                 flatDoc.write(to: finalTemp, withOptions: writeOptions)
             }
         }
-
-        try? FileManager.default.removeItem(at: tempURL)
     }
 }
