@@ -98,15 +98,16 @@ class CompressViewModel {
 
         let pageCount = sourcePageCount
 
-        // Try to get page dimensions from the document; fall back to A4
+        // Sample at most 10 pages to estimate average dimensions (avoids UI freeze on large PDFs)
         var avgPixelsAt72: Double = 595.0 * 842.0
         if let doc = pdfDocument {
             var totalPixels: Double = 0
             var validPages = 0
-            for i in 0..<pageCount {
+            let samplesToTake = min(pageCount, 10)
+            for i in 0..<samplesToTake {
                 if let page = doc.page(at: i) {
                     let bounds = page.bounds(for: .cropBox)
-                    if bounds.width > 0 && bounds.height > 0 {
+                    if bounds.width > 0 && bounds.height > 0 && bounds.width < 100_000 && bounds.height < 100_000 {
                         totalPixels += Double(bounds.width) * Double(bounds.height)
                         validPages += 1
                     }
@@ -151,7 +152,11 @@ class CompressViewModel {
                         case .moderate: jpegRatio = 0.04
                         case .low: jpegRatio = 0.025
                         }
-                        estimate = Int64(pixelsPerPage * Double(pageCount) * channels * jpegRatio) + 1000
+                        let rawEstimate = pixelsPerPage * Double(pageCount) * channels * jpegRatio + 1000
+                        // Guard against Inf/NaN from extreme page dimensions
+                        estimate = rawEstimate.isFinite && rawEstimate > 0 && rawEstimate < Double(Int64.max)
+                            ? Int64(rawEstimate)
+                            : Int64(Double(sourceFileSize) * 0.5)
                     }
 
                     heuristicSizes[key] = estimate
