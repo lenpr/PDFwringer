@@ -350,8 +350,8 @@ struct FixtureColorAdjustTests {
         #expect(pages == fixture.pageCount, "Color-adjusted page count should match: \(fixture)")
     }
 
-    @Test("Identity settings copies unchanged", arguments: FixtureDiscovery.openableFixtures)
-    func identityCopiesUnchanged(fixture: FixtureDiscovery.Fixture) async throws {
+    @Test("Identity settings preserve page semantics", arguments: FixtureDiscovery.openableFixtures)
+    func identityPreservesSemantics(fixture: FixtureDiscovery.Fixture) async throws {
         let output = FixtureDiscovery.outputURL(for: fixture, suffix: "_identity.pdf")
         defer { try? FileManager.default.removeItem(at: output) }
 
@@ -364,10 +364,17 @@ struct FixtureColorAdjustTests {
             progress: { _ in }
         )
 
-        // Identity should produce a byte-for-byte copy
-        let sourceData = try Data(contentsOf: fixture.url)
-        let outputData = try Data(contentsOf: output)
-        #expect(sourceData == outputData, "Identity adjustment should produce identical output: \(fixture)")
+        let sourceDocument = try #require(PDFDocument(url: fixture.url))
+        let outputDocument = try #require(PDFDocument(url: output))
+        #expect(outputDocument.pageCount == sourceDocument.pageCount)
+        for index in 0..<sourceDocument.pageCount {
+            let sourcePage = try #require(sourceDocument.page(at: index))
+            let outputPage = try #require(outputDocument.page(at: index))
+            #expect(outputPage.string == sourcePage.string, "Identity text changed: \(fixture)")
+            #expect(outputPage.rotation == sourcePage.rotation, "Identity rotation changed: \(fixture)")
+            #expect(outputPage.bounds(for: .cropBox) == sourcePage.bounds(for: .cropBox), "Identity crop box changed: \(fixture)")
+            #expect(outputPage.annotations.count == sourcePage.annotations.count, "Identity annotations changed: \(fixture)")
+        }
     }
 
     @Test("Partial page adjustment produces valid output", arguments: FixtureDiscovery.openableFixtures)

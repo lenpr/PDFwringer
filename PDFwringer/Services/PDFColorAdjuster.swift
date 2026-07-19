@@ -1,9 +1,8 @@
+import AppKit
 import CoreGraphics
 import CoreImage
 import Foundation
-import ImageIO
 import PDFKit
-import UniformTypeIdentifiers
 
 @MainActor
 struct PDFColorAdjuster {
@@ -93,9 +92,9 @@ struct PDFColorAdjuster {
                 let range = pages.map { String($0 + 1) }.joined(separator: ", ")
                 throw PDFwringerError.invalidPageRange(range)
             }
-            targetPages = Set(pages.map { $0 + 1 })
+            targetPages = Set(pages)
         } else {
-            targetPages = Set(1...pageCount)
+            targetPages = Set(0..<pageCount)
         }
 
         try Task.checkCancellation()
@@ -114,77 +113,61 @@ struct PDFColorAdjuster {
             return
         }
 
-        let tempURL = AtomicFileWriter.tempDirectory.appending(component: UUID().uuidString + ".pdf")
-
-        var emptyBox = CGRect.zero
-        guard let outputCtx = CGContext(tempURL as CFURL, mediaBox: &emptyBox, nil) else {
-            throw PDFwringerError.cannotCreateOutput
-        }
-
-        var didCloseOutput = false
-        defer {
-            if !didCloseOutput { outputCtx.closePDF() }
-            try? FileManager.default.removeItem(at: tempURL)
-        }
+        let outputDocument = PDFDocument()
+        outputDocument.documentAttributes = document.documentAttributes
 
         for i in 0..<pageCount {
             try Task.checkCancellation()
 
-            try autoreleasepool {
-                guard let page = document.page(at: i),
-                      let (rendered, displaySize) = PDFCompressor.renderPage(page, dpi: dpi, grayscale: false)
-                else {
+            let outputPage = try autoreleasepool { () throws -> PDFPage in
+                guard let page = document.page(at: i) else {
                     throw PDFwringerError.cannotWriteOutput
                 }
 
-                let finalImage: CGImage
-                if targetPages.contains(i + 1) {
-                    guard let adjusted = Self.adjustImage(rendered, settings: settings) else {
+                guard targetPages.contains(i) else {
+                    guard let copiedPage = page.copy() as? PDFPage else {
                         throw PDFwringerError.cannotWriteOutput
                     }
-                    finalImage = adjusted
-                } else {
-                    finalImage = rendered
+                    return copiedPage
                 }
 
-                guard let jpegData = PDFCompressor.jpegEncode(image: finalImage, quality: quality) else {
-                    throw PDFwringerError.cannotWriteOutput
-                }
-
-                guard let provider = CGDataProvider(data: jpegData as CFData),
-                      let jpegImage = CGImage(
-                          jpegDataProviderSource: provider,
-                          decode: nil,
-                          shouldInterpolate: true,
-                          intent: .defaultIntent
-                      )
+                guard let (rendered, displaySize) = PDFCompressor.renderPage(
+                    page,
+                    dpi: dpi,
+                    grayscale: false
+                ), let adjusted = Self.adjustImage(rendered, settings: settings),
+                   let jpegData = PDFCompressor.jpegEncode(image: adjusted, quality: quality),
+                   let image = NSImage(data: jpegData)
                 else {
                     throw PDFwringerError.cannotWriteOutput
                 }
 
-                var outBox = CGRect(origin: .zero, size: displaySize)
-                outputCtx.beginPage(mediaBox: &outBox)
-                outputCtx.draw(jpegImage, in: outBox)
-                outputCtx.endPage()
+                image.size = displaySize
+                guard let rasterizedPage = PDFPage(image: image) else {
+                    throw PDFwringerError.cannotWriteOutput
+                }
+
+                let outputBounds = CGRect(origin: .zero, size: displaySize)
+                rasterizedPage.setBounds(outputBounds, for: .mediaBox)
+                rasterizedPage.setBounds(outputBounds, for: .cropBox)
+                return rasterizedPage
             }
+            outputDocument.insert(outputPage, at: outputDocument.pageCount)
 
             progress(Double(i + 1) / Double(pageCount))
             await Task.yield()
         }
 
         try Task.checkCancellation()
-        outputCtx.closePDF()
-        didCloseOutput = true
-
-        guard let outputDocument = PDFDocument(url: tempURL),
-              outputDocument.pageCount == pageCount else {
-            throw PDFwringerError.cannotWriteOutput
-        }
 
         try AtomicFileWriter.write(to: destination) { tempDest in
-            try FileManager.default.copyItem(at: tempURL, to: tempDest)
-            guard let verificationDocument = PDFDocument(url: tempDest) else { return false }
-            return verificationDocument.pageCount == pageCount
+            guard outputDocument.write(to: tempDest),
+                  let verificationDocument = PDFDocument(url: tempDest),
+                  !verificationDocument.isLocked,
+                  verificationDocument.pageCount == pageCount else {
+                return false
+            }
+            return (0..<pageCount).allSatisfy { verificationDocument.page(at: $0) != nil }
         }
         let elapsed = ContinuousClock.now - start
         Log.colorAdjust.info("Color adjust complete: \(pageCount) pages, duration=\(elapsed)")

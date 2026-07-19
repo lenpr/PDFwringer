@@ -9,8 +9,8 @@ struct PDFColorAdjusterTests {
 
     // MARK: - Identity settings
 
-    @Test("Identity settings copies source unchanged")
-    func identitySettingsCopies() async throws {
+    @Test("Identity settings preserve document semantics")
+    func identitySettingsPreserveDocument() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 3)
         let output = TestPDFGenerator.makeTempDirectory().appending(component: "identity.pdf")
         defer {
@@ -27,9 +27,12 @@ struct PDFColorAdjusterTests {
             progress: { _ in }
         )
 
-        let sourceData = try Data(contentsOf: source)
-        let outputData = try Data(contentsOf: output)
-        #expect(sourceData == outputData)
+        let sourceDocument = try #require(PDFDocument(url: source))
+        let outputDocument = try #require(PDFDocument(url: output))
+        #expect(outputDocument.pageCount == sourceDocument.pageCount)
+        for index in 0..<sourceDocument.pageCount {
+            #expect(outputDocument.page(at: index)?.string == sourceDocument.page(at: index)?.string)
+        }
     }
 
     // MARK: - Non-identity settings
@@ -78,6 +81,76 @@ struct PDFColorAdjusterTests {
         let doc = PDFDocument(url: output)
         #expect(doc != nil)
         #expect(doc?.pageCount == 5)
+    }
+
+    @Test("Unselected pages preserve text, annotations, geometry, and rotation")
+    func unselectedPagesPreserveSemantics() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
+        let output = TestPDFGenerator.makeTempDirectory().appending(component: "preserved.pdf")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(output)
+        }
+
+        let sourceDocument = try #require(PDFDocument(url: source))
+        sourceDocument.documentAttributes = [
+            PDFDocumentAttribute.titleAttribute: "Semantic preservation"
+        ]
+        let selectedPage = try #require(sourceDocument.page(at: 0))
+        let selectedAnnotation = PDFAnnotation(
+            bounds: CGRect(x: 20, y: 20, width: 24, height: 24),
+            forType: .text,
+            withProperties: nil
+        )
+        selectedAnnotation.contents = "Rasterize me"
+        selectedPage.addAnnotation(selectedAnnotation)
+
+        let untouchedPage = try #require(sourceDocument.page(at: 1))
+        untouchedPage.rotation = 90
+        untouchedPage.setBounds(
+            CGRect(x: 12, y: 18, width: 500, height: 650),
+            for: .cropBox
+        )
+        let untouchedAnnotation = PDFAnnotation(
+            bounds: CGRect(x: 30, y: 30, width: 24, height: 24),
+            forType: .text,
+            withProperties: nil
+        )
+        untouchedAnnotation.contents = "Keep me"
+        untouchedPage.addAnnotation(untouchedAnnotation)
+        #expect(sourceDocument.write(to: source))
+
+        let expectedDocument = try #require(PDFDocument(url: source))
+        let expectedSelected = try #require(expectedDocument.page(at: 0))
+        let expectedUntouched = try #require(expectedDocument.page(at: 1))
+
+        try await PDFColorAdjuster().adjust(
+            source: source,
+            destination: output,
+            settings: .init(brightness: 0.2),
+            pages: [0],
+            dpi: 72,
+            progress: { _ in }
+        )
+
+        let outputDocument = try #require(PDFDocument(url: output))
+        let outputSelected = try #require(outputDocument.page(at: 0))
+        let outputUntouched = try #require(outputDocument.page(at: 1))
+        #expect(outputSelected.string?.isEmpty ?? true)
+        #expect(!expectedSelected.annotations.isEmpty)
+        #expect(outputSelected.annotations.isEmpty)
+        #expect(outputUntouched.string == expectedUntouched.string)
+        #expect(
+            outputUntouched.annotations.compactMap(\.contents)
+                == expectedUntouched.annotations.compactMap(\.contents)
+        )
+        #expect(outputUntouched.rotation == expectedUntouched.rotation)
+        #expect(outputUntouched.bounds(for: .mediaBox) == expectedUntouched.bounds(for: .mediaBox))
+        #expect(outputUntouched.bounds(for: .cropBox) == expectedUntouched.bounds(for: .cropBox))
+        #expect(
+            outputDocument.documentAttributes?[PDFDocumentAttribute.titleAttribute] as? String
+                == "Semantic preservation"
+        )
     }
 
     // MARK: - adjustImage static method

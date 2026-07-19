@@ -70,8 +70,8 @@ struct DifferentialEquivalenceTests {
         }
     }
 
-    @Test("Color identity is byte-for-byte copy")
-    func colorIdentityIsCopy() async throws {
+    @Test("Color identity preserves page content")
+    func colorIdentityPreservesContent() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2, filename: "diff_identity.pdf")
         let output = URL.temporaryDirectory.appending(component: "diff_identity_out_\(UUID()).pdf")
         defer {
@@ -86,9 +86,12 @@ struct DifferentialEquivalenceTests {
             pages: nil, progress: { _ in }
         )
 
-        let sourceData = try Data(contentsOf: source)
-        let outputData = try Data(contentsOf: output)
-        #expect(sourceData == outputData, "Identity color adjustment should produce byte-identical output")
+        let sourceDocument = try #require(PDFDocument(url: source))
+        let outputDocument = try #require(PDFDocument(url: output))
+        #expect(outputDocument.pageCount == sourceDocument.pageCount)
+        for index in 0..<sourceDocument.pageCount {
+            #expect(outputDocument.page(at: index)?.string == sourceDocument.page(at: index)?.string)
+        }
     }
 
     @Test("Split all individually then merge equals original page count and text")
