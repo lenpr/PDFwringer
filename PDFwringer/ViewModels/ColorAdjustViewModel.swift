@@ -7,9 +7,6 @@ class ColorAdjustViewModel {
     var brightness: Float = 0
     var contrast: Float = 1
     var saturation: Float = 1
-    var applyAll = true
-    var pageRangeText = ""
-    var selectedPages: Set<Int> = []
 
     var previewImage: NSImage?
     var resultMessage: String?
@@ -100,7 +97,12 @@ class ColorAdjustViewModel {
 
     // MARK: - Save
 
-    func save(source: URL, document: PDFDocument, pageCount: Int, onMutate: (() -> Void)?) async {
+    func save(
+        source: URL,
+        document: PDFDocument,
+        pageIndices: [Int]?,
+        onMutate: (() -> Void)?
+    ) async {
         let suggestedName = source.deletingPathExtension().lastPathComponent + "_adjusted.pdf"
         guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
 
@@ -110,18 +112,6 @@ class ColorAdjustViewModel {
         progress = 0
         onMutate?()
 
-        let pages: [Int]?
-        if applyAll {
-            pages = nil
-        } else if let parsed = try? PageRangeParser.parse(pageRangeText, pageCount: pageCount), !parsed.isEmpty {
-            pages = parsed
-        } else if !selectedPages.isEmpty {
-            pages = Array(selectedPages.sorted())
-        } else {
-            isSaving = false
-            return
-        }
-
         operationTask = Task {
             defer { operationTask = nil }
             do {
@@ -130,7 +120,7 @@ class ColorAdjustViewModel {
                     source: source,
                     destination: destination,
                     settings: settings,
-                    pages: pages,
+                    pages: pageIndices,
                     dpi: 150,
                     quality: 0.85,
                     progress: { [weak self] p in self?.progress = p }

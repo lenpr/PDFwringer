@@ -149,3 +149,59 @@ struct PageRangeParserTests {
         #expect(result.isEmpty)
     }
 }
+
+@Suite("PageSelection")
+struct PageSelectionTests {
+
+    @Test("All-pages mode resolves the complete document")
+    func resolvesAllPages() {
+        let selection = PageSelection()
+
+        #expect(selection.resolvedIndices(pageCount: 4) == [0, 1, 2, 3])
+    }
+
+    @Test("Typed ranges normalize to unique sorted pages")
+    func normalizesTypedRange() {
+        var selection = PageSelection(appliesToAll: false)
+
+        selection.update(from: "5, 3-4, 3", pageCount: 5)
+
+        #expect(selection.selectedPages == [2, 3, 4])
+        #expect(selection.resolvedIndices(pageCount: 5) == [2, 3, 4])
+    }
+
+    @Test("Invalid text clears the previous authoritative selection")
+    func invalidTextClearsSelection() {
+        var selection = PageSelection(appliesToAll: false)
+        selection.update(from: "1-3", pageCount: 5)
+
+        selection.update(from: "not pages", pageCount: 5)
+
+        #expect(selection.selectedPages.isEmpty)
+        #expect(selection.resolvedIndices(pageCount: 5) == nil)
+    }
+
+    @Test("Explicit empty and out-of-range selections are invalid")
+    func rejectsInvalidExplicitSelection() {
+        var selection = PageSelection(appliesToAll: false)
+        #expect(selection.resolvedIndices(pageCount: 3) == nil)
+
+        selection.selectedPages = [0, 3]
+        #expect(selection.resolvedIndices(pageCount: 3) == nil)
+    }
+
+    @Test("Toggling all pages retains the explicit selection")
+    func toggleRetainsSelection() {
+        var selection = PageSelection(appliesToAll: false, selectedPages: [1, 2])
+        selection.appliesToAll = true
+        #expect(selection.resolvedIndices(pageCount: 4) == [0, 1, 2, 3])
+
+        selection.appliesToAll = false
+        #expect(selection.resolvedIndices(pageCount: 4) == [1, 2])
+    }
+
+    @Test("Thumbnail selection formatting is one-based and sorted")
+    func formatsSelection() {
+        #expect(PageSelection.formatted([4, 0, 2]) == "1, 3, 5")
+    }
+}

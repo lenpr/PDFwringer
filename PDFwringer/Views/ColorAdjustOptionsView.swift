@@ -11,6 +11,7 @@ struct ColorAdjustOptionsView: View {
     @Binding var currentPage: Int
 
     @State private var vm = ColorAdjustViewModel()
+    @State private var pageSelection = PageSelection()
     @State private var shakeOffset: CGFloat = 0
     @State private var isDropTargeted = false
 
@@ -23,12 +24,9 @@ struct ColorAdjustOptionsView: View {
                 PageThumbnailStripView(
                     document: document,
                     currentPage: $currentPage,
-                    selectedPages: vm.applyAll ? nil : $vm.selectedPages
+                    selectedPages: pageSelection.appliesToAll ? nil : $pageSelection.selectedPages
                 )
                 .padding(.horizontal, 20)
-                .onChange(of: vm.selectedPages) {
-                    vm.pageRangeText = vm.selectedPages.sorted().map { "\($0 + 1)" }.joined(separator: ", ")
-                }
             }
             .frame(minWidth: 260, idealWidth: 320)
             .overlay {
@@ -55,9 +53,7 @@ struct ColorAdjustOptionsView: View {
 
                 PageSelectionView(
                     pageCount: document.pageCount,
-                    applyAll: $vm.applyAll,
-                    pageRangeText: $vm.pageRangeText,
-                    selectedPages: $vm.selectedPages,
+                    selection: $pageSelection,
                     shakeOffset: $shakeOffset,
                     label: String(localized: "Adjust all pages")
                 )
@@ -73,7 +69,7 @@ struct ColorAdjustOptionsView: View {
                 HStack {
                     Spacer()
                     Button(String(localized: "Save")) {
-                        Task { await vm.save(source: url, document: document, pageCount: document.pageCount, onMutate: onMutate) }
+                        saveAdjustedPDF()
                     }
                     .keyboardShortcut("s")
                     .buttonStyle(.borderedProminent)
@@ -97,7 +93,7 @@ struct ColorAdjustOptionsView: View {
                         message: msg,
                         isError: vm.isError,
                         outputURL: vm.lastOutputURL,
-                        onRetry: vm.isError ? { Task { await vm.save(source: url, document: document, pageCount: document.pageCount, onMutate: onMutate) } } : nil
+                        onRetry: vm.isError ? saveAdjustedPDF : nil
                     )
                 }
             }
@@ -111,6 +107,22 @@ struct ColorAdjustOptionsView: View {
         .onChange(of: vm.saturation) { vm.updatePreview(document: document, page: currentPage) }
         .onAppear { vm.updatePreview(document: document, page: currentPage) }
         .onDisappear { vm.cancelPreview() }
+    }
+
+    private func saveAdjustedPDF() {
+        guard let resolvedPages = pageSelection.resolvedIndices(pageCount: document.pageCount) else {
+            Formatting.triggerShake($shakeOffset)
+            return
+        }
+        let pageIndices = pageSelection.appliesToAll ? nil : resolvedPages
+        Task {
+            await vm.save(
+                source: url,
+                document: document,
+                pageIndices: pageIndices,
+                onMutate: onMutate
+            )
+        }
     }
 
     // MARK: - Preview

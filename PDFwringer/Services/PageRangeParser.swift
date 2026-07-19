@@ -70,3 +70,28 @@ struct PageRangeParser {
         return result
     }
 }
+
+/// Authoritative page-selection state shared by every operation UI.
+/// The text field is only an editor for `selectedPages`; operations resolve this state directly.
+struct PageSelection: Equatable {
+    var appliesToAll = true
+    var selectedPages: Set<Int> = []
+
+    mutating func update(from rangeText: String, pageCount: Int) {
+        selectedPages = Set((try? PageRangeParser.parse(rangeText, pageCount: pageCount)) ?? [])
+    }
+
+    func resolvedIndices(pageCount: Int) -> [Int]? {
+        guard pageCount > 0 else { return nil }
+        if appliesToAll { return Array(0..<pageCount) }
+        guard !selectedPages.isEmpty,
+              selectedPages.allSatisfy({ (0..<pageCount).contains($0) }) else {
+            return nil
+        }
+        return selectedPages.sorted()
+    }
+
+    static func formatted(_ pages: Set<Int>) -> String {
+        pages.sorted().map { String($0 + 1) }.joined(separator: ", ")
+    }
+}

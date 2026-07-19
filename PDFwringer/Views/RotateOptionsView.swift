@@ -9,9 +9,7 @@ struct RotateOptionsView: View {
     var onMutate: (() -> Void)?
     @Binding var currentPage: Int
 
-    @State private var pageRangeText: String = ""
-    @State private var rotateAll = true
-    @State private var selectedPages: Set<Int> = []
+    @State private var pageSelection = PageSelection()
     @State private var resultMessage: String?
     @State private var isError = false
     @State private var isDropTargeted = false
@@ -27,13 +25,10 @@ struct RotateOptionsView: View {
                 PageThumbnailStripView(
                     document: document,
                     currentPage: $currentPage,
-                    selectedPages: rotateAll ? nil : $selectedPages
+                    selectedPages: pageSelection.appliesToAll ? nil : $pageSelection.selectedPages
                 )
                 .id(documentGeneration)
                 .padding(.horizontal, 20)
-                .onChange(of: selectedPages) {
-                    pageRangeText = selectedPages.sorted().map { "\($0 + 1)" }.joined(separator: ", ")
-                }
             }
             .frame(minWidth: 260, idealWidth: 320)
             .overlay {
@@ -61,9 +56,7 @@ struct RotateOptionsView: View {
 
                 PageSelectionView(
                     pageCount: document.pageCount,
-                    applyAll: $rotateAll,
-                    pageRangeText: $pageRangeText,
-                    selectedPages: $selectedPages,
+                    selection: $pageSelection,
                     shakeOffset: $shakeOffset,
                     label: String(localized: "Rotate all pages")
                 )
@@ -101,19 +94,12 @@ struct RotateOptionsView: View {
     }
 
     private func rotateInPlace(angle: PDFRotator.Angle) {
-        let indices: [Int]
-        if rotateAll {
-            indices = Array(0..<document.pageCount)
-        } else if let parsed = try? PageRangeParser.parse(pageRangeText, pageCount: document.pageCount), !parsed.isEmpty {
-            indices = parsed
-        } else if !selectedPages.isEmpty {
-            indices = Array(selectedPages.sorted())
-        } else {
+        guard let indices = pageSelection.resolvedIndices(pageCount: document.pageCount) else {
             Formatting.triggerShake($shakeOffset)
             return
         }
 
-        for idx in indices where idx >= 0 && idx < document.pageCount {
+        for idx in indices {
             if let page = document.page(at: idx) {
                 page.rotation = (page.rotation + angle.rawValue) % 360
             }

@@ -17,9 +17,7 @@ struct CropOptionsView: View {
     @State private var selectedPaperSize: PaperSize = .a4
     @State private var landscape = false
 
-    @State private var applyAll = true
-    @State private var pageRangeText = ""
-    @State private var selectedPages: Set<Int> = []
+    @State private var pageSelection = PageSelection()
     @State private var shakeOffset: CGFloat = 0
 
     @State private var resultMessage: String?
@@ -49,13 +47,10 @@ struct CropOptionsView: View {
                 PageThumbnailStripView(
                     document: document,
                     currentPage: $currentPage,
-                    selectedPages: applyAll ? nil : $selectedPages
+                    selectedPages: pageSelection.appliesToAll ? nil : $pageSelection.selectedPages
                 )
                 .id(documentGeneration)
                 .padding(.horizontal, 20)
-                .onChange(of: selectedPages) {
-                    pageRangeText = selectedPages.sorted().map { "\($0 + 1)" }.joined(separator: ", ")
-                }
             }
             .frame(minWidth: 260, idealWidth: 320)
             .overlay {
@@ -83,9 +78,7 @@ struct CropOptionsView: View {
 
                 PageSelectionView(
                     pageCount: document.pageCount,
-                    applyAll: $applyAll,
-                    pageRangeText: $pageRangeText,
-                    selectedPages: $selectedPages,
+                    selection: $pageSelection,
                     shakeOffset: $shakeOffset
                 )
 
@@ -199,16 +192,7 @@ struct CropOptionsView: View {
     }
 
     private var targetIndices: [Int]? {
-        if applyAll {
-            return Array(0..<document.pageCount)
-        }
-        if let parsed = try? PageRangeParser.parse(pageRangeText, pageCount: document.pageCount), !parsed.isEmpty {
-            return parsed
-        }
-        if !selectedPages.isEmpty {
-            return Array(selectedPages.sorted())
-        }
-        return nil
+        pageSelection.resolvedIndices(pageCount: document.pageCount)
     }
 
     private func applyCrop() {

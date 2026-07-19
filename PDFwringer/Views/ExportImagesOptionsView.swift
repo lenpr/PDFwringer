@@ -11,9 +11,7 @@ struct ExportImagesOptionsView: View {
     @State private var format: PDFImageExporter.ImageFormat = .jpeg
     @State private var dpi: CGFloat = 150
     @State private var quality: CGFloat = 0.85
-    @State private var applyAll = true
-    @State private var pageRangeText = ""
-    @State private var selectedPages: Set<Int> = []
+    @State private var pageSelection = PageSelection()
     @State private var shakeOffset: CGFloat = 0
 
     @State private var isProcessing = false
@@ -31,7 +29,7 @@ struct ExportImagesOptionsView: View {
                 PageThumbnailStripView(
                     document: document,
                     currentPage: $currentPage,
-                    selectedPages: applyAll ? nil : $selectedPages
+                    selectedPages: pageSelection.appliesToAll ? nil : $pageSelection.selectedPages
                 )
                 .padding(.horizontal, 20)
             }
@@ -58,9 +56,7 @@ struct ExportImagesOptionsView: View {
 
                 PageSelectionView(
                     pageCount: document.pageCount,
-                    applyAll: $applyAll,
-                    pageRangeText: $pageRangeText,
-                    selectedPages: $selectedPages,
+                    selection: $pageSelection,
                     shakeOffset: $shakeOffset,
                     label: String(localized: "Export all pages")
                 )
@@ -144,17 +140,11 @@ struct ExportImagesOptionsView: View {
     private func exportImages() {
         guard let outputDir = FileDialogHelper.showDirectoryPanel() else { return }
 
-        let pages: [Int]?
-        if applyAll {
-            pages = nil
-        } else if let parsed = try? PageRangeParser.parse(pageRangeText, pageCount: document.pageCount), !parsed.isEmpty {
-            pages = parsed
-        } else if !selectedPages.isEmpty {
-            pages = Array(selectedPages.sorted())
-        } else {
+        guard let resolvedPages = pageSelection.resolvedIndices(pageCount: document.pageCount) else {
             Formatting.triggerShake($shakeOffset)
             return
         }
+        let pages = pageSelection.appliesToAll ? nil : resolvedPages
 
         isProcessing = true
         progress = 0
