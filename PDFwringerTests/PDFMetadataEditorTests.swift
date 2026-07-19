@@ -216,6 +216,46 @@ struct PDFMetadataEditorTests {
         #expect(readBack.title == "Flattened")
     }
 
+    @Test("Flatten writes encrypted output with metadata in one pass")
+    func flattenWithPassword() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
+        let output = TestPDFGenerator.makeTempDirectory().appending(component: "flattened-encrypted.pdf")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(output)
+        }
+
+        let password = "flatten-secret"
+        let metadata = PDFMetadataEditor.Metadata(
+            title: "Private title",
+            author: "Private author",
+            subject: "Private subject",
+            keywords: "private, flattened",
+            creator: "PDFwringer tests"
+        )
+        try await editor.write(
+            metadata: metadata,
+            source: source,
+            destination: output,
+            password: password,
+            flattenAnnotations: true
+        )
+
+        let encryptedDocument = try #require(PDFDocument(url: output))
+        #expect(encryptedDocument.isEncrypted)
+        #expect(encryptedDocument.isLocked)
+        #expect(!encryptedDocument.unlock(withPassword: "wrong-password"))
+        #expect(encryptedDocument.unlock(withPassword: password))
+        #expect(encryptedDocument.pageCount == 2)
+
+        let readBack = editor.read(from: encryptedDocument)
+        #expect(readBack.title == metadata.title)
+        #expect(readBack.author == metadata.author)
+        #expect(readBack.subject == metadata.subject)
+        #expect(readBack.keywords == metadata.keywords)
+        #expect(readBack.creator == metadata.creator)
+    }
+
     @Test("Flatten aborts when a source page disappears")
     func flattenMissingPageAborts() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2)

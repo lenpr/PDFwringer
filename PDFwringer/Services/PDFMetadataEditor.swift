@@ -137,12 +137,31 @@ struct PDFMetadataEditor {
         if !metadata.author.isEmpty { attrs[.authorAttribute] = metadata.author }
         if !metadata.subject.isEmpty { attrs[.subjectAttribute] = metadata.subject }
         if !metadata.keywords.isEmpty {
-            attrs[.keywordsAttribute] = metadata.keywords
-                .split(separator: ",")
-                .map { $0.trimmingCharacters(in: .whitespaces) }
+            attrs[.keywordsAttribute] = parsedKeywords(from: metadata)
         }
         if !metadata.creator.isEmpty { attrs[.creatorAttribute] = metadata.creator }
         return attrs
+    }
+
+    private func buildContextInfo(from metadata: Metadata, password: String?) -> [CFString: Any] {
+        var info: [CFString: Any] = [:]
+        if !metadata.title.isEmpty { info[kCGPDFContextTitle] = metadata.title }
+        if !metadata.author.isEmpty { info[kCGPDFContextAuthor] = metadata.author }
+        if !metadata.subject.isEmpty { info[kCGPDFContextSubject] = metadata.subject }
+        if !metadata.keywords.isEmpty { info[kCGPDFContextKeywords] = parsedKeywords(from: metadata) }
+        if !metadata.creator.isEmpty { info[kCGPDFContextCreator] = metadata.creator }
+        if let password, !password.isEmpty {
+            info[kCGPDFContextOwnerPassword] = password
+            info[kCGPDFContextUserPassword] = password
+            info[kCGPDFContextEncryptionKeyLength] = 128
+        }
+        return info
+    }
+
+    private func parsedKeywords(from metadata: Metadata) -> [String] {
+        metadata.keywords
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
     }
 
     private func writeNormalPDF(
@@ -172,7 +191,9 @@ struct PDFMetadataEditor {
                 return false
             }
             if let password, !password.isEmpty {
-                guard verificationDocument.unlock(withPassword: password) else { return false }
+                guard verificationDocument.isEncrypted,
+                      verificationDocument.isLocked,
+                      verificationDocument.unlock(withPassword: password) else { return false }
                 return verificationDocument.pageCount == sourceDocument.pageCount
             }
             if verificationDocument.isLocked {
@@ -215,142 +236,137 @@ struct PDFMetadataEditor {
 
         let dpi: CGFloat = 300
         let quality: CGFloat = 0.92
+        let contextInfo = buildContextInfo(from: metadata, password: password)
+        let expectsEncryption = password?.isEmpty == false
 
-        let tempURL = AtomicFileWriter.tempDirectory.appending(component: UUID().uuidString + ".pdf")
-        var emptyBox = CGRect.zero
-        guard let outputCtx = CGContext(tempURL as CFURL, mediaBox: &emptyBox, nil) else {
-            throw PDFwringerError.cannotCreateOutput
-        }
+        try await AtomicFileWriter.write(to: destination) { stagedURL in
+            var emptyBox = CGRect.zero
+            guard let outputCtx = CGContext(
+                stagedURL as CFURL,
+                mediaBox: &emptyBox,
+                contextInfo as CFDictionary
+            ) else {
+                throw PDFwringerError.cannotCreateOutput
+            }
 
-        var didCloseOutput = false
-        defer {
-            if !didCloseOutput { outputCtx.closePDF() }
-            try? FileManager.default.removeItem(at: tempURL)
-        }
+            var didCloseOutput = false
+            defer {
+                if !didCloseOutput { outputCtx.closePDF() }
+            }
 
-        for i in 0..<pageCount {
+            for i in 0..<pageCount {
+                try Task.checkCancellation()
+
+                try autoreleasepool {
+                    guard let page = doc.page(at: i) else {
+                        throw PDFwringerError.cannotWriteOutput
+                    }
+                    let bounds = page.bounds(for: .cropBox)
+                    let rotation = page.rotation
+                    let angle = ((rotation % 360) + 360) % 360
+
+                    let displaySize: CGSize
+                    if angle == 90 || angle == 270 {
+                        displaySize = CGSize(width: bounds.height, height: bounds.width)
+                    } else {
+                        displaySize = bounds.size
+                    }
+
+                    let scale = dpi / 72.0
+                    let rawPixelWidth = displaySize.width * scale
+                    let rawPixelHeight = displaySize.height * scale
+                    let rawMaxLong = 16.5 * dpi
+                    let rawMaxShort = 11.7 * dpi
+                    guard displaySize.width.isFinite, displaySize.height.isFinite,
+                          displaySize.width > 0, displaySize.height > 0,
+                          rawPixelWidth.isFinite, rawPixelHeight.isFinite,
+                          rawPixelWidth < CGFloat(Int.max), rawPixelHeight < CGFloat(Int.max),
+                          rawMaxLong.isFinite, rawMaxShort.isFinite,
+                          rawMaxLong > 0, rawMaxShort > 0,
+                          rawMaxLong < CGFloat(Int.max), rawMaxShort < CGFloat(Int.max)
+                    else {
+                        throw PDFwringerError.cannotWriteOutput
+                    }
+
+                    var pixelW = max(1, Int(displaySize.width * scale))
+                    var pixelH = max(1, Int(displaySize.height * scale))
+
+                    let maxLong = Int(16.5 * dpi)
+                    let maxShort = Int(11.7 * dpi)
+                    let longSide = max(pixelW, pixelH)
+                    let shortSide = min(pixelW, pixelH)
+                    var effectiveScale = scale
+                    if longSide > maxLong || shortSide > maxShort {
+                        let downscale = min(Double(maxLong) / Double(longSide), Double(maxShort) / Double(shortSide))
+                        pixelW = max(1, Int(Double(pixelW) * downscale))
+                        pixelH = max(1, Int(Double(pixelH) * downscale))
+                        effectiveScale = scale * downscale
+                    }
+
+                    guard let bitmap = CGContext(
+                        data: nil, width: pixelW, height: pixelH,
+                        bitsPerComponent: 8, bytesPerRow: 0,
+                        space: CGColorSpaceCreateDeviceRGB(),
+                        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                    ) else {
+                        throw PDFwringerError.cannotWriteOutput
+                    }
+
+                    bitmap.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
+                    bitmap.fill(CGRect(x: 0, y: 0, width: pixelW, height: pixelH))
+
+                    bitmap.scaleBy(x: effectiveScale, y: effectiveScale)
+                    page.transform(bitmap, for: .cropBox)
+                    page.draw(with: .cropBox, to: bitmap)
+
+                    guard let rendered = bitmap.makeImage(),
+                          let jpegData = PDFCompressor.jpegEncode(image: rendered, quality: quality)
+                    else {
+                        throw PDFwringerError.cannotWriteOutput
+                    }
+
+                    guard let provider = CGDataProvider(data: jpegData as CFData),
+                          let jpegImage = CGImage(
+                              jpegDataProviderSource: provider,
+                              decode: nil,
+                              shouldInterpolate: true,
+                              intent: .defaultIntent
+                          )
+                    else {
+                        throw PDFwringerError.cannotWriteOutput
+                    }
+
+                    var outBox = CGRect(origin: .zero, size: displaySize)
+                    outputCtx.beginPage(mediaBox: &outBox)
+                    outputCtx.draw(jpegImage, in: outBox)
+                    outputCtx.endPage()
+                }
+
+                progress?(Double(i + 1) / Double(pageCount))
+                await Task.yield()
+            }
+
             try Task.checkCancellation()
+            outputCtx.closePDF()
+            didCloseOutput = true
 
-            try autoreleasepool {
-                guard let page = doc.page(at: i) else {
-                    throw PDFwringerError.cannotWriteOutput
+            guard let verificationDocument = PDFDocument(url: stagedURL) else { return false }
+            if expectsEncryption {
+                guard verificationDocument.isEncrypted,
+                      verificationDocument.isLocked,
+                      let password,
+                      verificationDocument.unlock(withPassword: password) else {
+                    return false
                 }
-                let bounds = page.bounds(for: .cropBox)
-                let rotation = page.rotation
-                let angle = ((rotation % 360) + 360) % 360
-
-                let displaySize: CGSize
-                if angle == 90 || angle == 270 {
-                    displaySize = CGSize(width: bounds.height, height: bounds.width)
-                } else {
-                    displaySize = bounds.size
-                }
-
-                let scale = dpi / 72.0
-                let rawPixelWidth = displaySize.width * scale
-                let rawPixelHeight = displaySize.height * scale
-                let rawMaxLong = 16.5 * dpi
-                let rawMaxShort = 11.7 * dpi
-                guard displaySize.width.isFinite, displaySize.height.isFinite,
-                      displaySize.width > 0, displaySize.height > 0,
-                      rawPixelWidth.isFinite, rawPixelHeight.isFinite,
-                      rawPixelWidth < CGFloat(Int.max), rawPixelHeight < CGFloat(Int.max),
-                      rawMaxLong.isFinite, rawMaxShort.isFinite,
-                      rawMaxLong > 0, rawMaxShort > 0,
-                      rawMaxLong < CGFloat(Int.max), rawMaxShort < CGFloat(Int.max)
-                else {
-                    throw PDFwringerError.cannotWriteOutput
-                }
-
-                var pixelW = max(1, Int(displaySize.width * scale))
-                var pixelH = max(1, Int(displaySize.height * scale))
-
-                let maxLong = Int(16.5 * dpi)
-                let maxShort = Int(11.7 * dpi)
-                let longSide = max(pixelW, pixelH)
-                let shortSide = min(pixelW, pixelH)
-                var effectiveScale = scale
-                if longSide > maxLong || shortSide > maxShort {
-                    let downscale = min(Double(maxLong) / Double(longSide), Double(maxShort) / Double(shortSide))
-                    pixelW = max(1, Int(Double(pixelW) * downscale))
-                    pixelH = max(1, Int(Double(pixelH) * downscale))
-                    effectiveScale = scale * downscale
-                }
-
-                guard let bitmap = CGContext(
-                    data: nil, width: pixelW, height: pixelH,
-                    bitsPerComponent: 8, bytesPerRow: 0,
-                    space: CGColorSpaceCreateDeviceRGB(),
-                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-                ) else {
-                    throw PDFwringerError.cannotWriteOutput
-                }
-
-                bitmap.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
-                bitmap.fill(CGRect(x: 0, y: 0, width: pixelW, height: pixelH))
-
-                bitmap.scaleBy(x: effectiveScale, y: effectiveScale)
-                page.transform(bitmap, for: .cropBox)
-                page.draw(with: .cropBox, to: bitmap)
-
-                guard let rendered = bitmap.makeImage(),
-                      let jpegData = PDFCompressor.jpegEncode(image: rendered, quality: quality)
-                else {
-                    throw PDFwringerError.cannotWriteOutput
-                }
-
-                guard let provider = CGDataProvider(data: jpegData as CFData),
-                      let jpegImage = CGImage(
-                          jpegDataProviderSource: provider,
-                          decode: nil,
-                          shouldInterpolate: true,
-                          intent: .defaultIntent
-                      )
-                else {
-                    throw PDFwringerError.cannotWriteOutput
-                }
-
-                var outBox = CGRect(origin: .zero, size: displaySize)
-                outputCtx.beginPage(mediaBox: &outBox)
-                outputCtx.draw(jpegImage, in: outBox)
-                outputCtx.endPage()
-            }
-
-            progress?(Double(i + 1) / Double(pageCount))
-            await Task.yield()
-        }
-
-        try Task.checkCancellation()
-        outputCtx.closePDF()
-        didCloseOutput = true
-
-        // Apply metadata to the flattened PDF
-        guard let flatDoc = PDFDocument(url: tempURL),
-              flatDoc.pageCount == pageCount else {
-            throw PDFwringerError.cannotWriteOutput
-        }
-
-        flatDoc.documentAttributes = buildAttributes(from: metadata)
-
-        var writeOptions: [PDFDocumentWriteOption: Any] = [:]
-        if let pw = password, !pw.isEmpty {
-            writeOptions[.ownerPasswordOption] = pw
-            writeOptions[.userPasswordOption] = pw
-        }
-
-        try AtomicFileWriter.write(to: destination) { finalTemp in
-            let didWrite: Bool
-            if writeOptions.isEmpty {
-                didWrite = flatDoc.write(to: finalTemp)
-            } else {
-                didWrite = flatDoc.write(to: finalTemp, withOptions: writeOptions)
-            }
-            guard didWrite, let verificationDocument = PDFDocument(url: finalTemp) else { return false }
-            if let password, !password.isEmpty,
-               !verificationDocument.unlock(withPassword: password) {
+            } else if verificationDocument.isEncrypted || verificationDocument.isLocked {
                 return false
             }
-            return verificationDocument.pageCount == pageCount
+            guard verificationDocument.pageCount == pageCount,
+                  (0..<pageCount).allSatisfy({ verificationDocument.page(at: $0) != nil }) else {
+                return false
+            }
+            try Task.checkCancellation()
+            return true
         }
     }
 }

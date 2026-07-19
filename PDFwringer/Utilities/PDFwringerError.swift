@@ -85,48 +85,87 @@ enum AtomicFileWriter {
     }()
 
     static func write(to destination: URL, using block: (URL) throws -> Bool) throws {
-        let fileManager = FileManager.default
-        let destinationPath = destination.path(percentEncoded: false)
-        let parent = destination.deletingLastPathComponent()
-        var parentIsDirectory: ObjCBool = false
-        guard fileManager.fileExists(
-            atPath: parent.path(percentEncoded: false),
-            isDirectory: &parentIsDirectory
-        ), parentIsDirectory.boolValue else {
-            throw PDFwringerError.cannotWriteOutput
-        }
+        let stagedFile = try StagedFile(destination: destination)
+        defer { stagedFile.cleanup() }
 
-        let destinationExists = fileManager.fileExists(atPath: destinationPath)
-        if destinationExists {
-            let attributes = try fileManager.attributesOfItem(atPath: destinationPath)
-            guard attributes[.type] as? FileAttributeType == .typeRegular else {
-                throw PDFwringerError.cannotWriteOutput
-            }
-        }
-
-        let replacementDirectory = try fileManager.url(
-            for: .itemReplacementDirectory,
-            in: .userDomainMask,
-            appropriateFor: destinationExists ? destination : parent,
-            create: true
-        )
-        defer { try? fileManager.removeItem(at: replacementDirectory) }
-
-        var tempURL = replacementDirectory.appending(component: UUID().uuidString)
-        if !destination.pathExtension.isEmpty {
-            tempURL.appendPathExtension(destination.pathExtension)
-        }
-        defer { try? fileManager.removeItem(at: tempURL) }
-
-        Log.fileIO.debug("AtomicWrite: temp=\(tempURL.lastPathComponent, privacy: .private) → dest")
-        let success = try block(tempURL)
+        Log.fileIO.debug("AtomicWrite: temp=\(stagedFile.url.lastPathComponent, privacy: .private) → dest")
+        let success = try block(stagedFile.url)
         guard success else {
             throw PDFwringerError.cannotWriteOutput
         }
-        if destinationExists {
-            _ = try fileManager.replaceItemAt(destination, withItemAt: tempURL)
-        } else {
-            try fileManager.moveItem(at: tempURL, to: destination)
+        try stagedFile.commit()
+    }
+
+    /// Async counterpart for producers that must yield or cooperatively cancel while
+    /// writing. The staging and commit guarantees are identical to the synchronous API.
+    static func write(to destination: URL, using block: (URL) async throws -> Bool) async throws {
+        let stagedFile = try StagedFile(destination: destination)
+        defer { stagedFile.cleanup() }
+
+        Log.fileIO.debug("AtomicWrite: temp=\(stagedFile.url.lastPathComponent, privacy: .private) → dest")
+        let success = try await block(stagedFile.url)
+        guard success else {
+            throw PDFwringerError.cannotWriteOutput
+        }
+        try Task.checkCancellation()
+        try stagedFile.commit()
+    }
+
+    private struct StagedFile {
+        let destination: URL
+        let destinationExists: Bool
+        let replacementDirectory: URL
+        let url: URL
+
+        init(destination: URL) throws {
+            let fileManager = FileManager.default
+            let destinationPath = destination.path(percentEncoded: false)
+            let parent = destination.deletingLastPathComponent()
+            var parentIsDirectory: ObjCBool = false
+            guard fileManager.fileExists(
+                atPath: parent.path(percentEncoded: false),
+                isDirectory: &parentIsDirectory
+            ), parentIsDirectory.boolValue else {
+                throw PDFwringerError.cannotWriteOutput
+            }
+
+            let destinationExists = fileManager.fileExists(atPath: destinationPath)
+            if destinationExists {
+                let attributes = try fileManager.attributesOfItem(atPath: destinationPath)
+                guard attributes[.type] as? FileAttributeType == .typeRegular else {
+                    throw PDFwringerError.cannotWriteOutput
+                }
+            }
+
+            let replacementDirectory = try fileManager.url(
+                for: .itemReplacementDirectory,
+                in: .userDomainMask,
+                appropriateFor: destinationExists ? destination : parent,
+                create: true
+            )
+            var url = replacementDirectory.appending(component: UUID().uuidString)
+            if !destination.pathExtension.isEmpty {
+                url.appendPathExtension(destination.pathExtension)
+            }
+
+            self.destination = destination
+            self.destinationExists = destinationExists
+            self.replacementDirectory = replacementDirectory
+            self.url = url
+        }
+
+        func commit() throws {
+            let fileManager = FileManager.default
+            if destinationExists {
+                _ = try fileManager.replaceItemAt(destination, withItemAt: url)
+            } else {
+                try fileManager.moveItem(at: url, to: destination)
+            }
+        }
+
+        func cleanup() {
+            try? FileManager.default.removeItem(at: url)
+            try? FileManager.default.removeItem(at: replacementDirectory)
         }
     }
 

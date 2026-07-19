@@ -37,6 +37,28 @@ struct UtilityTests {
         }
     }
 
+    @Test("AtomicFileWriter supports yielding producers")
+    func atomicWriteAsyncSuccess() async throws {
+        let dest = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
+        defer { try? FileManager.default.removeItem(at: dest) }
+        var replacementDirectory: URL?
+
+        try await AtomicFileWriter.write(to: dest) { tempURL in
+            replacementDirectory = tempURL.deletingLastPathComponent()
+            try Data("before yield".utf8).write(to: tempURL)
+            await Task.yield()
+            try Data("after yield".utf8).write(to: tempURL)
+            return true
+        }
+
+        #expect(try Data(contentsOf: dest) == Data("after yield".utf8))
+        if let replacementDirectory {
+            #expect(!FileManager.default.fileExists(
+                atPath: replacementDirectory.path(percentEncoded: false)
+            ))
+        }
+    }
+
     @Test("AtomicFileWriter cleans up on block returning false")
     func atomicWriteBlockFalse() {
         let dest = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
