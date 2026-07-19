@@ -101,7 +101,7 @@ class ColorAdjustViewModel {
 
     // MARK: - Save
 
-    func save(source: URL, pageCount: Int, onMutate: (() -> Void)?) async {
+    func save(source: URL, document: PDFDocument, pageCount: Int, onMutate: (() -> Void)?) async {
         let suggestedName = source.deletingPathExtension().lastPathComponent + "_adjusted.pdf"
         guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
 
@@ -128,6 +128,7 @@ class ColorAdjustViewModel {
             defer { operationTask = nil }
             do {
                 let result = try await adjuster.adjust(
+                    document: document,
                     source: source,
                     destination: destination,
                     settings: settings,
@@ -141,6 +142,9 @@ class ColorAdjustViewModel {
                     isWarning = true
                 } else {
                     resultMessage = String(localized: "Saved.")
+                }
+                if document.isEncrypted {
+                    resultMessage? += String(localized: " Password protection was removed.")
                 }
                 isError = false
                 lastOutputURL = destination

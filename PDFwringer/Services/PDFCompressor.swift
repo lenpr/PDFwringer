@@ -28,15 +28,52 @@ struct PDFCompressor {
         stripMetadata: Bool,
         progress: (Double) -> Void
     ) async throws -> Result {
+        guard FileManager.default.isReadableFile(atPath: source.path(percentEncoded: false)) else {
+            throw PDFwringerError.fileNotReadable(source.lastPathComponent)
+        }
+        guard let document = PDFDocument(url: source) else {
+            throw PDFwringerError.cannotOpenDocument
+        }
+        if document.isLocked { throw PDFwringerError.documentIsLocked }
+
+        return try await compress(
+            document: document,
+            source: source,
+            destination: destination,
+            level: level,
+            quality: quality,
+            grayscale: grayscale,
+            stripMetadata: stripMetadata,
+            progress: progress
+        )
+    }
+
+    /// Compresses the supplied, already-open document. The URL is used only for
+    /// source identity, naming, and size estimates; document content comes from `document`.
+    @discardableResult
+    func compress(
+        document: PDFDocument,
+        source: URL,
+        destination: URL,
+        level: CompressionLevel,
+        quality: JPEGQuality,
+        grayscale: Bool,
+        stripMetadata: Bool,
+        progress: (Double) -> Void
+    ) async throws -> Result {
         let start = ContinuousClock.now
         Log.compress.info("Starting compression: level=\(level.title), quality=\(quality.title), grayscale=\(grayscale)")
 
         guard source.standardizedFileURL != destination.standardizedFileURL else {
             throw PDFwringerError.sourceEqualsDestination
         }
+        if document.isLocked { throw PDFwringerError.documentIsLocked }
+        guard document.pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
+
         var skipped = 0
         if level.isRasterize {
             skipped = try await compressRasterize(
+                document: document,
                 source: source,
                 destination: destination,
                 dpi: level.dpi,
@@ -46,7 +83,7 @@ struct PDFCompressor {
             )
         } else {
             try await compressOptimize(
-                source: source,
+                document: document,
                 destination: destination,
                 stripMetadata: stripMetadata,
                 progress: progress
@@ -55,8 +92,7 @@ struct PDFCompressor {
         let outputSize = (try? FileManager.default.attributesOfItem(atPath: destination.path(percentEncoded: false))[.size] as? Int64) ?? 0
         let elapsed = ContinuousClock.now - start
         Log.compress.info("Compression complete: output=\(Formatting.fileSize(outputSize)), duration=\(elapsed)")
-        let totalPages = PDFDocument(url: source)?.pageCount ?? 0
-        return Result(outputSize: outputSize, skippedPages: skipped, totalPages: totalPages)
+        return Result(outputSize: outputSize, skippedPages: skipped, totalPages: document.pageCount)
     }
 
     /// Compress a single page to estimate total output size without processing the entire document.
@@ -85,21 +121,13 @@ struct PDFCompressor {
     // MARK: - Optimize path (preserves text; strips annotations only when stripMetadata is true)
 
     private func compressOptimize(
-        source: URL,
+        document: PDFDocument,
         destination: URL,
         stripMetadata: Bool,
         progress: (Double) -> Void
     ) async throws {
-        guard FileManager.default.isReadableFile(atPath: source.path(percentEncoded: false)) else {
-            throw PDFwringerError.fileNotReadable(source.lastPathComponent)
-        }
-
-        guard let doc = PDFDocument(url: source) else {
+        guard let doc = document.copy() as? PDFDocument else {
             throw PDFwringerError.cannotOpenDocument
-        }
-
-        if doc.isLocked {
-            throw PDFwringerError.documentIsLocked
         }
 
         guard doc.pageCount > 0 else {
@@ -139,6 +167,7 @@ struct PDFCompressor {
     // MARK: - Rasterize path (maximum compression, flattens content)
 
     private func compressRasterize(
+        document: PDFDocument,
         source: URL,
         destination: URL,
         dpi: CGFloat,
@@ -146,15 +175,7 @@ struct PDFCompressor {
         grayscale: Bool,
         progress: (Double) -> Void
     ) async throws -> Int {
-        guard FileManager.default.isReadableFile(atPath: source.path(percentEncoded: false)) else {
-            throw PDFwringerError.fileNotReadable(source.lastPathComponent)
-        }
-
-        guard let doc = Self.openPDF(at: source) else {
-            throw PDFwringerError.cannotOpenDocument
-        }
-
-        let pageCount = doc.numberOfPages
+        let pageCount = document.pageCount
         guard pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
         guard pageCount <= 10_000 else {
             throw PDFwringerError.documentTooLarge("\(pageCount) pages exceeds the 10,000 page limit for rasterization")
@@ -179,11 +200,11 @@ struct PDFCompressor {
         do {
             var skippedPages = 0
 
-            for i in 1...pageCount {
+            for i in 0..<pageCount {
                 try Task.checkCancellation()
 
                 autoreleasepool {
-                    guard let page = doc.page(at: i) else { skippedPages += 1; return }
+                    guard let page = document.page(at: i) else { skippedPages += 1; return }
                     guard let (rendered, displaySize) = Self.renderPage(page, dpi: dpi, grayscale: grayscale) else { skippedPages += 1; return }
                     guard let jpegData = Self.jpegEncode(image: rendered, quality: quality) else { skippedPages += 1; return }
 
@@ -202,7 +223,7 @@ struct PDFCompressor {
                     outputCtx.endPage()
                 }
 
-                progress(Double(i) / Double(pageCount))
+                progress(Double(i + 1) / Double(pageCount))
                 await Task.yield()
             }
 
@@ -312,6 +333,66 @@ struct PDFCompressor {
         let transform = page.getDrawingTransform(.cropBox, rect: drawRect, rotate: 0, preserveAspectRatio: true)
         bitmap.concatenate(transform)
         bitmap.drawPDFPage(page)
+
+        guard let rendered = bitmap.makeImage() else { return nil }
+        return (rendered, displaySize)
+    }
+
+    /// Renders a page from an already-open PDFKit document. This is the document-
+    /// authoritative path used after a caller has unlocked a protected PDF.
+    static func renderPage(_ page: PDFPage, dpi: CGFloat, grayscale: Bool) -> (image: CGImage, displaySize: CGSize)? {
+        let cropBox = page.bounds(for: .cropBox)
+        let rotation = page.rotation
+        let angle = ((rotation % 360) + 360) % 360
+        let displaySize: CGSize
+        if angle == 90 || angle == 270 {
+            displaySize = CGSize(width: cropBox.height, height: cropBox.width)
+        } else {
+            displaySize = cropBox.size
+        }
+
+        let scale = dpi / 72.0
+        var pixelW = max(1, Int(displaySize.width * scale))
+        var pixelH = max(1, Int(displaySize.height * scale))
+
+        let maxLong = Int(16.5 * dpi)
+        let maxShort = Int(11.7 * dpi)
+        let longSide = max(pixelW, pixelH)
+        let shortSide = min(pixelW, pixelH)
+        var effectiveScale = scale
+        if longSide > maxLong || shortSide > maxShort {
+            let downscale = min(Double(maxLong) / Double(longSide), Double(maxShort) / Double(shortSide))
+            pixelW = max(1, Int(Double(pixelW) * downscale))
+            pixelH = max(1, Int(Double(pixelH) * downscale))
+            effectiveScale = scale * downscale
+        }
+
+        let colorSpace: CGColorSpace
+        let bitmapInfo: UInt32
+        if grayscale {
+            colorSpace = CGColorSpaceCreateDeviceGray()
+            bitmapInfo = CGImageAlphaInfo.none.rawValue
+        } else {
+            colorSpace = sRGBColorSpace
+            bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+        }
+
+        guard let bitmap = CGContext(
+            data: nil, width: pixelW, height: pixelH,
+            bitsPerComponent: 8, bytesPerRow: 0,
+            space: colorSpace, bitmapInfo: bitmapInfo
+        ) else { return nil }
+
+        if grayscale {
+            bitmap.setFillColor(gray: 1.0, alpha: 1.0)
+        } else {
+            bitmap.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
+        }
+        bitmap.fill(CGRect(x: 0, y: 0, width: pixelW, height: pixelH))
+
+        bitmap.scaleBy(x: effectiveScale, y: effectiveScale)
+        page.transform(bitmap, for: .cropBox)
+        page.draw(with: .cropBox, to: bitmap)
 
         guard let rendered = bitmap.makeImage() else { return nil }
         return (rendered, displaySize)

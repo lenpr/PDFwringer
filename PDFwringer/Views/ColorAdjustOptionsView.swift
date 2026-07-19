@@ -73,7 +73,7 @@ struct ColorAdjustOptionsView: View {
                 HStack {
                     Spacer()
                     Button(String(localized: "Save")) {
-                        Task { await vm.save(source: url, pageCount: document.pageCount, onMutate: onMutate) }
+                        Task { await vm.save(source: url, document: document, pageCount: document.pageCount, onMutate: onMutate) }
                     }
                     .keyboardShortcut("s")
                     .buttonStyle(.borderedProminent)
@@ -98,7 +98,7 @@ struct ColorAdjustOptionsView: View {
                         isError: vm.isError,
                         isWarning: vm.isWarning,
                         outputURL: vm.lastOutputURL,
-                        onRetry: vm.isError ? { Task { await vm.save(source: url, pageCount: document.pageCount, onMutate: onMutate) } } : nil
+                        onRetry: vm.isError ? { Task { await vm.save(source: url, document: document, pageCount: document.pageCount, onMutate: onMutate) } } : nil
                     )
                 }
             }

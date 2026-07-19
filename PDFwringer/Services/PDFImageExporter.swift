@@ -60,12 +60,33 @@ struct PDFImageExporter {
         guard FileManager.default.isReadableFile(atPath: source.path(percentEncoded: false)) else {
             throw PDFwringerError.fileNotReadable(source.lastPathComponent)
         }
-
-        guard let doc = PDFCompressor.openPDF(at: source) else {
+        guard let document = PDFDocument(url: source) else {
             throw PDFwringerError.cannotOpenDocument
         }
+        if document.isLocked { throw PDFwringerError.documentIsLocked }
 
-        let pageCount = doc.numberOfPages
+        return try await exportPages(
+            document: document,
+            source: source,
+            outputDirectory: outputDirectory,
+            options: options,
+            pageIndices: pageIndices,
+            progress: progress
+        )
+    }
+
+    /// Exports pages from an already-open document, including one the caller unlocked.
+    func exportPages(
+        document: PDFDocument,
+        source: URL,
+        outputDirectory: URL,
+        options: Options,
+        pageIndices: [Int]?,
+        progress: (Double) -> Void
+    ) async throws -> [URL] {
+        if document.isLocked { throw PDFwringerError.documentIsLocked }
+
+        let pageCount = document.pageCount
         guard pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
 
         let indicesToExport: [Int]
@@ -104,7 +125,7 @@ struct PDFImageExporter {
         for (i, pageIdx) in indicesToExport.enumerated() {
             try Task.checkCancellation()
 
-            guard let page = doc.page(at: pageIdx + 1) else { continue } // CGPDFDocument is 1-based
+            guard let page = document.page(at: pageIdx) else { continue }
 
             guard let (rendered, _) = PDFCompressor.renderPage(page, dpi: options.dpi, grayscale: false) else { continue }
 

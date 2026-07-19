@@ -131,7 +131,7 @@ struct SplitOptionsView: View {
             .tint(.coral)
         }
         .onAppear {
-            vm.setSource(url)
+            vm.setSource(url, document: document)
         }
         .onChange(of: vm.errorSource) { _, source in
             switch source {

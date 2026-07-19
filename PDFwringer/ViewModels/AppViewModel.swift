@@ -156,6 +156,7 @@ class AppViewModel {
         if doc.isLocked {
             pendingLockedURL = url
             passwordText = ""
+            wrongPasswordAttempt = false
             showPasswordPrompt = true
             return
         }
@@ -179,6 +180,9 @@ class AppViewModel {
         if doc.unlock(withPassword: passwordText) {
             currentPage = 0
             currentFileSize = (try? FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false))[.size] as? Int64) ?? 0
+            NSDocumentController.shared.noteNewRecentDocumentURL(url)
+            BookmarkManager.saveBookmark(for: url)
+            refreshRecentDocuments()
             state = .singleFile(url, doc)
             pendingLockedURL = nil
             wrongPasswordAttempt = false

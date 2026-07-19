@@ -102,7 +102,7 @@ struct MetadataOptionsView: View {
                         .toggleStyle(.checkbox)
                         .font(.callout)
                     if !removeProtection {
-                        SecureField(String(localized: "Re-enter password to keep protection"), text: $passwordText)
+                        SecureField(String(localized: "Password for saved file"), text: $passwordText)
                             .textFieldStyle(.roundedBorder)
                     }
                 } else {
@@ -159,7 +159,7 @@ struct MetadataOptionsView: View {
             .tint(.coral)
         }
         .onAppear {
-            metadata = editor.read(from: url)
+            metadata = editor.read(from: document)
             initialMetadata = metadata
         }
         .onChange(of: metadata) {
@@ -223,9 +223,11 @@ struct MetadataOptionsView: View {
         do {
             try await editor.write(
                 metadata: metadata,
+                document: document,
                 source: url,
                 destination: destination,
                 password: password,
+                removeProtection: removeProtection,
                 flattenAnnotations: flattenAnnotations,
                 progress: flattenAnnotations ? { p in saveProgress = p } : nil
             )

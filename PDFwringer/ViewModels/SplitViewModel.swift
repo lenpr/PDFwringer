@@ -5,6 +5,7 @@ import PDFKit
 @MainActor @Observable
 class SplitViewModel {
     var sourceURL: URL?
+    var sourceDocument: PDFDocument?
     var sourcePageCount: Int = 0
     var splitPagesPerFile: Int = 1
     var keepPagesText: String = ""
@@ -26,19 +27,30 @@ class SplitViewModel {
         sourceURL != nil && !isProcessing
     }
 
+    /// Convenience for non-interactive callers. Production flows should pass the
+    /// already-loaded document so an unlocked encrypted source is not reopened.
     func setSource(_ url: URL) {
+        guard let document = PDFDocument(url: url), !document.isLocked else {
+            sourceURL = nil
+            sourceDocument = nil
+            sourcePageCount = 0
+            return
+        }
+        setSource(url, document: document)
+    }
+
+    func setSource(_ url: URL, document: PDFDocument) {
         sourceURL = url
+        sourceDocument = document
         resultMessage = nil
         isError = false
-        if let doc = PDFDocument(url: url) {
-            sourcePageCount = doc.pageCount
-        }
+        sourcePageCount = document.pageCount
     }
 
     func splitByPages() async {
         lastOperation = .split
         errorSource = nil
-        guard let source = sourceURL, !isProcessing else { return }
+        guard let source = sourceURL, let document = sourceDocument, !isProcessing else { return }
         guard splitPagesPerFile >= 1 else {
             resultMessage = "Pages per file must be at least 1."
             isError = true
@@ -63,12 +75,14 @@ class SplitViewModel {
             defer { operationTask = nil }
             do {
                 let outputs = try await splitter.split(
+                    document: document,
                     source: source,
                     mode: .splitEveryN(splitPagesPerFile),
                     destination: outputDir,
                     progress: { [weak self] p in self?.progress = p }
                 )
-                resultMessage = "Done! Created \(outputs.count) files."
+                let protectionNote = document.isEncrypted ? " Password protection was removed." : ""
+                resultMessage = "Done! Created \(outputs.count) files.\(protectionNote)"
                 isError = false
                 lastOutputURL = outputDir
             } catch is CancellationError {
@@ -88,7 +102,7 @@ class SplitViewModel {
     func keepPages() async {
         lastOperation = .keep
         errorSource = nil
-        guard let source = sourceURL, !isProcessing else { return }
+        guard let source = sourceURL, let document = sourceDocument, !isProcessing else { return }
 
         do {
             let indices = try PageRangeParser.parse(keepPagesText, pageCount: sourcePageCount)
@@ -111,12 +125,14 @@ class SplitViewModel {
                 defer { operationTask = nil }
                 do {
                     let outputs = try await splitter.split(
+                        document: document,
                         source: source,
                         mode: .keepPages(indices),
                         destination: destination,
                         progress: { [weak self] p in self?.progress = p }
                     )
-                    resultMessage = "Done! Extracted \(indices.count) pages."
+                    let protectionNote = document.isEncrypted ? " Password protection was removed." : ""
+                    resultMessage = "Done! Extracted \(indices.count) pages.\(protectionNote)"
                     isError = false
                     lastOutputURL = destination
                     _ = outputs
@@ -142,7 +158,7 @@ class SplitViewModel {
     func removePages() async {
         lastOperation = .remove
         errorSource = nil
-        guard let source = sourceURL, !isProcessing else { return }
+        guard let source = sourceURL, let document = sourceDocument, !isProcessing else { return }
 
         do {
             let indices = try PageRangeParser.parse(removePagesText, pageCount: sourcePageCount)
@@ -165,13 +181,15 @@ class SplitViewModel {
                 defer { operationTask = nil }
                 do {
                     let outputs = try await splitter.split(
+                        document: document,
                         source: source,
                         mode: .removePages(indices),
                         destination: destination,
                         progress: { [weak self] p in self?.progress = p }
                     )
                     let remainingPages = sourcePageCount - Set(indices).count
-                    resultMessage = "Done! Kept \(remainingPages) pages."
+                    let protectionNote = document.isEncrypted ? " Password protection was removed." : ""
+                    resultMessage = "Done! Kept \(remainingPages) pages.\(protectionNote)"
                     isError = false
                     lastOutputURL = destination
                     _ = outputs

@@ -167,7 +167,7 @@ struct ExportImagesOptionsView: View {
                 let exporter = PDFImageExporter()
                 let options = PDFImageExporter.Options(format: format, dpi: dpi, quality: quality)
                 let outputs = try await exporter.exportPages(
-                    source: url, outputDirectory: outputDir,
+                    document: document, source: url, outputDirectory: outputDir,
                     options: options, pageIndices: pages,
                     progress: { p in progress = p }
                 )

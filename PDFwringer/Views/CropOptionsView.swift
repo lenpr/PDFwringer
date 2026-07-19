@@ -274,9 +274,5 @@ struct CropOptionsView: View {
         resultMessage = result.message
         isError = result.isError
         lastOutputURL = result.outputURL
-
-        if !result.isError && document.isEncrypted {
-            resultMessage = String(localized: "Saved. Note: password protection was not preserved. Use Edit Metadata to re-encrypt.")
-        }
     }
 }

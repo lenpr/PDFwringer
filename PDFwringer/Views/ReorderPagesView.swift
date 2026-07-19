@@ -148,23 +148,22 @@ struct ReorderPagesView: View {
         Task {
             defer { isSaving = false }
 
-            guard let sourceDoc = PDFDocument(url: url) else {
-                resultMessage = PDFwringerError.cannotOpenDocument.localizedDescription
-                isError = true
-                return
-            }
-
-            let output = PDFDocument()
-            for (i, pageIdx) in pageOrder.enumerated() {
-                guard let page = sourceDoc.page(at: pageIdx) else { continue }
-                output.insert(page, at: i)
-            }
-
             do {
+                let output = PDFDocument()
+                for pageIdx in pageOrder {
+                    guard let page = document.page(at: pageIdx),
+                          let copiedPage = page.copy() as? PDFPage else {
+                        throw PDFwringerError.cannotOpenDocument
+                    }
+                    output.insert(copiedPage, at: output.pageCount)
+                }
+
                 try AtomicFileWriter.write(to: destination) { tempURL in
                     output.write(to: tempURL)
                 }
-                resultMessage = String(localized: "Saved.")
+                resultMessage = document.isEncrypted
+                    ? String(localized: "Saved. Password protection was removed.")
+                    : String(localized: "Saved.")
                 isError = false
                 lastOutputURL = destination
             } catch {

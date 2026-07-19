@@ -23,6 +23,32 @@ struct PDFSplitter {
         destination: URL,
         progress: (Double) -> Void
     ) async throws -> [URL] {
+        guard FileManager.default.isReadableFile(atPath: source.path(percentEncoded: false)) else {
+            throw PDFwringerError.fileNotReadable(source.lastPathComponent)
+        }
+        guard let document = PDFDocument(url: source) else {
+            throw PDFwringerError.cannotOpenDocument
+        }
+        if document.isLocked { throw PDFwringerError.documentIsLocked }
+
+        return try await split(
+            document: document,
+            source: source,
+            mode: mode,
+            destination: destination,
+            progress: progress
+        )
+    }
+
+    /// Splits the supplied, already-open document. The source URL is used for
+    /// identity and output naming, not to reopen the PDF.
+    func split(
+        document: PDFDocument,
+        source: URL,
+        mode: Mode,
+        destination: URL,
+        progress: (Double) -> Void
+    ) async throws -> [URL] {
         if case .keepPages = mode {
             guard source.standardizedFileURL != destination.standardizedFileURL else {
                 throw PDFwringerError.sourceEqualsDestination
@@ -33,16 +59,9 @@ struct PDFSplitter {
             }
         }
 
-        guard FileManager.default.isReadableFile(atPath: source.path(percentEncoded: false)) else {
-            throw PDFwringerError.fileNotReadable(source.lastPathComponent)
-        }
+        if document.isLocked { throw PDFwringerError.documentIsLocked }
 
-        guard let sourceDoc = PDFDocument(url: source) else {
-            throw PDFwringerError.cannotOpenDocument
-        }
-        if sourceDoc.isLocked { throw PDFwringerError.documentIsLocked }
-
-        let pageCount = sourceDoc.pageCount
+        let pageCount = document.pageCount
         guard pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
 
         let start = ContinuousClock.now
@@ -52,7 +71,7 @@ struct PDFSplitter {
         switch mode {
         case .splitEveryN(let n):
             results = try await splitEveryN(
-                sourceDoc: sourceDoc,
+                sourceDoc: document,
                 n: max(1, n),
                 baseName: source.deletingPathExtension().lastPathComponent,
                 outputDir: destination,
@@ -62,7 +81,7 @@ struct PDFSplitter {
         case .keepPages(let indices):
             let outputURL = destination
             try await extractPages(
-                sourceDoc: sourceDoc,
+                sourceDoc: document,
                 pageIndices: indices,
                 destination: outputURL,
                 progress: progress
@@ -75,7 +94,7 @@ struct PDFSplitter {
             let keepIndices = allIndices.filter { !removeSet.contains($0) }
             let outputURL = destination
             try await extractPages(
-                sourceDoc: sourceDoc,
+                sourceDoc: document,
                 pageIndices: keepIndices,
                 destination: outputURL,
                 progress: progress
@@ -115,10 +134,12 @@ struct PDFSplitter {
 
             let chunkDoc = PDFDocument()
             for pageIdx in startPage..<endPage {
-                autoreleasepool {
-                    guard let page = sourceDoc.page(at: pageIdx) else { return }
-                    chunkDoc.insert(page, at: chunkDoc.pageCount)
+                let copiedPage: PDFPage? = autoreleasepool {
+                    guard let page = sourceDoc.page(at: pageIdx) else { return nil }
+                    return page.copy() as? PDFPage
                 }
+                guard let copiedPage else { throw PDFwringerError.cannotOpenDocument }
+                chunkDoc.insert(copiedPage, at: chunkDoc.pageCount)
                 processedPages += 1
             }
 
@@ -169,12 +190,14 @@ struct PDFSplitter {
         for (i, pageIdx) in pageIndices.enumerated() {
             try Task.checkCancellation()
 
-            autoreleasepool {
+            let copiedPage: PDFPage? = autoreleasepool {
                 guard pageIdx >= 0, pageIdx < sourceDoc.pageCount,
                       let page = sourceDoc.page(at: pageIdx)
-                else { return }
-                outputDoc.insert(page, at: outputDoc.pageCount)
+                else { return nil }
+                return page.copy() as? PDFPage
             }
+            guard let copiedPage else { continue }
+            outputDoc.insert(copiedPage, at: outputDoc.pageCount)
 
             progress(Double(i + 1) / Double(pageIndices.count))
 

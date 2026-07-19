@@ -23,10 +23,17 @@ struct PDFMetadataEditor {
 
     /// Reads metadata from a PDF file. Truncates fields to prevent DoS.
     func read(from url: URL) -> Metadata {
-        guard let doc = PDFDocument(url: url),
-              let attrs = doc.documentAttributes else {
+        guard let document = PDFDocument(url: url) else {
             return .empty
         }
+
+        return read(from: document)
+    }
+
+    /// Reads metadata from an already-open document, including one the caller unlocked.
+    func read(from document: PDFDocument) -> Metadata {
+        guard !document.isLocked,
+              let attrs = document.documentAttributes else { return .empty }
 
         let keywords: String
         if let kwArray = attrs[PDFDocumentAttribute.keywordsAttribute] as? [String] {
@@ -60,25 +67,65 @@ struct PDFMetadataEditor {
         flattenAnnotations: Bool = false,
         progress: ((Double) -> Void)? = nil
     ) async throws {
+        guard FileManager.default.isReadableFile(atPath: source.path(percentEncoded: false)) else {
+            throw PDFwringerError.fileNotReadable(source.lastPathComponent)
+        }
+        guard let document = PDFDocument(url: source) else {
+            throw PDFwringerError.cannotOpenDocument
+        }
+        if document.isLocked { throw PDFwringerError.documentIsLocked }
+
+        try await write(
+            metadata: metadata,
+            document: document,
+            source: source,
+            destination: destination,
+            password: password,
+            removeProtection: false,
+            flattenAnnotations: flattenAnnotations,
+            progress: progress
+        )
+    }
+
+    /// Writes metadata using an already-open document as the authoritative content.
+    /// Set `removeProtection` explicitly to rebuild an encrypted input without protection.
+    func write(
+        metadata: Metadata,
+        document: PDFDocument,
+        source: URL,
+        destination: URL,
+        password: String? = nil,
+        removeProtection: Bool = false,
+        flattenAnnotations: Bool = false,
+        progress: ((Double) -> Void)? = nil
+    ) async throws {
         guard source.standardizedFileURL != destination.standardizedFileURL else {
             throw PDFwringerError.sourceEqualsDestination
         }
 
-        guard FileManager.default.isReadableFile(atPath: source.path(percentEncoded: false)) else {
-            throw PDFwringerError.fileNotReadable(source.lastPathComponent)
-        }
+        if document.isLocked { throw PDFwringerError.documentIsLocked }
+        guard document.pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
 
-        guard let doc = PDFDocument(url: source) else {
-            throw PDFwringerError.cannotOpenDocument
-        }
-        if doc.isLocked { throw PDFwringerError.documentIsLocked }
+        let outputPassword = removeProtection ? nil : password
 
-        Log.metadata.info("Writing metadata: encrypted=\(password != nil), flatten=\(flattenAnnotations)")
+        Log.metadata.info("Writing metadata: encrypted=\(outputPassword != nil), removeProtection=\(removeProtection), flatten=\(flattenAnnotations)")
 
         if flattenAnnotations {
-            try await writeFlattenedPDF(doc: doc, metadata: metadata, destination: destination, password: password, progress: progress)
+            try await writeFlattenedPDF(
+                doc: document,
+                metadata: metadata,
+                destination: destination,
+                password: outputPassword,
+                progress: progress
+            )
         } else {
-            try writeNormalPDF(doc: doc, metadata: metadata, destination: destination, password: password)
+            try writeNormalPDF(
+                sourceDocument: document,
+                metadata: metadata,
+                destination: destination,
+                password: outputPassword,
+                removeProtection: removeProtection
+            )
             progress?(1.0)
         }
     }
@@ -98,11 +145,13 @@ struct PDFMetadataEditor {
     }
 
     private func writeNormalPDF(
-        doc: PDFDocument,
+        sourceDocument: PDFDocument,
         metadata: Metadata,
         destination: URL,
-        password: String?
+        password: String?,
+        removeProtection: Bool
     ) throws {
+        let doc = try outputDocument(from: sourceDocument, removeProtection: removeProtection)
         doc.documentAttributes = buildAttributes(from: metadata)
 
         var writeOptions: [PDFDocumentWriteOption: Any] = [:]
@@ -118,6 +167,27 @@ struct PDFMetadataEditor {
                 doc.write(to: tempURL, withOptions: writeOptions)
             }
         }
+    }
+
+    /// `PDFDocument.copy()` retains an unlocked document's protection settings.
+    /// Removing protection therefore requires a fresh document populated with copied pages.
+    private func outputDocument(from source: PDFDocument, removeProtection: Bool) throws -> PDFDocument {
+        guard removeProtection else {
+            guard let copiedDocument = source.copy() as? PDFDocument else {
+                throw PDFwringerError.cannotOpenDocument
+            }
+            return copiedDocument
+        }
+
+        let unprotectedDocument = PDFDocument()
+        for pageIndex in 0..<source.pageCount {
+            guard let page = source.page(at: pageIndex),
+                  let copiedPage = page.copy() as? PDFPage else {
+                throw PDFwringerError.cannotOpenDocument
+            }
+            unprotectedDocument.insert(copiedPage, at: unprotectedDocument.pageCount)
+        }
+        return unprotectedDocument
     }
 
     private func writeFlattenedPDF(

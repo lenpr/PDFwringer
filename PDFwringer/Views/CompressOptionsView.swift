@@ -202,7 +202,7 @@ struct CompressOptionsView: View {
             .tint(.coral)
         }
         .onAppear {
-            vm.setSource(url)
+            vm.setSource(url, document: document)
         }
     }
 }

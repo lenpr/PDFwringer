@@ -57,23 +57,34 @@ class CompressViewModel {
     }
 
     var isEstimating: Bool {
-        estimatedSizes[currentEstimateKey] == nil && sourceURL != nil
+        estimatedSizes[currentEstimateKey] == nil
+            && sourceURL != nil
+            && pdfDocument?.isEncrypted != true
     }
 
+    /// Convenience for non-interactive callers. Production flows should pass the
+    /// already-loaded document so an unlocked encrypted source is not reopened.
     func setSource(_ url: URL) {
+        guard let document = PDFDocument(url: url), !document.isLocked else {
+            sourceURL = nil
+            sourcePageCount = 0
+            sourceFileSize = 0
+            pdfDocument = nil
+            estimatedSizes = [:]
+            heuristicSizes = [:]
+            return
+        }
+        setSource(url, document: document)
+    }
+
+    func setSource(_ url: URL, document: PDFDocument) {
         sourceURL = url
         resultMessage = nil
         isError = false
         estimatedSizes = [:]
         heuristicSizes = [:]
-
-        if let doc = PDFDocument(url: url) {
-            sourcePageCount = doc.pageCount
-            pdfDocument = doc
-        } else {
-            sourcePageCount = 0
-            pdfDocument = nil
-        }
+        sourcePageCount = document.pageCount
+        pdfDocument = document
 
         if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false)),
            let size = attrs[.size] as? Int64 {
@@ -169,6 +180,9 @@ class CompressViewModel {
         estimationTask?.cancel()
 
         guard let source = sourceURL else { return }
+        // The URL remains locked after PDFKit unlocks the in-memory document. Keep
+        // heuristic estimates for encrypted sources instead of reopening the URL.
+        guard pdfDocument?.isEncrypted != true else { return }
         let compressor = self.compressor
 
         estimationTask = Task.detached(priority: .utility) { [weak self] in
@@ -195,7 +209,7 @@ class CompressViewModel {
     }
 
     func performCompression() async {
-        guard let source = sourceURL, !isProcessing else { return }
+        guard let source = sourceURL, let document = pdfDocument, !isProcessing else { return }
 
         let suggestedName = source.deletingPathExtension().lastPathComponent + "_compressed.pdf"
         guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
@@ -211,6 +225,7 @@ class CompressViewModel {
             defer { operationTask = nil }
             do {
                 let result = try await compressor.compress(
+                    document: document,
                     source: source,
                     destination: destination,
                     level: selectedLevel,
@@ -222,16 +237,20 @@ class CompressViewModel {
 
             let newSize = result.outputSize
 
+            let protectionNote = document.isEncrypted && selectedLevel.isRasterize
+                ? " Password protection was removed."
+                : ""
+
             if result.skippedPages > 0 {
                 let ratio = sourceFileSize > 0
                     ? Int((1.0 - Double(newSize) / Double(sourceFileSize)) * 100)
                     : 0
-                resultMessage = "Done (\(ratio)% smaller) but \(result.skippedPages) of \(result.totalPages) pages could not be processed."
+                resultMessage = "Done (\(ratio)% smaller) but \(result.skippedPages) of \(result.totalPages) pages could not be processed.\(protectionNote)"
                 isError = false
                 isWarning = true
                 lastOutputURL = destination
             } else if newSize >= sourceFileSize && sourceFileSize > 0 {
-                resultMessage = "Result (\(Formatting.fileSize(newSize))) is not smaller than original (\(Formatting.fileSize(sourceFileSize))). File saved."
+                resultMessage = "Result (\(Formatting.fileSize(newSize))) is not smaller than original (\(Formatting.fileSize(sourceFileSize))). File saved.\(protectionNote)"
                 isError = false
                 isWarning = false
                 lastOutputURL = destination
@@ -239,7 +258,7 @@ class CompressViewModel {
                 let ratio = sourceFileSize > 0
                     ? Int((1.0 - Double(newSize) / Double(sourceFileSize)) * 100)
                     : 0
-                resultMessage = "Done! \(ratio)% smaller (\(Formatting.fileSize(sourceFileSize)) → \(Formatting.fileSize(newSize)))"
+                resultMessage = "Done! \(ratio)% smaller (\(Formatting.fileSize(sourceFileSize)) → \(Formatting.fileSize(newSize))).\(protectionNote)"
                 isError = false
                 isWarning = false
                 lastOutputURL = destination

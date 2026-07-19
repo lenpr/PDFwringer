@@ -51,12 +51,45 @@ struct PDFColorAdjuster {
         quality: CGFloat = 0.85,
         progress: (Double) -> Void
     ) async throws -> Result {
+        guard FileManager.default.isReadableFile(atPath: source.path(percentEncoded: false)) else {
+            throw PDFwringerError.fileNotReadable(source.lastPathComponent)
+        }
+        guard let document = PDFDocument(url: source) else {
+            throw PDFwringerError.cannotOpenDocument
+        }
+        if document.isLocked { throw PDFwringerError.documentIsLocked }
+
+        return try await adjust(
+            document: document,
+            source: source,
+            destination: destination,
+            settings: settings,
+            pages: pages,
+            dpi: dpi,
+            quality: quality,
+            progress: progress
+        )
+    }
+
+    /// Applies color settings to an already-open document, including one the caller unlocked.
+    @discardableResult
+    func adjust(
+        document: PDFDocument,
+        source: URL,
+        destination: URL,
+        settings: Settings,
+        pages: [Int]?,
+        dpi: CGFloat = 150,
+        quality: CGFloat = 0.85,
+        progress: (Double) -> Void
+    ) async throws -> Result {
         let start = ContinuousClock.now
         Log.colorAdjust.info("Starting color adjust: brightness=\(settings.brightness), contrast=\(settings.contrast), saturation=\(settings.saturation)")
 
         guard source.standardizedFileURL != destination.standardizedFileURL else {
             throw PDFwringerError.sourceEqualsDestination
         }
+        if document.isLocked { throw PDFwringerError.documentIsLocked }
 
         guard !settings.isIdentity else {
             try AtomicFileWriter.write(to: destination) { tempURL in
@@ -68,11 +101,7 @@ struct PDFColorAdjuster {
             return Result(skippedPages: 0, totalPages: 0)
         }
 
-        guard let doc = PDFCompressor.openPDF(at: source) else {
-            throw PDFwringerError.cannotOpenDocument
-        }
-
-        let pageCount = doc.numberOfPages
+        let pageCount = document.pageCount
         guard pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
 
         let targetPages: Set<Int>
@@ -91,15 +120,15 @@ struct PDFColorAdjuster {
 
         do {
             var skippedPages = 0
-            for i in 1...pageCount {
+            for i in 0..<pageCount {
                 try Task.checkCancellation()
 
                 autoreleasepool {
-                    guard let page = doc.page(at: i) else { skippedPages += 1; return }
+                    guard let page = document.page(at: i) else { skippedPages += 1; return }
                     guard let (rendered, displaySize) = PDFCompressor.renderPage(page, dpi: dpi, grayscale: false) else { skippedPages += 1; return }
 
                     let finalImage: CGImage
-                    if targetPages.contains(i) {
+                    if targetPages.contains(i + 1) {
                         finalImage = Self.adjustImage(rendered, settings: settings) ?? rendered
                     } else {
                         finalImage = rendered
@@ -122,7 +151,7 @@ struct PDFColorAdjuster {
                     outputCtx.endPage()
                 }
 
-                progress(Double(i) / Double(pageCount))
+                progress(Double(i + 1) / Double(pageCount))
                 await Task.yield()
             }
 
