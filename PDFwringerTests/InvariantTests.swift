@@ -96,7 +96,7 @@ struct TextPreservationTests {
         assertTextNormalized(source: fixture.url, output: output, operation: "metadata write")
     }
 
-    @Test("Rotation preserves extractable text", arguments: FixtureDiscovery.modifiableFixtures)
+    @Test("Rotation preserves extractable text", arguments: FixtureDiscovery.rotationFixtures)
     func rotationPreservesText(fixture: FixtureDiscovery.Fixture) async throws {
         guard hasReliableText(fixture: fixture) else { return }
 
@@ -198,7 +198,7 @@ struct PageGeometryTests {
         PDFAssertions.assertGeometryPreserved(source: fixture.url, output: output, operation: "metadata write")
     }
 
-    @Test("Rotation changes rotation but preserves box dimensions", arguments: FixtureDiscovery.modifiableFixtures)
+    @Test("Rotation changes rotation but preserves box dimensions", arguments: FixtureDiscovery.rotationFixtures)
     func rotationChangesRotation(fixture: FixtureDiscovery.Fixture) async throws {
         let output = FixtureDiscovery.outputURL(for: fixture, suffix: "_geom_rot.pdf")
         defer { try? FileManager.default.removeItem(at: output) }

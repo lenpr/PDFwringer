@@ -2,6 +2,13 @@ import Testing
 import PDFKit
 import Foundation
 
+private final class RefusingRotationPage: PDFPage {
+    override var rotation: Int {
+        get { super.rotation }
+        set { }
+    }
+}
+
 @Suite("PDFRotator")
 @MainActor
 struct PDFRotatorTests {
@@ -108,6 +115,92 @@ struct PDFRotatorTests {
 
         let result = PDFDocument(url: output)!
         #expect(result.page(at: 0)!.rotation == 270)
+    }
+
+    @Test("In-memory rotation refuses permission-restricted documents")
+    func restrictedDocumentIsNotMutated() throws {
+        let source = FixtureDiscovery.fixturesDirectory
+            .appending(components: "security", "sechandler.pdf")
+        let document = try #require(PDFDocument(url: source))
+        let page = try #require(document.page(at: 0))
+        let originalRotation = page.rotation
+        #expect(!document.allowsDocumentAssembly)
+
+        do {
+            try rotator.rotate(
+                document: document,
+                angle: .ninety,
+                pageIndices: nil,
+                progress: { _ in }
+            )
+            Issue.record("Expected documentAssemblyNotAllowed")
+        } catch let error as PDFwringerError {
+            guard case .documentAssemblyNotAllowed = error else {
+                Issue.record("Expected documentAssemblyNotAllowed, got \(error)")
+                return
+            }
+        }
+
+        #expect(page.rotation == originalRotation)
+    }
+
+    @Test("File rotation fails closed when document assembly is forbidden")
+    func restrictedDocumentCreatesNoOutput() async throws {
+        let source = FixtureDiscovery.fixturesDirectory
+            .appending(components: "security", "sechandler.pdf")
+        let outputDirectory = TestPDFGenerator.makeTempDirectory()
+        let output = outputDirectory.appending(component: "restricted-rotation.pdf")
+        let originalData = try Data(contentsOf: source)
+        defer { TestPDFGenerator.cleanup(outputDirectory) }
+
+        do {
+            try await rotator.rotate(
+                source: source,
+                destination: output,
+                angle: .ninety,
+                pageIndices: nil,
+                progress: { _ in }
+            )
+            Issue.record("Expected documentAssemblyNotAllowed")
+        } catch let error as PDFwringerError {
+            guard case .documentAssemblyNotAllowed = error else {
+                Issue.record("Expected documentAssemblyNotAllowed, got \(error)")
+                return
+            }
+        }
+
+        #expect(!FileManager.default.fileExists(atPath: output.path))
+        #expect(try Data(contentsOf: source) == originalData)
+    }
+
+    @Test("Ignored PDFKit rotation setters fail and roll back earlier pages")
+    func ignoredSetterFailsClosed() throws {
+        let document = PDFDocument()
+        let firstPage = PDFPage()
+        let refusingPage = RefusingRotationPage()
+        document.insert(firstPage, at: 0)
+        document.insert(refusingPage, at: 1)
+        #expect(document.allowsDocumentAssembly)
+        var progressValues: [Double] = []
+
+        do {
+            try rotator.rotate(
+                document: document,
+                angle: .ninety,
+                pageIndices: nil,
+                progress: { progressValues.append($0) }
+            )
+            Issue.record("Expected documentAssemblyNotAllowed")
+        } catch let error as PDFwringerError {
+            guard case .documentAssemblyNotAllowed = error else {
+                Issue.record("Expected documentAssemblyNotAllowed, got \(error)")
+                return
+            }
+        }
+
+        #expect(firstPage.rotation == 0)
+        #expect(refusingPage.rotation == 0)
+        #expect(progressValues == [0.5])
     }
 
     @Test("Rotating unreadable file throws fileNotReadable")

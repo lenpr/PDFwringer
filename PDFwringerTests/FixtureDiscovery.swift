@@ -62,6 +62,13 @@ enum FixtureDiscovery {
         }
     }()
 
+    /// Fixtures whose security permissions specifically allow page rotation.
+    static let rotationFixtures: [Fixture] = {
+        openableFixtures.filter { fixture in
+            PDFDocument(url: fixture.url)?.allowsDocumentAssembly == true
+        }
+    }()
+
     /// Fixtures that are password-protected or otherwise locked.
     static let lockedFixtures: [Fixture] = {
         allFixtures.filter { fixture in

@@ -17,6 +17,8 @@ struct RotateOptionsView: View {
     @State private var shakeOffset: CGFloat = 0
     @State private var documentGeneration = 0
 
+    private let rotator = PDFRotator()
+
     var body: some View {
         HStack(spacing: 0) {
             VStack(spacing: 0) {
@@ -70,7 +72,7 @@ struct RotateOptionsView: View {
 
                     Spacer()
 
-                    Button(String(localized: "Save")) { Task { await saveRotated() } }
+                    Button(String(localized: "Save")) { saveRotated() }
                         .keyboardShortcut("s")
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
@@ -81,7 +83,7 @@ struct RotateOptionsView: View {
                         message: msg,
                         isError: isError,
                         outputURL: lastOutputURL,
-                        onRetry: isError ? { Task { await saveRotated() } } : nil
+                        onRetry: isError ? { saveRotated() } : nil
                     )
                 }
 
@@ -99,24 +101,40 @@ struct RotateOptionsView: View {
             return
         }
 
-        for idx in indices {
-            if let page = document.page(at: idx) {
-                page.rotation = (page.rotation + angle.rawValue) % 360
-            }
+        do {
+            try rotator.rotate(
+                document: document,
+                angle: angle,
+                pageIndices: indices,
+                progress: { _ in }
+            )
+            documentGeneration += 1
+            resultMessage = nil
+            isError = false
+            lastOutputURL = nil
+            onMutate?()
+        } catch {
+            resultMessage = error.localizedDescription
+            isError = true
+            lastOutputURL = nil
         }
-        documentGeneration += 1
-        resultMessage = nil
-        onMutate?()
     }
 
-    private func saveRotated() async {
+    private func saveRotated() {
+        guard document.allowsDocumentAssembly else {
+            resultMessage = PDFwringerError.documentAssemblyNotAllowed.localizedDescription
+            isError = true
+            lastOutputURL = nil
+            return
+        }
+
         let suggestedName = url.deletingPathExtension().lastPathComponent + "_rotated.pdf"
         guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
 
         resultMessage = nil
         isError = false
 
-        let result = await DocumentSaver.save(document: document, to: destination)
+        let result = DocumentSaver.save(document: document, to: destination)
         resultMessage = result.message
         isError = result.isError
         lastOutputURL = result.outputURL

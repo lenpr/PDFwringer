@@ -10,7 +10,7 @@ import Foundation
 @MainActor
 struct FixtureRoundTripTests {
 
-    @Test("Rotate 4×90° preserves original page dimensions", arguments: FixtureDiscovery.modifiableFixtures)
+    @Test("Rotate 4×90° preserves original page dimensions", arguments: FixtureDiscovery.rotationFixtures)
     func rotateFullCircle(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 1 else { return }
 
@@ -295,7 +295,7 @@ struct FixtureReprocessTests {
         #expect(valid, "Re-compressed output should be valid: \(fixture)")
     }
 
-    @Test("Rotated output can be split", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Rotated output can be split", arguments: FixtureDiscovery.rotationFixtures)
     func rotatedCanBeSplit(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 2, fixture.pageCount <= 20 else { return }
 

@@ -97,7 +97,7 @@ struct FixtureCompressTests {
 @MainActor
 struct FixtureRotateTests {
 
-    @Test("Rotate 90° produces valid output", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Rotate 90° produces valid output", arguments: FixtureDiscovery.rotationFixtures)
     func rotate90(fixture: FixtureDiscovery.Fixture) async throws {
         let output = FixtureDiscovery.outputURL(for: fixture, suffix: "_rot90.pdf")
         defer { try? FileManager.default.removeItem(at: output) }
@@ -116,7 +116,7 @@ struct FixtureRotateTests {
         #expect(pages == fixture.pageCount, "Rotation should preserve page count: \(fixture)")
     }
 
-    @Test("Rotate 180° produces valid output", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Rotate 180° produces valid output", arguments: FixtureDiscovery.rotationFixtures)
     func rotate180(fixture: FixtureDiscovery.Fixture) async throws {
         let output = FixtureDiscovery.outputURL(for: fixture, suffix: "_rot180.pdf")
         defer { try? FileManager.default.removeItem(at: output) }
@@ -135,7 +135,7 @@ struct FixtureRotateTests {
         #expect(pages == fixture.pageCount, "Rotation should preserve page count: \(fixture)")
     }
 
-    @Test("Rotate specific pages produces valid output", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Rotate specific pages produces valid output", arguments: FixtureDiscovery.rotationFixtures)
     func rotateSpecificPages(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 2 else { return }
 

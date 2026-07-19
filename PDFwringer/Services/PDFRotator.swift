@@ -42,12 +42,50 @@ struct PDFRotator {
         guard let doc = PDFDocument(url: source) else {
             throw PDFwringerError.cannotOpenDocument
         }
-        if doc.isLocked { throw PDFwringerError.documentIsLocked }
-
-        let pageCount = doc.pageCount
-        guard pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
 
         let start = ContinuousClock.now
+        let rotatedPageCount = try rotate(
+            document: doc,
+            angle: angle,
+            pageIndices: pageIndices,
+            progress: progress
+        )
+        let expectedRotations = try rotations(in: doc)
+
+        try Task.checkCancellation()
+        try AtomicFileWriter.write(to: destination) { tempURL in
+            guard doc.write(to: tempURL),
+                  let output = PDFDocument(url: tempURL),
+                  output.pageCount == doc.pageCount else {
+                return false
+            }
+            if output.isLocked {
+                return doc.isEncrypted && output.isEncrypted
+            }
+            return (try? rotations(in: output)) == expectedRotations
+        }
+
+        let elapsed = ContinuousClock.now - start
+        Log.rotate.info("Rotation complete: \(rotatedPageCount) pages rotated \(angle.title), duration=\(elapsed)")
+    }
+
+    /// Applies rotation to an already-open document. Used by the interactive
+    /// editor so the UI and file service share permission and failure behavior.
+    @discardableResult
+    func rotate(
+        document: PDFDocument,
+        angle: Angle,
+        pageIndices: [Int]?,
+        progress: (Double) -> Void
+    ) throws -> Int {
+        if document.isLocked { throw PDFwringerError.documentIsLocked }
+
+        let pageCount = document.pageCount
+        guard pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
+        guard document.allowsDocumentAssembly else {
+            throw PDFwringerError.documentAssemblyNotAllowed
+        }
+
         let indicesToRotate: [Int]
         if let indices = pageIndices {
             indicesToRotate = indices.filter { $0 >= 0 && $0 < pageCount }
@@ -55,18 +93,47 @@ struct PDFRotator {
             indicesToRotate = Array(0..<pageCount)
         }
 
-        for (i, pageIdx) in indicesToRotate.enumerated() {
-            try Task.checkCancellation()
-            guard let page = doc.page(at: pageIdx) else { continue }
-            page.rotation = (page.rotation + angle.rawValue) % 360
-            progress(Double(i + 1) / Double(indicesToRotate.count))
+        let pages = try indicesToRotate.map { pageIndex in
+            guard let page = document.page(at: pageIndex) else {
+                throw PDFwringerError.cannotOpenDocument
+            }
+            return page
+        }
+        var originalRotations: [Int: Int] = [:]
+        for (pageIndex, page) in zip(indicesToRotate, pages) where originalRotations[pageIndex] == nil {
+            originalRotations[pageIndex] = page.rotation
         }
 
-        try AtomicFileWriter.write(to: destination) { tempURL in
-            doc.write(to: tempURL)
+        do {
+            for (i, page) in pages.enumerated() {
+                try Task.checkCancellation()
+                let expectedRotation = normalizedRotation(page.rotation + angle.rawValue)
+                page.rotation = expectedRotation
+                guard normalizedRotation(page.rotation) == expectedRotation else {
+                    throw PDFwringerError.documentAssemblyNotAllowed
+                }
+                progress(Double(i + 1) / Double(indicesToRotate.count))
+            }
+        } catch {
+            for (pageIndex, rotation) in originalRotations {
+                document.page(at: pageIndex)?.rotation = rotation
+            }
+            throw error
         }
 
-        let elapsed = ContinuousClock.now - start
-        Log.rotate.info("Rotation complete: \(indicesToRotate.count) pages rotated \(angle.title), duration=\(elapsed)")
+        return indicesToRotate.count
+    }
+
+    private func rotations(in document: PDFDocument) throws -> [Int] {
+        try (0..<document.pageCount).map { pageIndex in
+            guard let page = document.page(at: pageIndex) else {
+                throw PDFwringerError.cannotOpenDocument
+            }
+            return normalizedRotation(page.rotation)
+        }
+    }
+
+    private func normalizedRotation(_ rotation: Int) -> Int {
+        ((rotation % 360) + 360) % 360
     }
 }

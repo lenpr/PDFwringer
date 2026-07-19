@@ -262,6 +262,37 @@ struct EncryptedWorkflowTests {
         assertSourceIsStillLocked(source)
     }
 
+    @Test("Rotation preserves encryption for an unlocked document")
+    func rotationUsesUnlockedDocument() throws {
+        let source = try makeEncryptedPDF(pageCount: 2, filename: "rotate.pdf")
+        let outputDirectory = TestPDFGenerator.makeTempDirectory()
+        let output = outputDirectory.appending(component: "rotated.pdf")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(outputDirectory)
+        }
+
+        let document = try unlockedDocument(at: source)
+        #expect(document.allowsDocumentAssembly)
+        try PDFRotator().rotate(
+            document: document,
+            angle: .ninety,
+            pageIndices: [0],
+            progress: { _ in }
+        )
+
+        let saveResult = DocumentSaver.save(document: document, to: output)
+        #expect(!saveResult.isError)
+
+        let lockedOutput = try #require(PDFDocument(url: output))
+        #expect(lockedOutput.isEncrypted)
+        #expect(lockedOutput.isLocked)
+        #expect(lockedOutput.unlock(withPassword: Self.password))
+        #expect(lockedOutput.page(at: 0)?.rotation == 90)
+        #expect(lockedOutput.page(at: 1)?.rotation == 0)
+        assertSourceIsStillLocked(source)
+    }
+
     private func makeEncryptedPDF(pageCount: Int, filename: String) throws -> URL {
         let plain = TestPDFGenerator.makeRenderedPDF(pageCount: pageCount, filename: "plain-\(filename)")
         defer { TestPDFGenerator.cleanup(plain) }
