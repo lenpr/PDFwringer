@@ -11,24 +11,42 @@ struct UtilityTests {
     func atomicWriteSuccess() throws {
         let dest = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
         defer { try? FileManager.default.removeItem(at: dest) }
+        var replacementDirectory: URL?
 
         try AtomicFileWriter.write(to: dest) { tempURL in
+            replacementDirectory = tempURL.deletingLastPathComponent()
+            let destinationFileSystem = try FileManager.default.attributesOfFileSystem(
+                forPath: dest.deletingLastPathComponent().path(percentEncoded: false)
+            )[.systemNumber] as? NSNumber
+            let stagingFileSystem = try FileManager.default.attributesOfFileSystem(
+                forPath: tempURL.deletingLastPathComponent().path(percentEncoded: false)
+            )[.systemNumber] as? NSNumber
+            #expect(destinationFileSystem == stagingFileSystem)
+            #expect(tempURL.pathExtension == dest.pathExtension)
             try Data("hello".utf8).write(to: tempURL)
             return true
         }
 
         let data = try Data(contentsOf: dest)
         #expect(String(data: data, encoding: .utf8) == "hello")
+        if let replacementDirectory {
+            #expect(!FileManager.default.fileExists(
+                atPath: replacementDirectory.path(percentEncoded: false)
+            ))
+        }
     }
 
     @Test("AtomicFileWriter cleans up on block returning false")
     func atomicWriteBlockFalse() {
         let dest = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
         defer { try? FileManager.default.removeItem(at: dest) }
+        try? Data("original".utf8).write(to: dest)
+        var stagedURL: URL?
 
         do {
             try AtomicFileWriter.write(to: dest) { tempURL in
-                try Data("data".utf8).write(to: tempURL)
+                stagedURL = tempURL
+                try Data("partial".utf8).write(to: tempURL)
                 return false
             }
             Issue.record("Expected error")
@@ -40,18 +58,26 @@ struct UtilityTests {
             Issue.record("Unexpected error: \(error)")
         }
 
-        #expect(!FileManager.default.fileExists(atPath: dest.path(percentEncoded: false)))
+        #expect((try? Data(contentsOf: dest)) == Data("original".utf8))
+        if let stagedURL {
+            #expect(!FileManager.default.fileExists(atPath: stagedURL.path(percentEncoded: false)))
+            #expect(!FileManager.default.fileExists(atPath: stagedURL.deletingLastPathComponent().path(percentEncoded: false)))
+        }
     }
 
     @Test("AtomicFileWriter cleans up on block throwing")
     func atomicWriteBlockThrows() {
         let dest = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
         defer { try? FileManager.default.removeItem(at: dest) }
+        try? Data("original".utf8).write(to: dest)
 
         struct TestError: Error {}
+        var stagedURL: URL?
 
         do {
-            try AtomicFileWriter.write(to: dest) { _ in
+            try AtomicFileWriter.write(to: dest) { tempURL in
+                stagedURL = tempURL
+                try Data("partial".utf8).write(to: tempURL)
                 throw TestError()
             }
             Issue.record("Expected error")
@@ -61,7 +87,74 @@ struct UtilityTests {
             Issue.record("Unexpected error: \(error)")
         }
 
-        #expect(!FileManager.default.fileExists(atPath: dest.path(percentEncoded: false)))
+        #expect((try? Data(contentsOf: dest)) == Data("original".utf8))
+        #expect(stagedURL != nil)
+        if let stagedURL {
+            #expect(!FileManager.default.fileExists(atPath: stagedURL.path(percentEncoded: false)))
+            #expect(!FileManager.default.fileExists(atPath: stagedURL.deletingLastPathComponent().path(percentEncoded: false)))
+        }
+    }
+
+    @Test("AtomicFileWriter replaces an existing regular file")
+    func atomicWriteReplacesExistingFile() throws {
+        let dest = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
+        defer { try? FileManager.default.removeItem(at: dest) }
+        try Data("old".utf8).write(to: dest)
+
+        try AtomicFileWriter.write(to: dest) { tempURL in
+            try Data("new".utf8).write(to: tempURL)
+            return true
+        }
+
+        #expect(try Data(contentsOf: dest) == Data("new".utf8))
+    }
+
+    @Test("AtomicFileWriter rejects a directory destination")
+    func atomicWriteRejectsDirectory() throws {
+        let destination = URL.temporaryDirectory.appending(component: UUID().uuidString)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: destination) }
+
+        do {
+            try AtomicFileWriter.write(to: destination) { tempURL in
+                try Data("data".utf8).write(to: tempURL)
+                return true
+            }
+            Issue.record("Expected cannotWriteOutput")
+        } catch let error as PDFwringerError {
+            guard case .cannotWriteOutput = error else {
+                Issue.record("Expected cannotWriteOutput, got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+
+        var isDirectory: ObjCBool = false
+        #expect(FileManager.default.fileExists(
+            atPath: destination.path(percentEncoded: false),
+            isDirectory: &isDirectory
+        ))
+        #expect(isDirectory.boolValue)
+    }
+
+    @Test(
+        "AtomicFileWriter preserves destination extension",
+        arguments: ["pdf", "PDF", "png", ""]
+    )
+    func atomicWritePreservesExtension(fileExtension: String) throws {
+        var destination = URL.temporaryDirectory.appending(component: UUID().uuidString)
+        if !fileExtension.isEmpty {
+            destination.appendPathExtension(fileExtension)
+        }
+        defer { try? FileManager.default.removeItem(at: destination) }
+
+        try AtomicFileWriter.write(to: destination) { tempURL in
+            #expect(tempURL.pathExtension == fileExtension)
+            try Data("data".utf8).write(to: tempURL)
+            return true
+        }
+        #expect(FileManager.default.fileExists(atPath: destination.path(percentEncoded: false)))
     }
 
     // MARK: - Formatting

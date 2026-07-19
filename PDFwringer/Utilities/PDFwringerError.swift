@@ -82,18 +82,48 @@ enum AtomicFileWriter {
     }()
 
     static func write(to destination: URL, using block: (URL) throws -> Bool) throws {
-        let tempURL = tempDirectory.appending(component: UUID().uuidString + ".pdf")
+        let fileManager = FileManager.default
+        let destinationPath = destination.path(percentEncoded: false)
+        let parent = destination.deletingLastPathComponent()
+        var parentIsDirectory: ObjCBool = false
+        guard fileManager.fileExists(
+            atPath: parent.path(percentEncoded: false),
+            isDirectory: &parentIsDirectory
+        ), parentIsDirectory.boolValue else {
+            throw PDFwringerError.cannotWriteOutput
+        }
+
+        let destinationExists = fileManager.fileExists(atPath: destinationPath)
+        if destinationExists {
+            let attributes = try fileManager.attributesOfItem(atPath: destinationPath)
+            guard attributes[.type] as? FileAttributeType == .typeRegular else {
+                throw PDFwringerError.cannotWriteOutput
+            }
+        }
+
+        let replacementDirectory = try fileManager.url(
+            for: .itemReplacementDirectory,
+            in: .userDomainMask,
+            appropriateFor: destinationExists ? destination : parent,
+            create: true
+        )
+        defer { try? fileManager.removeItem(at: replacementDirectory) }
+
+        var tempURL = replacementDirectory.appending(component: UUID().uuidString)
+        if !destination.pathExtension.isEmpty {
+            tempURL.appendPathExtension(destination.pathExtension)
+        }
+        defer { try? fileManager.removeItem(at: tempURL) }
+
         Log.fileIO.debug("AtomicWrite: temp=\(tempURL.lastPathComponent, privacy: .private) → dest")
         let success = try block(tempURL)
         guard success else {
-            try? FileManager.default.removeItem(at: tempURL)
             throw PDFwringerError.cannotWriteOutput
         }
-        do {
-            _ = try FileManager.default.replaceItemAt(destination, withItemAt: tempURL)
-        } catch {
-            try? FileManager.default.removeItem(at: tempURL)
-            throw error
+        if destinationExists {
+            _ = try fileManager.replaceItemAt(destination, withItemAt: tempURL)
+        } else {
+            try fileManager.moveItem(at: tempURL, to: destination)
         }
     }
 

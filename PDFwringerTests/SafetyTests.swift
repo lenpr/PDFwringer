@@ -49,11 +49,17 @@ struct AtomicWriteSafetyTests {
                 source: source, destination: destDir,
                 angle: .ninety, pageIndices: nil, progress: { _ in }
             )
-            // May succeed (replaceItemAt can overwrite a directory) or fail
+            Issue.record("Expected a directory destination to be rejected")
+        } catch let error as PDFwringerError {
+            guard case .cannotWriteOutput = error else {
+                Issue.record("Expected cannotWriteOutput, got \(error)")
+                return
+            }
         } catch {
-            // Expected failure is acceptable
+            Issue.record("Unexpected error: \(error)")
         }
 
+        #expect(FileManager.default.fileExists(atPath: destDir.path(percentEncoded: false)))
         PDFAssertions.assertSourceUnmodified(url: source, originalSize: sourceSize, operation: "dir as dest")
     }
 
