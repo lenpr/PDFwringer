@@ -14,7 +14,6 @@ class ColorAdjustViewModel {
     var previewImage: NSImage?
     var resultMessage: String?
     var isError = false
-    var isWarning = false
     var isSaving = false
     var progress: Double = 0
     var lastOutputURL: URL?
@@ -107,7 +106,6 @@ class ColorAdjustViewModel {
 
         resultMessage = nil
         isError = false
-        isWarning = false
         isSaving = true
         progress = 0
         onMutate?()
@@ -127,7 +125,7 @@ class ColorAdjustViewModel {
         operationTask = Task {
             defer { operationTask = nil }
             do {
-                let result = try await adjuster.adjust(
+                try await adjuster.adjust(
                     document: document,
                     source: source,
                     destination: destination,
@@ -137,13 +135,8 @@ class ColorAdjustViewModel {
                     quality: 0.85,
                     progress: { [weak self] p in self?.progress = p }
                 )
-                if result.skippedPages > 0 {
-                    resultMessage = String(localized: "Saved with \(result.skippedPages) of \(result.totalPages) pages skipped due to rendering issues.")
-                    isWarning = true
-                } else {
-                    resultMessage = String(localized: "Saved.")
-                }
-                if document.isEncrypted {
+                resultMessage = String(localized: "Saved.")
+                if document.isEncrypted && !settings.isIdentity {
                     resultMessage? += String(localized: " Password protection was removed.")
                 }
                 isError = false

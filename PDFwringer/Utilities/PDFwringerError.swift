@@ -23,7 +23,7 @@ enum PDFwringerError: LocalizedError {
         case .cannotOpenDocument: String(localized: "Cannot open the PDF document. It may be corrupted or have zero pages.")
         case .documentIsLocked: String(localized: "This PDF is password-protected.")
         case .cannotCreateOutput: String(localized: "Cannot create the output file.")
-        case .cannotWriteOutput: String(localized: "Failed to write the output PDF.")
+        case .cannotWriteOutput: String(localized: "Failed to write the output file.")
         case .invalidPageRange(let range): String(localized: "Invalid page range: '\(range)'")
         case .noSourceFile: String(localized: "No source file selected.")
         case .emptyFileList: String(localized: "No files to process.")

@@ -19,7 +19,6 @@ class CompressViewModel {
     var progress: Double = 0
     var resultMessage: String?
     var isError = false
-    var isWarning = false
     var lastOutputURL: URL?
     var pdfDocument: PDFDocument?
 
@@ -218,7 +217,6 @@ class CompressViewModel {
         progress = 0
         resultMessage = nil
         isError = false
-        isWarning = false
         lastOutputURL = nil
 
         operationTask = Task {
@@ -241,18 +239,9 @@ class CompressViewModel {
                 ? " Password protection was removed."
                 : ""
 
-            if result.skippedPages > 0 {
-                let ratio = sourceFileSize > 0
-                    ? Int((1.0 - Double(newSize) / Double(sourceFileSize)) * 100)
-                    : 0
-                resultMessage = "Done (\(ratio)% smaller) but \(result.skippedPages) of \(result.totalPages) pages could not be processed.\(protectionNote)"
-                isError = false
-                isWarning = true
-                lastOutputURL = destination
-            } else if newSize >= sourceFileSize && sourceFileSize > 0 {
+            if newSize >= sourceFileSize && sourceFileSize > 0 {
                 resultMessage = "Result (\(Formatting.fileSize(newSize))) is not smaller than original (\(Formatting.fileSize(sourceFileSize))). File saved.\(protectionNote)"
                 isError = false
-                isWarning = false
                 lastOutputURL = destination
             } else {
                 let ratio = sourceFileSize > 0
@@ -260,17 +249,14 @@ class CompressViewModel {
                     : 0
                 resultMessage = "Done! \(ratio)% smaller (\(Formatting.fileSize(sourceFileSize)) → \(Formatting.fileSize(newSize))).\(protectionNote)"
                 isError = false
-                isWarning = false
                 lastOutputURL = destination
             }
         } catch is CancellationError {
             resultMessage = "Cancelled."
             isError = false
-            isWarning = false
         } catch {
             resultMessage = error.localizedDescription
             isError = true
-            isWarning = false
         }
 
             isProcessing = false

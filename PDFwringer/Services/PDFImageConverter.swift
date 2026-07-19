@@ -20,10 +20,17 @@ struct PDFImageConverter {
         Log.app.info("Converting \(images.count) images to PDF")
 
         let tempURL = AtomicFileWriter.tempDirectory.appending(component: UUID().uuidString + ".pdf")
+        defer { try? FileManager.default.removeItem(at: tempURL) }
 
         var firstPageBox = CGRect.zero
         guard let ctx = CGContext(tempURL as CFURL, mediaBox: &firstPageBox, nil) else {
             throw PDFwringerError.cannotCreateOutput
+        }
+        var contextIsClosed = false
+        defer {
+            if !contextIsClosed {
+                ctx.closePDF()
+            }
         }
 
         var pagesWritten = 0
@@ -31,8 +38,10 @@ struct PDFImageConverter {
         for (i, imageURL) in images.enumerated() {
             try Task.checkCancellation()
 
-            autoreleasepool {
-                guard let image = loadImage(from: imageURL) else { return }
+            try autoreleasepool {
+                guard let image = loadImage(from: imageURL) else {
+                    throw PDFwringerError.fileNotReadable(imageURL.lastPathComponent)
+                }
 
                 let width = CGFloat(image.width)
                 let height = CGFloat(image.height)
@@ -61,16 +70,22 @@ struct PDFImageConverter {
             await Task.yield()
         }
 
+        try Task.checkCancellation()
         ctx.closePDF()
+        contextIsClosed = true
 
-        guard pagesWritten > 0 else {
-            try? FileManager.default.removeItem(at: tempURL)
+        guard pagesWritten == images.count else {
+            throw PDFwringerError.cannotWriteOutput
+        }
+        guard let outputDocument = PDFDocument(url: tempURL),
+              outputDocument.pageCount == images.count else {
             throw PDFwringerError.cannotWriteOutput
         }
 
         try AtomicFileWriter.write(to: destination) { destTemp in
-            try FileManager.default.moveItem(at: tempURL, to: destTemp)
-            return true
+            try FileManager.default.copyItem(at: tempURL, to: destTemp)
+            guard let verificationDocument = PDFDocument(url: destTemp) else { return false }
+            return verificationDocument.pageCount == images.count
         }
 
         let elapsed = ContinuousClock.now - start

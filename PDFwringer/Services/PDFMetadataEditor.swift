@@ -105,6 +105,7 @@ struct PDFMetadataEditor {
 
         if document.isLocked { throw PDFwringerError.documentIsLocked }
         guard document.pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
+        try Task.checkCancellation()
 
         let outputPassword = removeProtection ? nil : password
 
@@ -161,11 +162,23 @@ struct PDFMetadataEditor {
         }
 
         try AtomicFileWriter.write(to: destination) { tempURL in
+            let didWrite: Bool
             if writeOptions.isEmpty {
-                doc.write(to: tempURL)
+                didWrite = doc.write(to: tempURL)
             } else {
-                doc.write(to: tempURL, withOptions: writeOptions)
+                didWrite = doc.write(to: tempURL, withOptions: writeOptions)
             }
+            guard didWrite, let verificationDocument = PDFDocument(url: tempURL) else {
+                return false
+            }
+            if let password, !password.isEmpty {
+                guard verificationDocument.unlock(withPassword: password) else { return false }
+                return verificationDocument.pageCount == sourceDocument.pageCount
+            }
+            if verificationDocument.isLocked {
+                return verificationDocument.isEncrypted
+            }
+            return verificationDocument.pageCount == sourceDocument.pageCount
         }
     }
 
@@ -209,19 +222,19 @@ struct PDFMetadataEditor {
             throw PDFwringerError.cannotCreateOutput
         }
 
-        // Ensure the intermediate temp file is ALWAYS cleaned up on any exit path
-        // (cancellation, error, or success). This prevents leaving plaintext copies
-        // when the user requested password protection.
-        defer { try? FileManager.default.removeItem(at: tempURL) }
+        var didCloseOutput = false
+        defer {
+            if !didCloseOutput { outputCtx.closePDF() }
+            try? FileManager.default.removeItem(at: tempURL)
+        }
 
-        var skippedPages = 0
+        for i in 0..<pageCount {
+            try Task.checkCancellation()
 
-        do {
-            for i in 0..<pageCount {
-                try Task.checkCancellation()
-
-                autoreleasepool {
-                guard let page = doc.page(at: i) else { skippedPages += 1; return }
+            try autoreleasepool {
+                guard let page = doc.page(at: i) else {
+                    throw PDFwringerError.cannotWriteOutput
+                }
                 let bounds = page.bounds(for: .cropBox)
                 let rotation = page.rotation
                 let angle = ((rotation % 360) + 360) % 360
@@ -234,6 +247,21 @@ struct PDFMetadataEditor {
                 }
 
                 let scale = dpi / 72.0
+                let rawPixelWidth = displaySize.width * scale
+                let rawPixelHeight = displaySize.height * scale
+                let rawMaxLong = 16.5 * dpi
+                let rawMaxShort = 11.7 * dpi
+                guard displaySize.width.isFinite, displaySize.height.isFinite,
+                      displaySize.width > 0, displaySize.height > 0,
+                      rawPixelWidth.isFinite, rawPixelHeight.isFinite,
+                      rawPixelWidth < CGFloat(Int.max), rawPixelHeight < CGFloat(Int.max),
+                      rawMaxLong.isFinite, rawMaxShort.isFinite,
+                      rawMaxLong > 0, rawMaxShort > 0,
+                      rawMaxLong < CGFloat(Int.max), rawMaxShort < CGFloat(Int.max)
+                else {
+                    throw PDFwringerError.cannotWriteOutput
+                }
+
                 var pixelW = max(1, Int(displaySize.width * scale))
                 var pixelH = max(1, Int(displaySize.height * scale))
 
@@ -254,7 +282,9 @@ struct PDFMetadataEditor {
                     bitsPerComponent: 8, bytesPerRow: 0,
                     space: CGColorSpaceCreateDeviceRGB(),
                     bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-                ) else { skippedPages += 1; return }
+                ) else {
+                    throw PDFwringerError.cannotWriteOutput
+                }
 
                 bitmap.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
                 bitmap.fill(CGRect(x: 0, y: 0, width: pixelW, height: pixelH))
@@ -263,8 +293,11 @@ struct PDFMetadataEditor {
                 page.transform(bitmap, for: .cropBox)
                 page.draw(with: .cropBox, to: bitmap)
 
-                guard let rendered = bitmap.makeImage() else { skippedPages += 1; return }
-                guard let jpegData = PDFCompressor.jpegEncode(image: rendered, quality: quality) else { skippedPages += 1; return }
+                guard let rendered = bitmap.makeImage(),
+                      let jpegData = PDFCompressor.jpegEncode(image: rendered, quality: quality)
+                else {
+                    throw PDFwringerError.cannotWriteOutput
+                }
 
                 guard let provider = CGDataProvider(data: jpegData as CFData),
                       let jpegImage = CGImage(
@@ -273,7 +306,9 @@ struct PDFMetadataEditor {
                           shouldInterpolate: true,
                           intent: .defaultIntent
                       )
-                else { skippedPages += 1; return }
+                else {
+                    throw PDFwringerError.cannotWriteOutput
+                }
 
                 var outBox = CGRect(origin: .zero, size: displaySize)
                 outputCtx.beginPage(mediaBox: &outBox)
@@ -284,24 +319,14 @@ struct PDFMetadataEditor {
             progress?(Double(i + 1) / Double(pageCount))
             await Task.yield()
         }
-        } catch {
-            outputCtx.closePDF()
-            throw error
-        }
 
-        if skippedPages == pageCount {
-            outputCtx.closePDF()
-            throw PDFwringerError.cannotWriteOutput
-        }
-
-        if skippedPages > 0 {
-            Log.metadata.warning("Flatten skipped \(skippedPages) of \(pageCount) pages")
-        }
-
+        try Task.checkCancellation()
         outputCtx.closePDF()
+        didCloseOutput = true
 
         // Apply metadata to the flattened PDF
-        guard let flatDoc = PDFDocument(url: tempURL) else {
+        guard let flatDoc = PDFDocument(url: tempURL),
+              flatDoc.pageCount == pageCount else {
             throw PDFwringerError.cannotWriteOutput
         }
 
@@ -314,11 +339,18 @@ struct PDFMetadataEditor {
         }
 
         try AtomicFileWriter.write(to: destination) { finalTemp in
+            let didWrite: Bool
             if writeOptions.isEmpty {
-                flatDoc.write(to: finalTemp)
+                didWrite = flatDoc.write(to: finalTemp)
             } else {
-                flatDoc.write(to: finalTemp, withOptions: writeOptions)
+                didWrite = flatDoc.write(to: finalTemp, withOptions: writeOptions)
             }
+            guard didWrite, let verificationDocument = PDFDocument(url: finalTemp) else { return false }
+            if let password, !password.isEmpty,
+               !verificationDocument.unlock(withPassword: password) {
+                return false
+            }
+            return verificationDocument.pageCount == pageCount
         }
     }
 }

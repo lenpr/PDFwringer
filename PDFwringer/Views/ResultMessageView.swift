@@ -4,25 +4,21 @@ import Accessibility
 struct ResultMessageView: View {
     let message: String
     let isError: Bool
-    var isWarning: Bool = false
     var outputURL: URL?
     var onRetry: (() -> Void)?
 
     private var iconName: String {
         if isError { return "xmark.circle.fill" }
-        if isWarning { return "exclamationmark.triangle.fill" }
         return "checkmark.circle.fill"
     }
 
     private var iconColor: Color {
         if isError { return Color(nsColor: .systemRed) }
-        if isWarning { return Color(nsColor: .systemOrange) }
         return Color(nsColor: .systemGreen)
     }
 
     private var bgColor: Color {
         if isError { return .red }
-        if isWarning { return .orange }
         return .green
     }
 

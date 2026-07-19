@@ -175,8 +175,7 @@ struct EncryptedWorkflowTests {
             progress: { _ in }
         )
 
-        #expect(result.skippedPages == 0)
-        #expect(result.totalPages == 2)
+        #expect(result.outputSize > 0)
         let outputDocument = try #require(PDFDocument(url: output))
         #expect(outputDocument.pageCount == 2)
         #expect(!outputDocument.isEncrypted)
@@ -220,7 +219,7 @@ struct EncryptedWorkflowTests {
         }
 
         let document = try unlockedDocument(at: source)
-        let result = try await PDFColorAdjuster().adjust(
+        try await PDFColorAdjuster().adjust(
             document: document,
             source: source,
             destination: output,
@@ -231,8 +230,6 @@ struct EncryptedWorkflowTests {
             progress: { _ in }
         )
 
-        #expect(result.skippedPages == 0)
-        #expect(result.totalPages == 1)
         let outputDocument = try #require(PDFDocument(url: output))
         #expect(outputDocument.pageCount == 1)
         #expect(!outputDocument.isEncrypted)

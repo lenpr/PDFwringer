@@ -1,6 +1,27 @@
 import Testing
 import PDFKit
 
+private final class MissingPagePDFDocument: PDFDocument {
+    var inaccessiblePageIndex: Int?
+
+    override func page(at index: Int) -> PDFPage? {
+        if index == inaccessiblePageIndex { return nil }
+        return super.page(at: index)
+    }
+}
+
+private final class InvalidBoundsPDFPage: PDFPage {
+    override func bounds(for box: PDFDisplayBox) -> CGRect {
+        CGRect(x: 0, y: 0, width: CGFloat.infinity, height: 792)
+    }
+}
+
+private final class BoundaryBoundsPDFPage: PDFPage {
+    override func bounds(for box: PDFDisplayBox) -> CGRect {
+        CGRect(x: 0, y: 0, width: CGFloat(Int.max), height: 1)
+    }
+}
+
 @Suite("PDFCompressor")
 @MainActor
 struct PDFCompressorTests {
@@ -41,8 +62,17 @@ struct PDFCompressorTests {
             TestPDFGenerator.cleanup(output)
         }
 
+        let sourceDocument = try #require(PDFDocument(url: source))
+        let firstPage = try #require(sourceDocument.page(at: 0))
+        firstPage.addAnnotation(PDFAnnotation(
+            bounds: CGRect(x: 20, y: 20, width: 30, height: 30),
+            forType: .text,
+            withProperties: nil
+        ))
+        #expect(sourceDocument.write(to: source))
+
         let compressor = PDFCompressor()
-        try await compressor.compress(
+        let compressionResult = try await compressor.compress(
             source: source,
             destination: output,
             level: .lossless,
@@ -55,6 +85,8 @@ struct PDFCompressorTests {
         let result = PDFDocument(url: output)
         #expect(result != nil)
         #expect(result?.pageCount == 2)
+        #expect(result?.page(at: 0)?.annotations.isEmpty == true)
+        #expect(compressionResult.outputSize > 0)
     }
 
     // MARK: - Rasterize path
@@ -190,6 +222,56 @@ struct PDFCompressorTests {
                 progress: { _ in }
             )
         }
+    }
+
+    @Test("Rasterization fails without replacing destination when any page is inaccessible")
+    func inaccessiblePageFailsEntireCompression() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 3, filename: "missing_page.pdf")
+        let output = TestPDFGenerator.makeTempDirectory().appending(component: "out.pdf")
+        let originalDestination = Data("existing destination".utf8)
+        try originalDestination.write(to: output)
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(output)
+        }
+
+        let data = try Data(contentsOf: source)
+        let document = try #require(MissingPagePDFDocument(data: data))
+        document.inaccessiblePageIndex = 1
+
+        let compressor = PDFCompressor()
+        await #expect(throws: PDFwringerError.self) {
+            try await compressor.compress(
+                document: document,
+                source: source,
+                destination: output,
+                level: .medium,
+                quality: .good,
+                grayscale: false,
+                stripMetadata: false,
+                progress: { _ in }
+            )
+        }
+
+        #expect(try Data(contentsOf: output) == originalDestination)
+    }
+
+    @Test("Rendering rejects invalid page geometry instead of trapping")
+    func invalidPageGeometryFailsRendering() {
+        let page = InvalidBoundsPDFPage()
+
+        let result = PDFCompressor.renderPage(page, dpi: 150, grayscale: false)
+
+        #expect(result == nil)
+    }
+
+    @Test("Rendering rejects the rounded Int boundary instead of trapping")
+    func integerBoundaryPageGeometryFailsRendering() {
+        let page = BoundaryBoundsPDFPage()
+
+        let result = PDFCompressor.renderPage(page, dpi: 72, grayscale: false)
+
+        #expect(result == nil)
     }
 
     // MARK: - Pixel dimension capping

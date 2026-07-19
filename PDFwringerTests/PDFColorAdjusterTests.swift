@@ -19,16 +19,13 @@ struct PDFColorAdjusterTests {
         }
 
         let adjuster = PDFColorAdjuster()
-        let result = try await adjuster.adjust(
+        try await adjuster.adjust(
             source: source,
             destination: output,
             settings: .init(),
             pages: nil,
             progress: { _ in }
         )
-
-        #expect(result.skippedPages == 0)
-        #expect(result.totalPages == 0)
 
         let sourceData = try Data(contentsOf: source)
         let outputData = try Data(contentsOf: output)
@@ -47,16 +44,13 @@ struct PDFColorAdjusterTests {
         }
 
         let adjuster = PDFColorAdjuster()
-        let result = try await adjuster.adjust(
+        try await adjuster.adjust(
             source: source,
             destination: output,
             settings: .init(brightness: 0.2, contrast: 1.5, saturation: 0.5),
             pages: nil,
             progress: { _ in }
         )
-
-        #expect(result.skippedPages == 0)
-        #expect(result.totalPages == 4)
 
         let doc = PDFDocument(url: output)
         #expect(doc != nil)
@@ -73,16 +67,13 @@ struct PDFColorAdjusterTests {
         }
 
         let adjuster = PDFColorAdjuster()
-        let result = try await adjuster.adjust(
+        try await adjuster.adjust(
             source: source,
             destination: output,
             settings: .init(brightness: 0.3, contrast: 1.0, saturation: 1.0),
             pages: [0, 2, 4],
             progress: { _ in }
         )
-
-        #expect(result.skippedPages == 0)
-        #expect(result.totalPages == 5)
 
         let doc = PDFDocument(url: output)
         #expect(doc != nil)
@@ -186,6 +177,108 @@ struct PDFColorAdjusterTests {
                 progress: { _ in }
             )
         }
+    }
+
+    @Test("Out-of-range page indices are rejected before writing")
+    func outOfRangePageIndexThrows() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
+        let output = TestPDFGenerator.makeTempDirectory().appending(component: "out.pdf")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(output)
+        }
+
+        await #expect(throws: PDFwringerError.self) {
+            try await PDFColorAdjuster().adjust(
+                source: source,
+                destination: output,
+                settings: .init(brightness: 0.1),
+                pages: [2],
+                progress: { _ in }
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: output.path(percentEncoded: false)))
+    }
+
+    @Test("Empty explicit page selection is rejected")
+    func emptyPageSelectionThrows() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
+        let output = TestPDFGenerator.makeTempDirectory().appending(component: "out.pdf")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(output)
+        }
+
+        await #expect(throws: PDFwringerError.self) {
+            try await PDFColorAdjuster().adjust(
+                source: source,
+                destination: output,
+                settings: .init(),
+                pages: [],
+                progress: { _ in }
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: output.path(percentEncoded: false)))
+    }
+
+    @Test("Missing page aborts without publishing partial output")
+    func missingPageAborts() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
+        let output = TestPDFGenerator.makeTempDirectory().appending(component: "partial.pdf")
+        let originalDestination = Data("existing destination".utf8)
+        try originalDestination.write(to: output)
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(output)
+        }
+
+        let document = try #require(PDFDocument(url: source))
+        var removedPage = false
+        await #expect(throws: PDFwringerError.self) {
+            try await PDFColorAdjuster().adjust(
+                document: document,
+                source: source,
+                destination: output,
+                settings: .init(brightness: 0.1),
+                pages: nil,
+                progress: { progress in
+                    if progress > 0, !removedPage {
+                        document.removePage(at: 1)
+                        removedPage = true
+                    }
+                }
+            )
+        }
+        #expect(try Data(contentsOf: output) == originalDestination)
+    }
+
+    @Test("Identity adjustment rejects a replaced source without overwriting")
+    func identityRejectsReplacedSource() async throws {
+        let validSource = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
+        let replacedSource = TestPDFGenerator.makeTempDirectory().appending(component: "replaced.pdf")
+        let output = TestPDFGenerator.makeTempDirectory().appending(component: "identity.pdf")
+        let originalDestination = Data("existing destination".utf8)
+        try Data("not a PDF".utf8).write(to: replacedSource)
+        try originalDestination.write(to: output)
+        defer {
+            TestPDFGenerator.cleanup(validSource)
+            TestPDFGenerator.cleanup(replacedSource)
+            TestPDFGenerator.cleanup(output)
+        }
+
+        let document = try #require(PDFDocument(url: validSource))
+        await #expect(throws: PDFwringerError.self) {
+            try await PDFColorAdjuster().adjust(
+                document: document,
+                source: replacedSource,
+                destination: output,
+                settings: .init(),
+                pages: nil,
+                progress: { _ in }
+            )
+        }
+
+        #expect(try Data(contentsOf: output) == originalDestination)
     }
 
     // MARK: - Cancellation

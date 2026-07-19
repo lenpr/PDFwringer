@@ -1,6 +1,8 @@
 import Testing
 import PDFKit
 import Foundation
+import CoreGraphics
+import ImageIO
 
 /// Tests that cancellation is a reliable contract across all long-running services.
 /// Each test starts an operation, cancels after first progress, and verifies cleanup.
@@ -8,6 +10,31 @@ import Foundation
 @Suite("Cancellation Contract")
 @MainActor
 struct CancellationContractTests {
+
+    private func expectCancellationAtFinalProgress(
+        output: URL,
+        operation: @escaping (@escaping (Double) -> Void) async throws -> Void
+    ) async {
+        var operationTask: Task<Void, Error>?
+        operationTask = Task { @MainActor in
+            try await operation { value in
+                if value >= 1 {
+                    operationTask?.cancel()
+                }
+            }
+        }
+
+        do {
+            try await operationTask?.value
+            Issue.record("Expected cancellation before output publication")
+        } catch is CancellationError {
+            // Expected.
+        } catch {
+            Issue.record("Expected CancellationError, got \(error)")
+        }
+
+        #expect(!FileManager.default.fileExists(atPath: output.path(percentEncoded: false)))
+    }
 
     /// Creates a 50-page PDF for cancellation testing (enough pages to cancel mid-operation).
     private func makeLargeSource() -> URL {
@@ -247,5 +274,110 @@ struct CancellationContractTests {
         // Key assertion: source is untouched, no crash occurred
         let sourceExists = FileManager.default.fileExists(atPath: source.path(percentEncoded: false))
         #expect(sourceExists, "Source must survive cancellation")
+    }
+
+    @Test("Cancellation at final progress prevents publishing raster outputs")
+    func cancellationAtFinalProgress() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "final_cancel.pdf")
+        let directory = TestPDFGenerator.makeTempDirectory()
+        let image = directory.appending(component: "input.png")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(directory)
+        }
+
+        let context = try #require(CGContext(
+            data: nil,
+            width: 10,
+            height: 10,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        let cgImage = try #require(context.makeImage())
+        let imageData = NSMutableData()
+        let imageDestination = try #require(CGImageDestinationCreateWithData(
+            imageData,
+            "public.png" as CFString,
+            1,
+            nil
+        ))
+        CGImageDestinationAddImage(imageDestination, cgImage, nil)
+        try #require(CGImageDestinationFinalize(imageDestination))
+        try (imageData as Data).write(to: image)
+
+        let compressed = directory.appending(component: "compressed.pdf")
+        await expectCancellationAtFinalProgress(output: compressed) { reportProgress in
+            _ = try await PDFCompressor().compress(
+                source: source,
+                destination: compressed,
+                level: .medium,
+                quality: .good,
+                grayscale: false,
+                stripMetadata: false,
+                progress: reportProgress
+            )
+        }
+
+        let adjusted = directory.appending(component: "adjusted.pdf")
+        await expectCancellationAtFinalProgress(output: adjusted) { reportProgress in
+            try await PDFColorAdjuster().adjust(
+                source: source,
+                destination: adjusted,
+                settings: .init(brightness: 0.1, contrast: 1, saturation: 1),
+                pages: nil,
+                dpi: 72,
+                progress: reportProgress
+            )
+        }
+
+        let flattened = directory.appending(component: "flattened.pdf")
+        await expectCancellationAtFinalProgress(output: flattened) { reportProgress in
+            try await PDFMetadataEditor().write(
+                metadata: .empty,
+                source: source,
+                destination: flattened,
+                flattenAnnotations: true,
+                progress: reportProgress
+            )
+        }
+
+        let converted = directory.appending(component: "converted.pdf")
+        await expectCancellationAtFinalProgress(output: converted) { reportProgress in
+            try await PDFImageConverter().convert(
+                images: [image],
+                destination: converted,
+                progress: reportProgress
+            )
+        }
+    }
+
+    @Test("Pre-cancelled lossless compression does not publish output")
+    func preCancelledLosslessCompression() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "lossless_cancel.pdf")
+        let output = TestPDFGenerator.makeTempDirectory().appending(component: "lossless_cancel_out.pdf")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(output)
+        }
+
+        let task = Task { @MainActor in
+            try await PDFCompressor().compress(
+                source: source,
+                destination: output,
+                level: .lossless,
+                quality: .good,
+                grayscale: false,
+                stripMetadata: true,
+                progress: { _ in }
+            )
+        }
+        task.cancel()
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await task.value
+        }
+        #expect(!FileManager.default.fileExists(atPath: output.path(percentEncoded: false)))
     }
 }

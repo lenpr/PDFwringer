@@ -189,7 +189,6 @@ struct CompressOptionsView: View {
                     ResultMessageView(
                         message: msg,
                         isError: vm.isError,
-                        isWarning: vm.isWarning,
                         outputURL: vm.lastOutputURL,
                         onRetry: vm.isError ? { Task { await vm.performCompression() } } : nil
                     )

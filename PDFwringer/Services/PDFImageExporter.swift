@@ -88,25 +88,34 @@ struct PDFImageExporter {
 
         let pageCount = document.pageCount
         guard pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
-
-        let indicesToExport: [Int]
-        if let indices = pageIndices {
-            indicesToExport = indices.filter { $0 >= 0 && $0 < pageCount }
-        } else {
-            indicesToExport = Array(0..<pageCount)
+        guard options.dpi.isFinite, options.dpi > 0, options.dpi <= 2_400 else {
+            throw PDFwringerError.cannotCreateOutput
+        }
+        if options.format == .jpeg {
+            guard options.quality.isFinite, (0...1).contains(options.quality) else {
+                throw PDFwringerError.cannotCreateOutput
+            }
         }
 
-        guard !indicesToExport.isEmpty else {
+        let requestedCount = pageIndices?.count ?? pageCount
+        guard requestedCount > 0 else {
             throw PDFwringerError.invalidPageRange("empty")
         }
+        guard requestedCount <= Self.maxOutputFiles else {
+            throw PDFwringerError.documentTooLarge("Export would create \(requestedCount) files, exceeding the \(Self.maxOutputFiles) file limit")
+        }
 
-        // Guard: output file count limit
-        guard indicesToExport.count <= Self.maxOutputFiles else {
-            throw PDFwringerError.documentTooLarge("Export would create \(indicesToExport.count) files, exceeding the \(Self.maxOutputFiles) file limit")
+        let indicesToExport = pageIndices ?? Array(0..<pageCount)
+        guard indicesToExport.allSatisfy({ $0 >= 0 && $0 < pageCount }) else {
+            throw PDFwringerError.invalidPageRange("page outside document")
+        }
+        guard Set(indicesToExport).count == indicesToExport.count else {
+            throw PDFwringerError.invalidPageRange("duplicate pages")
         }
 
         // Guard: disk space estimate (rough: pages × average image size at target DPI)
-        let estimatedBytesPerPage: Int64 = Int64(options.dpi * options.dpi * 3 / 10) // rough JPEG estimate
+        let dpi = Double(options.dpi)
+        let estimatedBytesPerPage = Int64((dpi * dpi * 0.3).rounded(.up))
         let estimatedTotal = estimatedBytesPerPage * Int64(indicesToExport.count)
         if let available = Formatting.availableDiskSpace(at: outputDirectory) {
             if estimatedTotal > available {
@@ -117,35 +126,57 @@ struct PDFImageExporter {
         // Resolve the output directory to detect symlink traversal
         let resolvedOutputDir = outputDirectory.standardizedFileURL.resolvingSymlinksInPath()
 
-        let start = ContinuousClock.now
+        let fileManager = FileManager.default
+        var outputDirectoryIsDirectory: ObjCBool = false
+        guard fileManager.fileExists(
+            atPath: outputDirectory.path(percentEncoded: false),
+            isDirectory: &outputDirectoryIsDirectory
+        ), outputDirectoryIsDirectory.boolValue else {
+            throw PDFwringerError.cannotWriteOutput
+        }
+
         let baseName = source.deletingPathExtension().lastPathComponent
+        let plannedOutputs = try indicesToExport.map { pageIndex -> (pageIndex: Int, outputURL: URL) in
+            let filename = String(
+                format: "%@_page_%03d.%@",
+                baseName,
+                pageIndex + 1,
+                options.format.fileExtension
+            )
+            let outputURL = outputDirectory.appending(component: filename)
+            let resolvedParent = outputURL.deletingLastPathComponent()
+                .standardizedFileURL
+                .resolvingSymlinksInPath()
+            guard resolvedParent == resolvedOutputDir else {
+                throw PDFwringerError.accessDenied
+            }
+            guard !fileManager.fileExists(atPath: outputURL.path(percentEncoded: false)) else {
+                throw PDFwringerError.cannotWriteOutput
+            }
+            return (pageIndex, outputURL)
+        }
 
-        var outputURLs: [URL] = []
+        let stagingDirectory = try fileManager.url(
+            for: .itemReplacementDirectory,
+            in: .userDomainMask,
+            appropriateFor: outputDirectory,
+            create: true
+        )
+        defer { try? fileManager.removeItem(at: stagingDirectory) }
 
-        for (i, pageIdx) in indicesToExport.enumerated() {
+        let start = ContinuousClock.now
+        var stagedOutputs: [(stagedURL: URL, outputURL: URL)] = []
+
+        for (i, plannedOutput) in plannedOutputs.enumerated() {
             try Task.checkCancellation()
 
-            guard let page = document.page(at: pageIdx) else { continue }
-
-            guard let (rendered, _) = PDFCompressor.renderPage(page, dpi: options.dpi, grayscale: false) else { continue }
-
-            let filename = String(format: "%@_page_%03d.%@", baseName, pageIdx + 1, options.format.fileExtension)
-            let outputURL = outputDirectory.appending(component: filename)
-
-            // Security: verify resolved path stays inside the output directory
-            let resolvedOutput = outputURL.standardizedFileURL.resolvingSymlinksInPath()
-            guard resolvedOutput.path(percentEncoded: false).hasPrefix(resolvedOutputDir.path(percentEncoded: false)) else {
-                continue // skip paths that escape the output directory
-            }
-
-            // Security: reject if target exists and is a symlink or non-regular file
-            let outputPath = outputURL.path(percentEncoded: false)
-            if FileManager.default.fileExists(atPath: outputPath) {
-                let attrs = try? FileManager.default.attributesOfItem(atPath: outputPath)
-                let fileType = attrs?[.type] as? FileAttributeType
-                if fileType == .typeSymbolicLink || (fileType != nil && fileType != .typeRegular) {
-                    continue // skip symlinks and non-regular files
-                }
+            guard let page = document.page(at: plannedOutput.pageIndex),
+                  let (rendered, _) = PDFCompressor.renderPage(
+                    page,
+                    dpi: options.dpi,
+                    grayscale: false
+                  ) else {
+                throw PDFwringerError.cannotWriteOutput
             }
 
             let data: Data?
@@ -156,32 +187,39 @@ struct PDFImageExporter {
                 data = pngEncode(image: rendered)
             }
 
-            guard let imageData = data else { continue }
+            guard let imageData = data else { throw PDFwringerError.cannotWriteOutput }
 
-            // Security: atomic write via temp file then move/replace
-            let tempURL = AtomicFileWriter.tempDirectory.appending(component: UUID().uuidString + "." + options.format.fileExtension)
-            try imageData.write(to: tempURL)
-            do {
-                if FileManager.default.fileExists(atPath: outputPath) {
-                    _ = try FileManager.default.replaceItemAt(outputURL, withItemAt: tempURL)
-                } else {
-                    try FileManager.default.moveItem(at: tempURL, to: outputURL)
-                }
-            } catch {
-                try? FileManager.default.removeItem(at: tempURL)
-                throw error
-            }
+            let stagedURL = stagingDirectory.appending(component: plannedOutput.outputURL.lastPathComponent)
+            try imageData.write(to: stagedURL)
+            stagedOutputs.append((stagedURL, plannedOutput.outputURL))
 
-            outputURLs.append(outputURL)
-
-            progress(Double(i + 1) / Double(indicesToExport.count))
+            progress(Double(i + 1) / Double(plannedOutputs.count))
             await Task.yield()
         }
 
-        let elapsed = ContinuousClock.now - start
-        Log.app.info("Export complete: \(outputURLs.count) images, duration=\(elapsed)")
+        try Task.checkCancellation()
+        var createdOutputs: [URL] = []
+        do {
+            for stagedOutput in stagedOutputs {
+                guard !fileManager.fileExists(
+                    atPath: stagedOutput.outputURL.path(percentEncoded: false)
+                ) else {
+                    throw PDFwringerError.cannotWriteOutput
+                }
+                try fileManager.moveItem(at: stagedOutput.stagedURL, to: stagedOutput.outputURL)
+                createdOutputs.append(stagedOutput.outputURL)
+            }
+        } catch {
+            for createdOutput in createdOutputs {
+                try? fileManager.removeItem(at: createdOutput)
+            }
+            throw error
+        }
 
-        return outputURLs
+        let elapsed = ContinuousClock.now - start
+        Log.app.info("Export complete: \(createdOutputs.count) images, duration=\(elapsed)")
+
+        return createdOutputs
     }
 
     private func pngEncode(image: CGImage) -> Data? {

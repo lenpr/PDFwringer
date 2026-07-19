@@ -216,6 +216,37 @@ struct PDFMetadataEditorTests {
         #expect(readBack.title == "Flattened")
     }
 
+    @Test("Flatten aborts when a source page disappears")
+    func flattenMissingPageAborts() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
+        let output = TestPDFGenerator.makeTempDirectory().appending(component: "partial.pdf")
+        let originalDestination = Data("existing destination".utf8)
+        try originalDestination.write(to: output)
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(output)
+        }
+
+        let document = try #require(PDFDocument(url: source))
+        var removedPage = false
+        await #expect(throws: PDFwringerError.self) {
+            try await editor.write(
+                metadata: .empty,
+                document: document,
+                source: source,
+                destination: output,
+                flattenAnnotations: true,
+                progress: { progress in
+                    if progress > 0, !removedPage {
+                        document.removePage(at: 1)
+                        removedPage = true
+                    }
+                }
+            )
+        }
+        #expect(try Data(contentsOf: output) == originalDestination)
+    }
+
     // MARK: - Helpers
 
     private func makePDFWithMetadata(title: String, author: String) -> URL {

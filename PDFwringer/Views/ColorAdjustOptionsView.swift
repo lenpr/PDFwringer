@@ -96,7 +96,6 @@ struct ColorAdjustOptionsView: View {
                     ResultMessageView(
                         message: msg,
                         isError: vm.isError,
-                        isWarning: vm.isWarning,
                         outputURL: vm.lastOutputURL,
                         onRetry: vm.isError ? { Task { await vm.save(source: url, document: document, pageCount: document.pageCount, onMutate: onMutate) } } : nil
                     )

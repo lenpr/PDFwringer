@@ -11,8 +11,6 @@ struct PDFCompressor {
 
     struct Result {
         var outputSize: Int64
-        var skippedPages: Int
-        var totalPages: Int
     }
 
     nonisolated private static let sRGBColorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
@@ -70,9 +68,8 @@ struct PDFCompressor {
         if document.isLocked { throw PDFwringerError.documentIsLocked }
         guard document.pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
 
-        var skipped = 0
         if level.isRasterize {
-            skipped = try await compressRasterize(
+            try await compressRasterize(
                 document: document,
                 source: source,
                 destination: destination,
@@ -90,9 +87,10 @@ struct PDFCompressor {
             )
         }
         let outputSize = (try? FileManager.default.attributesOfItem(atPath: destination.path(percentEncoded: false))[.size] as? Int64) ?? 0
+        guard outputSize > 0 else { throw PDFwringerError.cannotWriteOutput }
         let elapsed = ContinuousClock.now - start
         Log.compress.info("Compression complete: output=\(Formatting.fileSize(outputSize)), duration=\(elapsed)")
-        return Result(outputSize: outputSize, skippedPages: skipped, totalPages: document.pageCount)
+        return Result(outputSize: outputSize)
     }
 
     /// Compress a single page to estimate total output size without processing the entire document.
@@ -126,6 +124,7 @@ struct PDFCompressor {
         stripMetadata: Bool,
         progress: (Double) -> Void
     ) async throws {
+        try Task.checkCancellation()
         guard let doc = document.copy() as? PDFDocument else {
             throw PDFwringerError.cannotOpenDocument
         }
@@ -138,15 +137,35 @@ struct PDFCompressor {
 
         if stripMetadata {
             for i in 0..<doc.pageCount {
-                guard let page = doc.page(at: i) else { continue }
+                try Task.checkCancellation()
+                guard let page = doc.page(at: i) else {
+                    throw PDFwringerError.cannotOpenDocument
+                }
                 for annotation in page.annotations {
                     page.removeAnnotation(annotation)
+                }
+                guard page.annotations.isEmpty else {
+                    throw PDFwringerError.cannotWriteOutput
                 }
             }
         }
 
         guard let data = doc.dataRepresentation() else {
             throw PDFwringerError.cannotWriteOutput
+        }
+        guard !data.isEmpty, let serializedOutput = PDFDocument(data: data) else {
+            throw PDFwringerError.cannotWriteOutput
+        }
+        if serializedOutput.isLocked {
+            guard serializedOutput.isEncrypted else {
+                throw PDFwringerError.cannotWriteOutput
+            }
+        } else {
+            try Self.validateOutput(
+                serializedOutput,
+                expectedPageCount: document.pageCount,
+                requireNoAnnotations: stripMetadata
+            )
         }
 
         if let available = Formatting.availableDiskSpace(at: destination) {
@@ -156,9 +175,21 @@ struct PDFCompressor {
             }
         }
 
+        try Task.checkCancellation()
         try AtomicFileWriter.write(to: destination) { tempURL in
             try data.write(to: tempURL)
-            return true
+            guard let output = PDFDocument(url: tempURL) else { return false }
+            if output.isLocked { return output.isEncrypted }
+            do {
+                try Self.validateOutput(
+                    output,
+                    expectedPageCount: document.pageCount,
+                    requireNoAnnotations: stripMetadata
+                )
+                return true
+            } catch {
+                return false
+            }
         }
 
         progress(1.0)
@@ -174,7 +205,7 @@ struct PDFCompressor {
         quality: CGFloat,
         grayscale: Bool,
         progress: (Double) -> Void
-    ) async throws -> Int {
+    ) async throws {
         let pageCount = document.pageCount
         guard pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
         guard pageCount <= 10_000 else {
@@ -191,22 +222,29 @@ struct PDFCompressor {
         }
 
         let tempURL = AtomicFileWriter.tempDirectory.appending(component: UUID().uuidString + ".pdf")
+        defer { try? FileManager.default.removeItem(at: tempURL) }
 
         var emptyBox = CGRect.zero
         guard let outputCtx = CGContext(tempURL as CFURL, mediaBox: &emptyBox, nil) else {
             throw PDFwringerError.cannotCreateOutput
         }
 
+        var outputIsClosed = false
         do {
-            var skippedPages = 0
 
             for i in 0..<pageCount {
                 try Task.checkCancellation()
 
-                autoreleasepool {
-                    guard let page = document.page(at: i) else { skippedPages += 1; return }
-                    guard let (rendered, displaySize) = Self.renderPage(page, dpi: dpi, grayscale: grayscale) else { skippedPages += 1; return }
-                    guard let jpegData = Self.jpegEncode(image: rendered, quality: quality) else { skippedPages += 1; return }
+                try autoreleasepool {
+                    guard let page = document.page(at: i) else {
+                        throw PDFwringerError.cannotOpenDocument
+                    }
+                    guard let (rendered, displaySize) = Self.renderPage(page, dpi: dpi, grayscale: grayscale) else {
+                        throw PDFwringerError.cannotCreateOutput
+                    }
+                    guard let jpegData = Self.jpegEncode(image: rendered, quality: quality) else {
+                        throw PDFwringerError.cannotWriteOutput
+                    }
 
                     guard let provider = CGDataProvider(data: jpegData as CFData),
                           let jpegImage = CGImage(
@@ -215,7 +253,9 @@ struct PDFCompressor {
                               shouldInterpolate: true,
                               intent: .defaultIntent
                           )
-                    else { skippedPages += 1; return }
+                    else {
+                        throw PDFwringerError.cannotWriteOutput
+                    }
 
                     var outBox = CGRect(origin: .zero, size: displaySize)
                     outputCtx.beginPage(mediaBox: &outBox)
@@ -227,25 +267,20 @@ struct PDFCompressor {
                 await Task.yield()
             }
 
+            try Task.checkCancellation()
             outputCtx.closePDF()
+            outputIsClosed = true
 
-            if skippedPages == pageCount {
-                try? FileManager.default.removeItem(at: tempURL)
-                throw PDFwringerError.cannotWriteOutput
-            }
-
-            if skippedPages > 0 {
-                Log.compress.warning("Rasterization skipped \(skippedPages) of \(pageCount) pages")
-            }
+            try Self.validateOutput(at: tempURL, expectedPageCount: pageCount)
 
             try AtomicFileWriter.write(to: destination) { destTemp in
-                try FileManager.default.moveItem(at: tempURL, to: destTemp)
+                try FileManager.default.copyItem(at: tempURL, to: destTemp)
                 return true
             }
-            return skippedPages
         } catch {
-            outputCtx.closePDF()
-            try? FileManager.default.removeItem(at: tempURL)
+            if !outputIsClosed {
+                outputCtx.closePDF()
+            }
             throw error
         }
     }
@@ -285,6 +320,8 @@ struct PDFCompressor {
         let cropBox = page.getBoxRect(.cropBox)
         let rotation = page.rotationAngle
         let displaySize = Self.displaySize(for: cropBox.size, rotation: rotation)
+
+        guard Self.canRender(displaySize: displaySize, dpi: dpi) else { return nil }
 
         let scale = dpi / 72.0
         var pixelW = max(1, Int(displaySize.width * scale))
@@ -351,6 +388,8 @@ struct PDFCompressor {
             displaySize = cropBox.size
         }
 
+        guard Self.canRender(displaySize: displaySize, dpi: dpi) else { return nil }
+
         let scale = dpi / 72.0
         var pixelW = max(1, Int(displaySize.width * scale))
         var pixelH = max(1, Int(displaySize.height * scale))
@@ -414,5 +453,78 @@ struct PDFCompressor {
 
         guard CGImageDestinationFinalize(dest) else { return nil }
         return data as Data
+    }
+
+    nonisolated private static func canRender(displaySize: CGSize, dpi: CGFloat) -> Bool {
+        guard displaySize.width.isFinite,
+              displaySize.height.isFinite,
+              displaySize.width > 0,
+              displaySize.height > 0,
+              dpi.isFinite,
+              dpi > 0 else { return false }
+
+        let scale = dpi / 72.0
+        let pixelWidth = displaySize.width * scale
+        let pixelHeight = displaySize.height * scale
+        let maxLongPixels = 16.5 * dpi
+        let maxShortPixels = 11.7 * dpi
+        return pixelWidth.isFinite
+            && pixelHeight.isFinite
+            && pixelWidth < CGFloat(Int.max)
+            && pixelHeight < CGFloat(Int.max)
+            && maxLongPixels.isFinite
+            && maxShortPixels.isFinite
+            && maxLongPixels > 0
+            && maxShortPixels > 0
+            && maxLongPixels < CGFloat(Int.max)
+            && maxShortPixels < CGFloat(Int.max)
+    }
+
+    private static func validateOutput(
+        data: Data,
+        expectedPageCount: Int,
+        requireNoAnnotations: Bool = false
+    ) throws {
+        guard let output = PDFDocument(data: data) else {
+            throw PDFwringerError.cannotWriteOutput
+        }
+        try validateOutput(
+            output,
+            expectedPageCount: expectedPageCount,
+            requireNoAnnotations: requireNoAnnotations
+        )
+    }
+
+    private static func validateOutput(
+        at url: URL,
+        expectedPageCount: Int,
+        requireNoAnnotations: Bool = false
+    ) throws {
+        guard let output = PDFDocument(url: url) else {
+            throw PDFwringerError.cannotWriteOutput
+        }
+        try validateOutput(
+            output,
+            expectedPageCount: expectedPageCount,
+            requireNoAnnotations: requireNoAnnotations
+        )
+    }
+
+    private static func validateOutput(
+        _ output: PDFDocument,
+        expectedPageCount: Int,
+        requireNoAnnotations: Bool
+    ) throws {
+        guard output.pageCount == expectedPageCount else {
+            throw PDFwringerError.cannotWriteOutput
+        }
+        for index in 0..<expectedPageCount {
+            guard let page = output.page(at: index) else {
+                throw PDFwringerError.cannotWriteOutput
+            }
+            if requireNoAnnotations, !page.annotations.isEmpty {
+                throw PDFwringerError.cannotWriteOutput
+            }
+        }
     }
 }

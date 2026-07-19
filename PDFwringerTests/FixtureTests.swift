@@ -47,8 +47,7 @@ struct FixtureCompressTests {
 
         let (valid, pages) = FixtureDiscovery.validateOutput(at: output)
         #expect(valid, "Rasterized output should be a valid PDF: \(fixture)")
-        #expect(pages == fixture.pageCount - result.skippedPages,
-                "Rasterized page count should match: \(fixture)")
+        #expect(pages == fixture.pageCount, "Rasterized page count should match: \(fixture)")
         #expect(result.outputSize > 0, "Output should have non-zero size: \(fixture)")
     }
 
@@ -78,7 +77,7 @@ struct FixtureCompressTests {
         defer { try? FileManager.default.removeItem(at: output) }
 
         let compressor = PDFCompressor()
-        let result = try await compressor.compress(
+        try await compressor.compress(
             source: fixture.url,
             destination: output,
             level: .high,
@@ -88,7 +87,9 @@ struct FixtureCompressTests {
             progress: { _ in }
         )
 
-        #expect(result.skippedPages == 0, "High quality should not skip pages: \(fixture)")
+        let (valid, pages) = FixtureDiscovery.validateOutput(at: output)
+        #expect(valid, "High-quality output should be valid: \(fixture)")
+        #expect(pages == fixture.pageCount, "High quality should preserve every page: \(fixture)")
     }
 }
 
@@ -336,7 +337,7 @@ struct FixtureColorAdjustTests {
         defer { try? FileManager.default.removeItem(at: output) }
 
         let adjuster = PDFColorAdjuster()
-        let result = try await adjuster.adjust(
+        try await adjuster.adjust(
             source: fixture.url,
             destination: output,
             settings: .init(brightness: 0.1, contrast: 1.2, saturation: 0.8),
@@ -346,8 +347,7 @@ struct FixtureColorAdjustTests {
 
         let (valid, pages) = FixtureDiscovery.validateOutput(at: output)
         #expect(valid, "Color-adjusted output should be valid: \(fixture)")
-        #expect(pages == fixture.pageCount - result.skippedPages,
-                "Color-adjusted page count should match: \(fixture)")
+        #expect(pages == fixture.pageCount, "Color-adjusted page count should match: \(fixture)")
     }
 
     @Test("Identity settings copies unchanged", arguments: FixtureDiscovery.openableFixtures)
