@@ -138,10 +138,10 @@ struct ContentView: View {
                 )
                 .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
 
-            case .rotating(let url, let doc):
+            case .rotating(let url, _, let workingDocument):
                 RotateOptionsView(
                     url: url,
-                    document: doc,
+                    document: workingDocument,
                     onBack: {
                         withAnimation(.spring(duration: 0.3)) {
                             appVM.goBack()
@@ -152,7 +152,7 @@ struct ContentView: View {
                             appVM.handleDrop(urls)
                         }
                     },
-                    onMutate: { appVM.hasUnsavedChanges = true },
+                    onDirtyChange: { appVM.hasUnsavedChanges = $0 },
                     currentPage: $appVM.currentPage
                 )
                 .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
@@ -171,15 +171,14 @@ struct ContentView: View {
                             appVM.handleDrop(urls)
                         }
                     },
-                    onMutate: { appVM.hasUnsavedChanges = true },
                     currentPage: $appVM.currentPage
                 )
                 .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
 
-            case .cropping(let url, let doc):
+            case .cropping(let url, _, let workingDocument):
                 CropOptionsView(
                     url: url,
-                    document: doc,
+                    document: workingDocument,
                     onBack: {
                         withAnimation(.spring(duration: 0.3)) {
                             appVM.goBack()
@@ -190,7 +189,7 @@ struct ContentView: View {
                             appVM.handleDrop(urls)
                         }
                     },
-                    onMutate: { appVM.hasUnsavedChanges = true },
+                    onDirtyChange: { appVM.hasUnsavedChanges = $0 },
                     currentPage: $appVM.currentPage
                 )
                 .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
@@ -209,7 +208,6 @@ struct ContentView: View {
                             appVM.handleDrop(urls)
                         }
                     },
-                    onMutate: { appVM.hasUnsavedChanges = true },
                     currentPage: $appVM.currentPage
                 )
                 .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
@@ -246,7 +244,6 @@ struct ContentView: View {
                             appVM.handleDrop(urls)
                         }
                     },
-                    onMutate: { appVM.hasUnsavedChanges = true },
                     currentPage: $appVM.currentPage
                 )
                 .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))

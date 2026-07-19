@@ -278,20 +278,29 @@ struct AppViewModelTests {
 
     // MARK: - Rotate and Metadata transitions
 
-    @Test("selectRotate from singleFile goes to rotating")
-    func selectRotate() {
+    @Test("selectRotate creates an isolated working document")
+    func selectRotate() throws {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "r.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
         let vm = AppViewModel()
         vm.loadSingleFile(url)
+        guard case .singleFile(_, let originalDocument) = vm.state else {
+            Issue.record("Expected singleFile state")
+            return
+        }
         vm.selectRotate()
 
-        if case .rotating(let u, _) = vm.state {
-            #expect(u == url)
-        } else {
+        guard case .rotating(let selectedURL, let sourceDocument, let workingDocument) = vm.state else {
             Issue.record("Expected rotating state")
+            return
         }
+        #expect(selectedURL == url)
+        #expect(sourceDocument === originalDocument)
+        #expect(workingDocument !== sourceDocument)
+        let sourcePage = try #require(sourceDocument.page(at: 0))
+        let workingPage = try #require(workingDocument.page(at: 0))
+        #expect(workingPage !== sourcePage)
     }
 
     @Test("selectMetadata from singleFile goes to editingMetadata")
@@ -327,21 +336,38 @@ struct AppViewModelTests {
         }
     }
 
-    @Test("goBack from rotating returns to singleFile")
-    func goBackFromRotate() {
+    @Test("goBack from rotating discards working mutations")
+    func goBackFromRotate() throws {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "gr.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
         let vm = AppViewModel()
         vm.loadSingleFile(url)
         vm.selectRotate()
+        guard case .rotating(_, let sourceDocument, let workingDocument) = vm.state else {
+            Issue.record("Expected rotating state")
+            return
+        }
+        try PDFRotator().rotate(
+            document: workingDocument,
+            angle: .ninety,
+            pageIndices: nil,
+            progress: { _ in }
+        )
+        vm.hasUnsavedChanges = true
+        #expect(sourceDocument.page(at: 0)?.rotation == 0)
+        #expect(workingDocument.page(at: 0)?.rotation == 90)
+
         vm.goBack()
 
-        if case .singleFile(let u, _) = vm.state {
-            #expect(u == url)
-        } else {
+        guard case .singleFile(let selectedURL, let restoredDocument) = vm.state else {
             Issue.record("Expected singleFile state")
+            return
         }
+        #expect(selectedURL == url)
+        #expect(restoredDocument === sourceDocument)
+        #expect(restoredDocument.page(at: 0)?.rotation == 0)
+        #expect(!vm.hasUnsavedChanges)
     }
 
     @Test("goBack from editingMetadata returns to singleFile")
@@ -363,37 +389,67 @@ struct AppViewModelTests {
 
     // MARK: - Crop transitions
 
-    @Test("selectCrop from singleFile goes to cropping")
-    func selectCrop() {
+    @Test("selectCrop creates an isolated working document")
+    func selectCrop() throws {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "cr.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
         let vm = AppViewModel()
         vm.loadSingleFile(url)
+        guard case .singleFile(_, let originalDocument) = vm.state else {
+            Issue.record("Expected singleFile state")
+            return
+        }
         vm.selectCrop()
 
-        if case .cropping(let u, _) = vm.state {
-            #expect(u == url)
-        } else {
+        guard case .cropping(let selectedURL, let sourceDocument, let workingDocument) = vm.state else {
             Issue.record("Expected cropping state")
+            return
         }
+        #expect(selectedURL == url)
+        #expect(sourceDocument === originalDocument)
+        #expect(workingDocument !== sourceDocument)
+        let sourcePage = try #require(sourceDocument.page(at: 0))
+        let workingPage = try #require(workingDocument.page(at: 0))
+        #expect(workingPage !== sourcePage)
     }
 
-    @Test("goBack from cropping returns to singleFile")
-    func goBackFromCrop() {
+    @Test("goBack from cropping discards working mutations")
+    func goBackFromCrop() throws {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "gc.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
         let vm = AppViewModel()
         vm.loadSingleFile(url)
         vm.selectCrop()
+        guard case .cropping(_, let sourceDocument, let workingDocument) = vm.state else {
+            Issue.record("Expected cropping state")
+            return
+        }
+        let originalBounds = try #require(sourceDocument.page(at: 0)).bounds(for: .cropBox)
+        let result = PDFCropper().crop(
+            document: workingDocument,
+            indices: [0],
+            top: 10,
+            bottom: 10,
+            left: 10,
+            right: 10
+        )
+        vm.hasUnsavedChanges = true
+        #expect(result.pagesModified == 1)
+        #expect(workingDocument.page(at: 0)?.bounds(for: .cropBox) != originalBounds)
+        #expect(sourceDocument.page(at: 0)?.bounds(for: .cropBox) == originalBounds)
+
         vm.goBack()
 
-        if case .singleFile(let u, _) = vm.state {
-            #expect(u == url)
-        } else {
+        guard case .singleFile(let selectedURL, let restoredDocument) = vm.state else {
             Issue.record("Expected singleFile state")
+            return
         }
+        #expect(selectedURL == url)
+        #expect(restoredDocument === sourceDocument)
+        #expect(restoredDocument.page(at: 0)?.bounds(for: .cropBox) == originalBounds)
+        #expect(!vm.hasUnsavedChanges)
     }
 
     // MARK: - File size caching

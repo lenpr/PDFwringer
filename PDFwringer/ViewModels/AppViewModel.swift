@@ -13,9 +13,9 @@ enum AppState: Equatable {
     case compressing(URL, PDFDocument)
     case splitting(URL, PDFDocument)
     case merging([PDFFileItem])
-    case rotating(URL, PDFDocument)
+    case rotating(URL, source: PDFDocument, working: PDFDocument)
     case editingMetadata(URL, PDFDocument)
-    case cropping(URL, PDFDocument)
+    case cropping(URL, source: PDFDocument, working: PDFDocument)
     case adjustingColor(URL, PDFDocument)
     case exportingImages(URL, PDFDocument)
     case reorderingPages(URL, PDFDocument)
@@ -29,9 +29,9 @@ enum AppState: Equatable {
         case (.compressing(let a, _), .compressing(let b, _)): a == b
         case (.splitting(let a, _), .splitting(let b, _)): a == b
         case (.merging(let a), .merging(let b)): a.map(\.id) == b.map(\.id)
-        case (.rotating(let a, _), .rotating(let b, _)): a == b
+        case (.rotating(let a, _, _), .rotating(let b, _, _)): a == b
         case (.editingMetadata(let a, _), .editingMetadata(let b, _)): a == b
-        case (.cropping(let a, _), .cropping(let b, _)): a == b
+        case (.cropping(let a, _, _), .cropping(let b, _, _)): a == b
         case (.adjustingColor(let a, _), .adjustingColor(let b, _)): a == b
         case (.exportingImages(let a, _), .exportingImages(let b, _)): a == b
         case (.reorderingPages(let a, _), .reorderingPages(let b, _)): a == b
@@ -55,7 +55,7 @@ class AppViewModel {
     // Start-over confirmation state
     var showStartOverConfirm = false
 
-    // Dirty state: set when user makes unsaved mutations (rotations, metadata edits)
+    // Dirty state: set only for unsaved mutations to an isolated working document.
     var hasUnsavedChanges = false
 
     // Password prompt state
@@ -69,9 +69,10 @@ class AppViewModel {
         case .landing:
             return "PDFwringer"
         case .singleFile(let url, _), .compressing(let url, _), .splitting(let url, _),
-             .rotating(let url, _), .editingMetadata(let url, _), .cropping(let url, _),
-             .adjustingColor(let url, _),
+             .editingMetadata(let url, _), .adjustingColor(let url, _),
              .exportingImages(let url, _), .reorderingPages(let url, _):
+            return "PDFwringer — \(url.lastPathComponent)"
+        case .rotating(let url, _, _), .cropping(let url, _, _):
             return "PDFwringer — \(url.lastPathComponent)"
         case .multiFile(let items), .merging(let items):
             return "PDFwringer — \(items.count) files"
@@ -100,9 +101,10 @@ class AppViewModel {
     var currentPageCount: Int {
         switch state {
         case .singleFile(_, let doc), .compressing(_, let doc), .splitting(_, let doc),
-             .rotating(_, let doc), .editingMetadata(_, let doc), .cropping(_, let doc),
-             .adjustingColor(_, let doc):
+             .editingMetadata(_, let doc), .adjustingColor(_, let doc):
             return doc.pageCount
+        case .rotating(_, _, let working), .cropping(_, _, let working):
+            return working.pageCount
         default:
             return 0
         }
@@ -165,6 +167,7 @@ class AppViewModel {
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
         BookmarkManager.saveBookmark(for: url)
         refreshRecentDocuments()
+        hasUnsavedChanges = false
         state = .singleFile(url, doc)
     }
 
@@ -183,6 +186,7 @@ class AppViewModel {
             NSDocumentController.shared.noteNewRecentDocumentURL(url)
             BookmarkManager.saveBookmark(for: url)
             refreshRecentDocuments()
+            hasUnsavedChanges = false
             state = .singleFile(url, doc)
             pendingLockedURL = nil
             wrongPasswordAttempt = false
@@ -212,6 +216,7 @@ class AppViewModel {
                 BookmarkManager.saveBookmark(for: item.url)
             }
             refreshRecentDocuments()
+            hasUnsavedChanges = false
             state = .multiFile(items)
         }
     }
@@ -236,8 +241,9 @@ class AppViewModel {
 
     func selectRotate() {
         guard case .singleFile(let url, let doc) = state else { return }
+        guard let workingDocument = makeWorkingCopy(of: doc) else { return }
         navigationDirection = .trailing
-        state = .rotating(url, doc)
+        state = .rotating(url, source: doc, working: workingDocument)
     }
 
     func selectMetadata() {
@@ -248,8 +254,9 @@ class AppViewModel {
 
     func selectCrop() {
         guard case .singleFile(let url, let doc) = state else { return }
+        guard let workingDocument = makeWorkingCopy(of: doc) else { return }
         navigationDirection = .trailing
-        state = .cropping(url, doc)
+        state = .cropping(url, source: doc, working: workingDocument)
     }
 
     func selectAdjustColor() {
@@ -273,9 +280,11 @@ class AppViewModel {
     func goBack() {
         navigationDirection = .leading
         switch state {
+        case .rotating(let url, let sourceDocument, _),
+             .cropping(let url, let sourceDocument, _):
+            state = .singleFile(url, sourceDocument)
         case .compressing(let url, let doc), .splitting(let url, let doc),
-             .rotating(let url, let doc), .editingMetadata(let url, let doc),
-             .cropping(let url, let doc),              .adjustingColor(let url, let doc),
+             .editingMetadata(let url, let doc), .adjustingColor(let url, let doc),
              .exportingImages(let url, let doc),
              .reorderingPages(let url, let doc):
             state = .singleFile(url, doc)
@@ -294,6 +303,29 @@ class AppViewModel {
     func startOver() {
         state = .landing
         hasUnsavedChanges = false
+    }
+
+    private func makeWorkingCopy(of document: PDFDocument) -> PDFDocument? {
+        guard let copy = document.copy() as? PDFDocument,
+              copy !== document,
+              copy.pageCount == document.pageCount,
+              copy.isLocked == document.isLocked,
+              copy.isEncrypted == document.isEncrypted,
+              copy.accessPermissions == document.accessPermissions else {
+            errorMessage = PDFwringerError.cannotOpenDocument.localizedDescription
+            showErrorAlert = true
+            return nil
+        }
+        for pageIndex in 0..<document.pageCount {
+            guard let sourcePage = document.page(at: pageIndex),
+                  let workingPage = copy.page(at: pageIndex),
+                  sourcePage !== workingPage else {
+                errorMessage = PDFwringerError.cannotOpenDocument.localizedDescription
+                showErrorAlert = true
+                return nil
+            }
+        }
+        return copy
     }
 
     // MARK: - Image to PDF

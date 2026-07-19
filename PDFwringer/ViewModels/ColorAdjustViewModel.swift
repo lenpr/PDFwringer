@@ -100,8 +100,7 @@ class ColorAdjustViewModel {
     func save(
         source: URL,
         document: PDFDocument,
-        pageIndices: [Int]?,
-        onMutate: (() -> Void)?
+        pageIndices: [Int]?
     ) async {
         let suggestedName = source.deletingPathExtension().lastPathComponent + "_adjusted.pdf"
         guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
@@ -110,7 +109,6 @@ class ColorAdjustViewModel {
         isError = false
         isSaving = true
         progress = 0
-        onMutate?()
 
         operationTask = Task {
             defer { operationTask = nil }

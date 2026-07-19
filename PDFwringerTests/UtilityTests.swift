@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import PDFKit
 
 @Suite("Utilities")
 @MainActor
@@ -155,6 +156,33 @@ struct UtilityTests {
             return true
         }
         #expect(FileManager.default.fileExists(atPath: destination.path(percentEncoded: false)))
+    }
+
+    // MARK: - DocumentSaver
+
+    @Test("DocumentSaver refuses to replace its source document")
+    func documentSaverRejectsSourceDestination() throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "save-source.pdf")
+        defer { TestPDFGenerator.cleanup(source) }
+        let originalData = try Data(contentsOf: source)
+        let workingDocument = try #require(PDFDocument(url: source)?.copy() as? PDFDocument)
+        try PDFRotator().rotate(
+            document: workingDocument,
+            angle: .ninety,
+            pageIndices: nil,
+            progress: { _ in }
+        )
+
+        let result = DocumentSaver.save(
+            document: workingDocument,
+            source: source,
+            to: source
+        )
+
+        #expect(result.isError)
+        #expect(result.outputURL == nil)
+        #expect(result.message == PDFwringerError.sourceEqualsDestination.localizedDescription)
+        #expect(try Data(contentsOf: source) == originalData)
     }
 
     // MARK: - Formatting

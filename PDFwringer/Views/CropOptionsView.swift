@@ -6,7 +6,7 @@ struct CropOptionsView: View {
     let document: PDFDocument
     let onBack: () -> Void
     let onFilesDropped: ([URL]) -> Void
-    var onMutate: (() -> Void)?
+    var onDirtyChange: ((Bool) -> Void)?
     @Binding var currentPage: Int
 
     @State private var cropTop: Double = 0
@@ -155,7 +155,7 @@ struct CropOptionsView: View {
                 // Save button
                 HStack {
                     Spacer()
-                    Button(String(localized: "Save")) { Task { await saveCropped() } }
+                    Button(String(localized: "Save")) { saveCropped() }
                         .keyboardShortcut("s")
                         .controlSize(.large)
                         .buttonStyle(.borderedProminent)
@@ -226,7 +226,7 @@ struct CropOptionsView: View {
             ? "Cropped \(result.pagesModified) pages (\(result.pagesSkipped) skipped — crop exceeds dimensions)."
             : nil
         isError = false
-        onMutate?()
+        if result.pagesModified > 0 { onDirtyChange?(true) }
     }
 
     private func applyResize() {
@@ -240,23 +240,24 @@ struct CropOptionsView: View {
             ? CGSize(width: paperSize.height, height: paperSize.width)
             : paperSize
 
-        _ = cropper.resize(document: document, indices: indices, targetSize: targetSize)
+        let result = cropper.resize(document: document, indices: indices, targetSize: targetSize)
         documentGeneration += 1
         resultMessage = nil
         isError = false
-        onMutate?()
+        if result.pagesModified > 0 { onDirtyChange?(true) }
     }
 
-    private func saveCropped() async {
+    private func saveCropped() {
         let suggestedName = url.deletingPathExtension().lastPathComponent + "_cropped.pdf"
         guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
 
         resultMessage = nil
         isError = false
 
-        let result = await DocumentSaver.save(document: document, to: destination)
+        let result = DocumentSaver.save(document: document, source: url, to: destination)
         resultMessage = result.message
         isError = result.isError
         lastOutputURL = result.outputURL
+        if !result.isError { onDirtyChange?(false) }
     }
 }

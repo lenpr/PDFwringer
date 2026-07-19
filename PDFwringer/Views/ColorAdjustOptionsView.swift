@@ -7,7 +7,6 @@ struct ColorAdjustOptionsView: View {
     let document: PDFDocument
     let onBack: () -> Void
     let onFilesDropped: ([URL]) -> Void
-    var onMutate: (() -> Void)?
     @Binding var currentPage: Int
 
     @State private var vm = ColorAdjustViewModel()
@@ -119,8 +118,7 @@ struct ColorAdjustOptionsView: View {
             await vm.save(
                 source: url,
                 document: document,
-                pageIndices: pageIndices,
-                onMutate: onMutate
+                pageIndices: pageIndices
             )
         }
     }

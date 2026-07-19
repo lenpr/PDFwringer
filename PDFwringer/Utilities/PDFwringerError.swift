@@ -175,7 +175,14 @@ enum DocumentSaver {
         var outputURL: URL?
     }
 
-    static func save(document: PDFDocument, to destination: URL) -> Result {
+    static func save(document: PDFDocument, source: URL, to destination: URL) -> Result {
+        guard source.standardizedFileURL != destination.standardizedFileURL else {
+            return Result(
+                message: PDFwringerError.sourceEqualsDestination.localizedDescription,
+                isError: true,
+                outputURL: nil
+            )
+        }
         guard let data = document.dataRepresentation() else {
             return Result(message: "Failed to serialize document.", isError: true, outputURL: nil)
         }

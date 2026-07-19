@@ -6,7 +6,6 @@ struct ReorderPagesView: View {
     let document: PDFDocument
     let onBack: () -> Void
     let onFilesDropped: ([URL]) -> Void
-    var onMutate: (() -> Void)?
     @Binding var currentPage: Int
 
     @State private var pageOrder: [Int] = []
@@ -137,13 +136,19 @@ struct ReorderPagesView: View {
     }
 
     private func save() {
+        guard document.allowsDocumentAssembly else {
+            resultMessage = PDFwringerError.documentAssemblyNotAllowed.localizedDescription
+            isError = true
+            lastOutputURL = nil
+            return
+        }
+
         let suggestedName = url.deletingPathExtension().lastPathComponent + "_reordered.pdf"
         guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
 
         isSaving = true
         resultMessage = nil
         isError = false
-        onMutate?()
 
         Task {
             defer { isSaving = false }
@@ -158,8 +163,16 @@ struct ReorderPagesView: View {
                     output.insert(copiedPage, at: output.pageCount)
                 }
 
-                try AtomicFileWriter.write(to: destination) { tempURL in
-                    output.write(to: tempURL)
+                let saveResult = DocumentSaver.save(
+                    document: output,
+                    source: url,
+                    to: destination
+                )
+                guard !saveResult.isError else {
+                    resultMessage = saveResult.message
+                    isError = true
+                    lastOutputURL = nil
+                    return
                 }
                 resultMessage = document.isEncrypted
                     ? String(localized: "Saved. Password protection was removed.")

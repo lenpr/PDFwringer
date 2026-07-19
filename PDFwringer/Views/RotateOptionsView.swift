@@ -6,7 +6,7 @@ struct RotateOptionsView: View {
     let document: PDFDocument
     let onBack: () -> Void
     let onFilesDropped: ([URL]) -> Void
-    var onMutate: (() -> Void)?
+    var onDirtyChange: ((Bool) -> Void)?
     @Binding var currentPage: Int
 
     @State private var pageSelection = PageSelection()
@@ -112,7 +112,7 @@ struct RotateOptionsView: View {
             resultMessage = nil
             isError = false
             lastOutputURL = nil
-            onMutate?()
+            onDirtyChange?(true)
         } catch {
             resultMessage = error.localizedDescription
             isError = true
@@ -134,9 +134,10 @@ struct RotateOptionsView: View {
         resultMessage = nil
         isError = false
 
-        let result = DocumentSaver.save(document: document, to: destination)
+        let result = DocumentSaver.save(document: document, source: url, to: destination)
         resultMessage = result.message
         isError = result.isError
         lastOutputURL = result.outputURL
+        if !result.isError { onDirtyChange?(false) }
     }
 }

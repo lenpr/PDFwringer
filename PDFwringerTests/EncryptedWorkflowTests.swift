@@ -84,6 +84,73 @@ struct EncryptedWorkflowTests {
         assertSourceIsStillLocked(source)
     }
 
+    @Test("Mutable editors isolate unlocked encrypted documents")
+    func mutableEditorsUseEncryptedWorkingCopies() throws {
+        let source = try makeEncryptedPDF(pageCount: 2, filename: "working-copy.pdf")
+        defer { TestPDFGenerator.cleanup(source) }
+
+        let viewModel = AppViewModel()
+        viewModel.loadSingleFile(source)
+        viewModel.passwordText = Self.password
+        viewModel.unlockDocument()
+        guard case .singleFile(_, let sourceDocument) = viewModel.state else {
+            Issue.record("Expected unlocked single-file state")
+            return
+        }
+        let originalBounds = try #require(sourceDocument.page(at: 0)).bounds(for: .cropBox)
+
+        viewModel.selectRotate()
+        guard case .rotating(_, let retainedSource, let rotationCopy) = viewModel.state else {
+            Issue.record("Expected rotating state")
+            return
+        }
+        #expect(retainedSource === sourceDocument)
+        #expect(rotationCopy !== sourceDocument)
+        #expect(rotationCopy.isEncrypted)
+        #expect(!rotationCopy.isLocked)
+        #expect(rotationCopy.accessPermissions == sourceDocument.accessPermissions)
+        #expect(rotationCopy.page(at: 0) !== sourceDocument.page(at: 0))
+        try PDFRotator().rotate(
+            document: rotationCopy,
+            angle: .ninety,
+            pageIndices: [0],
+            progress: { _ in }
+        )
+        #expect(rotationCopy.page(at: 0)?.rotation == 90)
+        #expect(sourceDocument.page(at: 0)?.rotation == 0)
+        viewModel.goBack()
+
+        viewModel.selectCrop()
+        guard case .cropping(_, let cropSource, let cropCopy) = viewModel.state else {
+            Issue.record("Expected cropping state")
+            return
+        }
+        #expect(cropSource === sourceDocument)
+        #expect(cropCopy !== sourceDocument)
+        #expect(cropCopy.isEncrypted)
+        #expect(!cropCopy.isLocked)
+        #expect(cropCopy.accessPermissions == sourceDocument.accessPermissions)
+        _ = PDFCropper().crop(
+            document: cropCopy,
+            indices: [0],
+            top: 10,
+            bottom: 10,
+            left: 10,
+            right: 10
+        )
+        #expect(cropCopy.page(at: 0)?.bounds(for: .cropBox) != originalBounds)
+        #expect(sourceDocument.page(at: 0)?.bounds(for: .cropBox) == originalBounds)
+        viewModel.goBack()
+
+        guard case .singleFile(_, let restoredDocument) = viewModel.state else {
+            Issue.record("Expected single-file state after discard")
+            return
+        }
+        #expect(restoredDocument === sourceDocument)
+        #expect(!viewModel.hasUnsavedChanges)
+        assertSourceIsStillLocked(source)
+    }
+
     @Test("Lossless compression preserves source encryption")
     func losslessCompressionPreservesEncryption() async throws {
         let source = try makeEncryptedPDF(pageCount: 2, filename: "lossless.pdf")
@@ -281,7 +348,7 @@ struct EncryptedWorkflowTests {
             progress: { _ in }
         )
 
-        let saveResult = DocumentSaver.save(document: document, to: output)
+        let saveResult = DocumentSaver.save(document: document, source: source, to: output)
         #expect(!saveResult.isError)
 
         let lockedOutput = try #require(PDFDocument(url: output))
