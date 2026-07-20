@@ -17,7 +17,7 @@ enum PDFwringerError: LocalizedError {
     case insufficientDiskSpace(needed: Int64, available: Int64)
     case sourceEqualsDestination
     case documentTooLarge(String)
-    case documentAssemblyNotAllowed
+    case documentPermissionsDenied
 
     var errorDescription: String? {
         switch self {
@@ -36,8 +36,8 @@ enum PDFwringerError: LocalizedError {
             String(localized: "Source and destination cannot be the same file. Choose a different location.")
         case .documentTooLarge(let detail):
             String(localized: "Document is too large to process safely: \(detail)")
-        case .documentAssemblyNotAllowed:
-            String(localized: "This PDF's permissions do not allow pages to be rotated or rearranged.")
+        case .documentPermissionsDenied:
+            String(localized: "This PDF's permissions do not allow this operation.")
         }
     }
 }

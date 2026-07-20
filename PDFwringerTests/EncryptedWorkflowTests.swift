@@ -171,7 +171,7 @@ struct EncryptedWorkflowTests {
         #expect(cropCopy.isEncrypted)
         #expect(!cropCopy.isLocked)
         #expect(cropCopy.accessPermissions == sourceDocument.accessPermissions)
-        _ = PDFCropper().crop(
+        _ = try PDFCropper().crop(
             document: cropCopy,
             indices: [0],
             top: 10,

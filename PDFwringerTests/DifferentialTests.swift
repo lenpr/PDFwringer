@@ -57,7 +57,7 @@ struct DifferentialEquivalenceTests {
         let beforeGeom = PDFAssertions.extractGeometry(from: source)
 
         let cropper = PDFCropper()
-        let result = cropper.crop(document: doc, indices: [0, 1, 2], top: 0, bottom: 0, left: 0, right: 0)
+        let result = try cropper.crop(document: doc, indices: [0, 1, 2], top: 0, bottom: 0, left: 0, right: 0)
 
         #expect(result.pagesModified == 3)
         #expect(result.pagesSkipped == 0)

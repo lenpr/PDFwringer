@@ -133,10 +133,10 @@ struct PDFRotatorTests {
                 pageIndices: nil,
                 progress: { _ in }
             )
-            Issue.record("Expected documentAssemblyNotAllowed")
+            Issue.record("Expected documentPermissionsDenied")
         } catch let error as PDFwringerError {
-            guard case .documentAssemblyNotAllowed = error else {
-                Issue.record("Expected documentAssemblyNotAllowed, got \(error)")
+            guard case .documentPermissionsDenied = error else {
+                Issue.record("Expected documentPermissionsDenied, got \(error)")
                 return
             }
         }
@@ -163,10 +163,10 @@ struct PDFRotatorTests {
                 pageIndices: nil,
                 progress: { _ in }
             )
-            Issue.record("Expected documentAssemblyNotAllowed")
+            Issue.record("Expected documentPermissionsDenied")
         } catch let error as PDFwringerError {
-            guard case .documentAssemblyNotAllowed = error else {
-                Issue.record("Expected documentAssemblyNotAllowed, got \(error)")
+            guard case .documentPermissionsDenied = error else {
+                Issue.record("Expected documentPermissionsDenied, got \(error)")
                 return
             }
         }
@@ -192,10 +192,10 @@ struct PDFRotatorTests {
                 pageIndices: nil,
                 progress: { progressValues.append($0) }
             )
-            Issue.record("Expected documentAssemblyNotAllowed")
+            Issue.record("Expected documentPermissionsDenied")
         } catch let error as PDFwringerError {
-            guard case .documentAssemblyNotAllowed = error else {
-                Issue.record("Expected documentAssemblyNotAllowed, got \(error)")
+            guard case .documentPermissionsDenied = error else {
+                Issue.record("Expected documentPermissionsDenied, got \(error)")
                 return
             }
         }

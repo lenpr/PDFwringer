@@ -63,6 +63,7 @@ struct PDFCompressor {
         guard document.pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
 
         if level.isRasterize {
+            try PDFPermissionPolicy.require(.copyContent, .changeDocument, for: document)
             try await compressRasterize(
                 document: document,
                 source: source,
@@ -73,6 +74,7 @@ struct PDFCompressor {
                 progress: progress
             )
         } else {
+            try PDFPermissionPolicy.require(.changeDocument, for: document)
             try await compressOptimize(
                 document: document,
                 destination: destination,

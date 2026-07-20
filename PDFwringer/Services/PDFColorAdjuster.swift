@@ -111,6 +111,7 @@ struct PDFColorAdjuster {
             return
         }
 
+        try PDFPermissionPolicy.require(.copyContent, .changeDocument, for: document)
         let outputDocument = PDFDocument()
         outputDocument.documentAttributes = document.documentAttributes
 

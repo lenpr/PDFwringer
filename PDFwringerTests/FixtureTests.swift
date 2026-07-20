@@ -283,7 +283,7 @@ struct FixtureCropTests {
         guard originalBounds.width > 100, originalBounds.height > 100 else { return }
 
         let cropper = PDFCropper()
-        let result = cropper.crop(
+        let result = try cropper.crop(
             document: doc,
             indices: Array(0..<doc.pageCount),
             top: 10, bottom: 10, left: 10, right: 10
@@ -306,7 +306,7 @@ struct FixtureCropTests {
 
         let cropper = PDFCropper()
         let a4 = PaperSize.a4.size
-        let result = cropper.resize(
+        let result = try cropper.resize(
             document: doc,
             indices: Array(0..<doc.pageCount),
             targetSize: a4

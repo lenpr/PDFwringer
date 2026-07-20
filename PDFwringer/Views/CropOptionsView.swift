@@ -201,14 +201,21 @@ struct CropOptionsView: View {
             return
         }
 
-        let result = cropper.crop(
-            document: document,
-            indices: indices,
-            top: cropTop,
-            bottom: cropBottom,
-            left: cropLeft,
-            right: cropRight
-        )
+        let result: PDFCropper.CropResult
+        do {
+            result = try cropper.crop(
+                document: document,
+                indices: indices,
+                top: cropTop,
+                bottom: cropBottom,
+                left: cropLeft,
+                right: cropRight
+            )
+        } catch {
+            resultMessage = error.localizedDescription
+            isError = true
+            return
+        }
 
         if result.pagesModified == 0 && result.pagesSkipped > 0 {
             Formatting.triggerShake($shakeOffset)
@@ -240,7 +247,18 @@ struct CropOptionsView: View {
             ? CGSize(width: paperSize.height, height: paperSize.width)
             : paperSize
 
-        let result = cropper.resize(document: document, indices: indices, targetSize: targetSize)
+        let result: PDFCropper.CropResult
+        do {
+            result = try cropper.resize(
+                document: document,
+                indices: indices,
+                targetSize: targetSize
+            )
+        } catch {
+            resultMessage = error.localizedDescription
+            isError = true
+            return
+        }
         documentGeneration += 1
         resultMessage = nil
         isError = false

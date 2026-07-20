@@ -9,7 +9,8 @@ struct PDFCropper {
         var pagesSkipped: Int
     }
 
-    func crop(document: PDFDocument, indices: [Int], top: CGFloat, bottom: CGFloat, left: CGFloat, right: CGFloat) -> CropResult {
+    func crop(document: PDFDocument, indices: [Int], top: CGFloat, bottom: CGFloat, left: CGFloat, right: CGFloat) throws -> CropResult {
+        try PDFPermissionPolicy.require(.changeDocument, for: document)
         Log.crop.info("Starting crop: \(indices.count) pages, insets T=\(top) B=\(bottom) L=\(left) R=\(right)")
         var modified = 0
         var skipped = 0
@@ -37,7 +38,8 @@ struct PDFCropper {
         return CropResult(pagesModified: modified, pagesSkipped: skipped)
     }
 
-    func resize(document: PDFDocument, indices: [Int], targetSize: CGSize) -> CropResult {
+    func resize(document: PDFDocument, indices: [Int], targetSize: CGSize) throws -> CropResult {
+        try PDFPermissionPolicy.require(.changeDocument, for: document)
         var modified = 0
         var skipped = 0
 

@@ -121,8 +121,10 @@ struct RotateOptionsView: View {
     }
 
     private func saveRotated() {
-        guard document.allowsDocumentAssembly else {
-            resultMessage = PDFwringerError.documentAssemblyNotAllowed.localizedDescription
+        do {
+            try PDFPermissionPolicy.require(.assembleDocument, for: document)
+        } catch {
+            resultMessage = error.localizedDescription
             isError = true
             lastOutputURL = nil
             return

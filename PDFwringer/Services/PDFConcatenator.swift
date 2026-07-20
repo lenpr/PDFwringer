@@ -41,6 +41,7 @@ struct PDFConcatenator {
                 throw PDFwringerError.cannotOpenDocument
             }
             if sourceDocument.isLocked { throw PDFwringerError.documentIsLocked }
+            try PDFPermissionPolicy.require(.assembleDocument, for: sourceDocument)
 
             for pageIndex in 0..<sourceDocument.pageCount {
                 try Task.checkCancellation()

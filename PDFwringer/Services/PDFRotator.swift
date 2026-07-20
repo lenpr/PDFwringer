@@ -80,9 +80,7 @@ struct PDFRotator {
 
         let pageCount = document.pageCount
         guard pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
-        guard document.allowsDocumentAssembly else {
-            throw PDFwringerError.documentAssemblyNotAllowed
-        }
+        try PDFPermissionPolicy.require(.assembleDocument, for: document)
 
         let indicesToRotate: [Int]
         if let indices = pageIndices {
@@ -108,7 +106,7 @@ struct PDFRotator {
                 let expectedRotation = normalizedRotation(page.rotation + angle.rawValue)
                 page.rotation = expectedRotation
                 guard normalizedRotation(page.rotation) == expectedRotation else {
-                    throw PDFwringerError.documentAssemblyNotAllowed
+                    throw PDFwringerError.documentPermissionsDenied
                 }
                 progress(Double(i + 1) / Double(indicesToRotate.count))
             }

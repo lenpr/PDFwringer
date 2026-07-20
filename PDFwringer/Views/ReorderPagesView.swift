@@ -144,8 +144,10 @@ struct ReorderPagesView: View {
     }
 
     private func save() {
-        guard document.allowsDocumentAssembly else {
-            resultMessage = PDFwringerError.documentAssemblyNotAllowed.localizedDescription
+        do {
+            try PDFPermissionPolicy.require(.assembleDocument, for: document)
+        } catch {
+            resultMessage = error.localizedDescription
             isError = true
             lastOutputURL = nil
             return

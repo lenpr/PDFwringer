@@ -2,6 +2,20 @@ import Testing
 import PDFKit
 import Foundation
 
+@MainActor
+private func expectPermissionsDenied(
+    _ operation: () async throws -> Void
+) async {
+    do {
+        try await operation()
+        Issue.record("Expected documentPermissionsDenied")
+    } catch PDFwringerError.documentPermissionsDenied {
+        // Expected.
+    } catch {
+        Issue.record("Expected documentPermissionsDenied, got \(error)")
+    }
+}
+
 @Suite("Failure Modes")
 @MainActor
 struct FailureModeTests {
@@ -88,6 +102,150 @@ struct FailureModeTests {
             }
         } catch {
             Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    // MARK: - Encrypted PDF permission enforcement
+
+    @Test("Derived and mutating workflows honor PDF permissions")
+    func restrictedWorkflowsFailClosed() async throws {
+        let source = TestPDFGenerator.makePermissionRestrictedPDF(
+            permissions: 0,
+            filename: "fully-restricted.pdf"
+        )
+        let outputDirectory = TestPDFGenerator.makeTempDirectory()
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(outputDirectory)
+        }
+
+        let document = try #require(PDFDocument(url: source))
+        #expect(document.isEncrypted)
+        #expect(!document.isLocked)
+        #expect(!document.allowsCopying)
+        #expect(!document.allowsDocumentChanges)
+        #expect(!document.allowsDocumentAssembly)
+
+        await expectPermissionsDenied {
+            _ = try await PDFCompressor().compress(
+                document: document,
+                source: source,
+                destination: outputDirectory.appending(component: "lossless.pdf"),
+                level: .lossless,
+                quality: .good,
+                grayscale: false,
+                progress: { _ in }
+            )
+        }
+        await expectPermissionsDenied {
+            _ = try await PDFCompressor().compress(
+                document: document,
+                source: source,
+                destination: outputDirectory.appending(component: "raster.pdf"),
+                level: .medium,
+                quality: .good,
+                grayscale: false,
+                progress: { _ in }
+            )
+        }
+        await expectPermissionsDenied {
+            _ = try await PDFConcatenator().concatenate(
+                sources: [source],
+                destination: outputDirectory.appending(component: "merged.pdf"),
+                progress: { _ in }
+            )
+        }
+        await expectPermissionsDenied {
+            _ = try await PDFSplitter().split(
+                document: document,
+                source: source,
+                mode: .keepPages([0]),
+                destination: outputDirectory.appending(component: "extracted.pdf"),
+                progress: { _ in }
+            )
+        }
+        await expectPermissionsDenied {
+            _ = try await PDFImageExporter().exportPages(
+                document: document,
+                source: source,
+                outputDirectory: outputDirectory,
+                options: .init(format: .png, dpi: 72),
+                pageIndices: nil,
+                progress: { _ in }
+            )
+        }
+        await expectPermissionsDenied {
+            try await PDFColorAdjuster().adjust(
+                document: document,
+                source: source,
+                destination: outputDirectory.appending(component: "adjusted.pdf"),
+                settings: .init(brightness: 0.1),
+                pages: nil,
+                dpi: 72,
+                progress: { _ in }
+            )
+        }
+        await expectPermissionsDenied {
+            try await PDFMetadataEditor().write(
+                metadata: .empty,
+                document: document,
+                source: source,
+                destination: outputDirectory.appending(component: "metadata.pdf")
+            )
+        }
+        await expectPermissionsDenied {
+            try await PDFMetadataEditor().write(
+                metadata: .empty,
+                document: document,
+                source: source,
+                destination: outputDirectory.appending(component: "flattened.pdf"),
+                flattenAnnotations: true
+            )
+        }
+        await expectPermissionsDenied {
+            _ = try PDFCropper().crop(
+                document: document,
+                indices: [0],
+                top: 1,
+                bottom: 1,
+                left: 1,
+                right: 1
+            )
+        }
+        await expectPermissionsDenied {
+            _ = try PDFRotator().rotate(
+                document: document,
+                angle: .ninety,
+                pageIndices: nil,
+                progress: { _ in }
+            )
+        }
+
+        let outputs = try FileManager.default.contentsOfDirectory(
+            at: outputDirectory,
+            includingPropertiesForKeys: nil
+        )
+        #expect(outputs.isEmpty)
+    }
+
+    @Test("Permission requirements distinguish copying from modification")
+    func permissionRequirementsAreSpecific() async throws {
+        let source = TestPDFGenerator.makePermissionRestrictedPDF(
+            permissions: PDFAccessPermissions.allowsContentCopying.rawValue,
+            filename: "copy-only.pdf"
+        )
+        defer { TestPDFGenerator.cleanup(source) }
+
+        let document = try #require(PDFDocument(url: source))
+        #expect(document.allowsCopying)
+        #expect(!document.allowsDocumentChanges)
+        #expect(!document.allowsDocumentAssembly)
+        try PDFPermissionPolicy.require(.copyContent, for: document)
+        await expectPermissionsDenied {
+            try PDFPermissionPolicy.require(.changeDocument, for: document)
+        }
+        await expectPermissionsDenied {
+            try PDFPermissionPolicy.require(.assembleDocument, for: document)
         }
     }
 

@@ -98,13 +98,25 @@ enum TestPDFGenerator {
 
     /// Creates an unlocked PDF whose user permissions forbid document assembly.
     static func makeAssemblyRestrictedPDF(filename: String = "restricted.pdf") -> URL {
+        makePermissionRestrictedPDF(
+            permissions: PDFAccessPermissions.allowsContentCopying.rawValue,
+            filename: filename
+        )
+    }
+
+    /// Creates an encrypted PDF that opens with an empty user password while
+    /// retaining only the supplied user permissions.
+    static func makePermissionRestrictedPDF(
+        permissions: UInt,
+        filename: String = "restricted.pdf"
+    ) -> URL {
         let document = PDFDocument()
         document.insert(PDFPage(), at: 0)
 
         let url = URL.temporaryDirectory.appending(component: UUID().uuidString + "_" + filename)
         let options: [PDFDocumentWriteOption: Any] = [
             .ownerPasswordOption: "test-owner-password",
-            .accessPermissionsOption: PDFAccessPermissions.allowsContentCopying.rawValue
+            .accessPermissionsOption: permissions
         ]
         guard document.write(to: url, withOptions: options) else {
             fatalError("Cannot create permission-restricted PDF for test")

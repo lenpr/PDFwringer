@@ -79,6 +79,7 @@ struct PDFImageExporter {
 
         let pageCount = document.pageCount
         guard pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
+        try PDFPermissionPolicy.require(.copyContent, for: document)
         guard options.dpi.isFinite, options.dpi > 0, options.dpi <= 2_400 else {
             throw PDFwringerError.cannotCreateOutput
         }

@@ -573,7 +573,7 @@ struct AppViewModelTests {
             return
         }
         let originalBounds = try #require(sourceDocument.page(at: 0)).bounds(for: .cropBox)
-        let result = PDFCropper().crop(
+        let result = try PDFCropper().crop(
             document: workingDocument,
             indices: [0],
             top: 10,
