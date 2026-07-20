@@ -201,6 +201,13 @@ class CompressViewModel {
         let suggestedName = source.deletingPathExtension().lastPathComponent + "_compressed.pdf"
         guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
 
+        let operationLevel = selectedLevel
+        let operationQuality = selectedQuality
+        let operationGrayscale = grayscale
+        let operationRemoveAnnotations = removeAnnotations
+        let operationSourceSize = sourceFileSize
+        let sourceWasEncrypted = document.isEncrypted
+
         invalidateEstimation()
         isProcessing = true
         progress = 0
@@ -215,38 +222,38 @@ class CompressViewModel {
                     document: document,
                     source: source,
                     destination: destination,
-                    level: selectedLevel,
-                    quality: selectedQuality,
-                    grayscale: grayscale,
-                    removeAnnotations: removeAnnotations,
+                    level: operationLevel,
+                    quality: operationQuality,
+                    grayscale: operationGrayscale,
+                    removeAnnotations: operationRemoveAnnotations,
                     progress: { [weak self] p in self?.progress = p }
                 )
 
-            let newSize = result.outputSize
+                let newSize = result.outputSize
 
-            let protectionNote = document.isEncrypted && selectedLevel.isRasterize
-                ? " Password protection was removed."
-                : ""
+                let protectionNote = sourceWasEncrypted && operationLevel.isRasterize
+                    ? " Password protection was removed."
+                    : ""
 
-            if newSize >= sourceFileSize && sourceFileSize > 0 {
-                resultMessage = "Result (\(Formatting.fileSize(newSize))) is not smaller than original (\(Formatting.fileSize(sourceFileSize))). File saved.\(protectionNote)"
+                if newSize >= operationSourceSize && operationSourceSize > 0 {
+                    resultMessage = "Result (\(Formatting.fileSize(newSize))) is not smaller than original (\(Formatting.fileSize(operationSourceSize))). File saved.\(protectionNote)"
+                    isError = false
+                    lastOutputURL = destination
+                } else {
+                    let ratio = operationSourceSize > 0
+                        ? Int((1.0 - Double(newSize) / Double(operationSourceSize)) * 100)
+                        : 0
+                    resultMessage = "Done! \(ratio)% smaller (\(Formatting.fileSize(operationSourceSize)) → \(Formatting.fileSize(newSize))).\(protectionNote)"
+                    isError = false
+                    lastOutputURL = destination
+                }
+            } catch is CancellationError {
+                resultMessage = "Cancelled."
                 isError = false
-                lastOutputURL = destination
-            } else {
-                let ratio = sourceFileSize > 0
-                    ? Int((1.0 - Double(newSize) / Double(sourceFileSize)) * 100)
-                    : 0
-                resultMessage = "Done! \(ratio)% smaller (\(Formatting.fileSize(sourceFileSize)) → \(Formatting.fileSize(newSize))).\(protectionNote)"
-                isError = false
-                lastOutputURL = destination
+            } catch {
+                resultMessage = error.localizedDescription
+                isError = true
             }
-        } catch is CancellationError {
-            resultMessage = "Cancelled."
-            isError = false
-        } catch {
-            resultMessage = error.localizedDescription
-            isError = true
-        }
 
             isProcessing = false
         }

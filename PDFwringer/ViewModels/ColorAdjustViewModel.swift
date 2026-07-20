@@ -125,6 +125,10 @@ class ColorAdjustViewModel {
         let suggestedName = source.deletingPathExtension().lastPathComponent + "_adjusted.pdf"
         guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
 
+        let operationSettings = settings
+        let operationPageIndices = pageIndices
+        let sourceWasEncrypted = document.isEncrypted
+
         resultMessage = nil
         isError = false
         isSaving = true
@@ -137,14 +141,14 @@ class ColorAdjustViewModel {
                     document: document,
                     source: source,
                     destination: destination,
-                    settings: settings,
-                    pages: pageIndices,
+                    settings: operationSettings,
+                    pages: operationPageIndices,
                     dpi: 150,
                     quality: 0.85,
                     progress: { [weak self] p in self?.progress = p }
                 )
                 resultMessage = String(localized: "Saved.")
-                if document.isEncrypted && !settings.isIdentity {
+                if sourceWasEncrypted && !operationSettings.isIdentity {
                     resultMessage? += String(localized: " Password protection was removed.")
                 }
                 isError = false

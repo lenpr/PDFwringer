@@ -200,13 +200,34 @@ struct MetadataOptionsView: View {
 
     private func startSaving() {
         guard !isSaving else { return }
+        let operationMetadata = metadata
+        let operationSetPassword = setPassword
+        let operationPassword = passwordText
+        let operationRemoveProtection = removeProtection
+        let operationFlattenAnnotations = flattenAnnotations
+        let sourceWasEncrypted = document.isEncrypted
+
         saveTask = Task {
-            await saveMetadata()
+            await saveMetadata(
+                operationMetadata: operationMetadata,
+                setPassword: operationSetPassword,
+                passwordText: operationPassword,
+                removeProtection: operationRemoveProtection,
+                flattenAnnotations: operationFlattenAnnotations,
+                sourceWasEncrypted: sourceWasEncrypted
+            )
             saveTask = nil
         }
     }
 
-    private func saveMetadata() async {
+    private func saveMetadata(
+        operationMetadata: PDFMetadataEditor.Metadata,
+        setPassword: Bool,
+        passwordText: String,
+        removeProtection: Bool,
+        flattenAnnotations: Bool,
+        sourceWasEncrypted: Bool
+    ) async {
         let suggestedName = url.deletingPathExtension().lastPathComponent + "_metadata.pdf"
         guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
 
@@ -218,9 +239,9 @@ struct MetadataOptionsView: View {
             isSaving = false
             saveProgress = nil
         }
-        let password: String? = if document.isEncrypted && !removeProtection && !passwordText.isEmpty {
+        let password: String? = if sourceWasEncrypted && !removeProtection && !passwordText.isEmpty {
             passwordText
-        } else if document.isEncrypted && !removeProtection && passwordText.isEmpty {
+        } else if sourceWasEncrypted && !removeProtection && passwordText.isEmpty {
             // Encrypted doc with protection toggle OFF but no password entered — block save
             // to prevent silent deprotection
             nil
@@ -231,7 +252,7 @@ struct MetadataOptionsView: View {
         }
 
         // Safety: refuse to silently strip encryption from a protected document
-        if document.isEncrypted && !removeProtection && password == nil {
+        if sourceWasEncrypted && !removeProtection && password == nil {
             resultMessage = String(localized: "Please enter a password to keep protection, or check 'Remove protection' to save without encryption.")
             isError = true
             return
@@ -239,7 +260,7 @@ struct MetadataOptionsView: View {
 
         do {
             try await editor.write(
-                metadata: metadata,
+                metadata: operationMetadata,
                 document: document,
                 source: url,
                 destination: destination,
@@ -248,14 +269,18 @@ struct MetadataOptionsView: View {
                 flattenAnnotations: flattenAnnotations,
                 progress: flattenAnnotations ? { p in saveProgress = p } : nil
             )
-            if flattenAnnotations {
-                resultMessage = "Saved with annotations flattened."
-            } else if password != nil {
-                resultMessage = "Saved with password protection."
-            } else if removeProtection {
-                resultMessage = "Saved without password protection."
+            let securityMessage: String
+            if password != nil {
+                securityMessage = " Password protection is enabled."
+            } else if sourceWasEncrypted && removeProtection {
+                securityMessage = " Password protection was removed."
             } else {
-                resultMessage = "Metadata saved successfully."
+                securityMessage = ""
+            }
+            if flattenAnnotations {
+                resultMessage = "Saved with annotations flattened.\(securityMessage)"
+            } else {
+                resultMessage = "Metadata saved successfully.\(securityMessage)"
             }
             isError = false
             lastOutputURL = destination
