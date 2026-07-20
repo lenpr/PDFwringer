@@ -7,6 +7,21 @@ import PDFKit
 @MainActor
 struct PDFCompressor {
 
+    private static let removableAnnotationSubtypes: Set<String> = [
+        PDFAnnotationSubtype.text.rawValue,
+        PDFAnnotationSubtype.link.rawValue,
+        PDFAnnotationSubtype.freeText.rawValue,
+        PDFAnnotationSubtype.line.rawValue,
+        PDFAnnotationSubtype.square.rawValue,
+        PDFAnnotationSubtype.circle.rawValue,
+        PDFAnnotationSubtype.highlight.rawValue,
+        PDFAnnotationSubtype.underline.rawValue,
+        PDFAnnotationSubtype.strikeOut.rawValue,
+        PDFAnnotationSubtype.ink.rawValue,
+        PDFAnnotationSubtype.stamp.rawValue,
+        PDFAnnotationSubtype.popup.rawValue
+    ]
+
     struct Result {
         var outputSize: Int64
     }
@@ -188,6 +203,9 @@ struct PDFCompressor {
         doc.documentAttributes?.removeAll()
 
         if removeAnnotations {
+            guard Self.annotationRemovalIsSafe(in: doc) else {
+                throw PDFwringerError.sensitiveAnnotationsRequireFlattening
+            }
             for i in 0..<doc.pageCount {
                 try Task.checkCancellation()
                 guard let page = doc.page(at: i) else {
@@ -245,6 +263,24 @@ struct PDFCompressor {
         }
 
         progress(1.0)
+    }
+
+    /// Lossless removal is intentionally limited to known comment/markup/link
+    /// types. Widgets can carry form or signature values, redaction overlays can
+    /// conceal sensitive content, and unknown subtypes may contain attachments.
+    static func annotationRemovalIsSafe(in document: PDFDocument) -> Bool {
+        for pageIndex in 0..<document.pageCount {
+            guard let page = document.page(at: pageIndex) else { return false }
+            for annotation in page.annotations {
+                guard annotation.markupType != .redact,
+                      let subtype = annotation.value(forAnnotationKey: .subtype)
+                        as? PDFAnnotationSubtype,
+                      Self.removableAnnotationSubtypes.contains(subtype.rawValue) else {
+                    return false
+                }
+            }
+        }
+        return true
     }
 
     // MARK: - Rasterize path (maximum compression, flattens content)

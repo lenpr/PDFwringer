@@ -147,6 +147,12 @@ struct CompressOptionsView: View {
                             .font(.callout)
                     }
                     .toggleStyle(.checkbox)
+
+                    if vm.removeAnnotations {
+                        Text(String(localized: "Forms, signatures, redactions, and unsupported annotations must be flattened instead."))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 if let warning = vm.largeFileWarning {

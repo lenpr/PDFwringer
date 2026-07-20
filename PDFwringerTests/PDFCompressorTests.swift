@@ -142,6 +142,57 @@ struct PDFCompressorTests {
         #expect(compressionResult.outputSize > 0)
     }
 
+    @Test("Lossless annotation removal refuses forms and redactions")
+    func losslessRefusesSensitiveAnnotations() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "sensitive.pdf")
+        let output = TestPDFGenerator.makeTempDirectory().appending(component: "stripped.pdf")
+        let originalDestination = Data("existing destination".utf8)
+        try originalDestination.write(to: output)
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(output)
+        }
+
+        let sourceDocument = try #require(PDFDocument(url: source))
+        let page = try #require(sourceDocument.page(at: 0))
+        let form = PDFAnnotation(
+            bounds: CGRect(x: 20, y: 20, width: 120, height: 24),
+            forType: .widget,
+            withProperties: nil
+        )
+        form.widgetFieldType = .text
+        form.widgetStringValue = "private form value"
+        page.addAnnotation(form)
+        let redaction = PDFAnnotation(
+            bounds: CGRect(x: 20, y: 60, width: 120, height: 24),
+            forType: PDFAnnotationSubtype(rawValue: "/Redact"),
+            withProperties: nil
+        )
+        page.addAnnotation(redaction)
+        #expect(sourceDocument.write(to: source))
+
+        do {
+            _ = try await PDFCompressor().compress(
+                source: source,
+                destination: output,
+                level: .lossless,
+                quality: .good,
+                grayscale: false,
+                removeAnnotations: true,
+                progress: { _ in }
+            )
+            Issue.record("Expected sensitiveAnnotationsRequireFlattening")
+        } catch PDFwringerError.sensitiveAnnotationsRequireFlattening {
+            // Expected.
+        } catch {
+            Issue.record("Expected sensitiveAnnotationsRequireFlattening, got \(error)")
+        }
+
+        #expect(try Data(contentsOf: output) == originalDestination)
+        let preservedSource = try #require(PDFDocument(url: source))
+        #expect(preservedSource.page(at: 0)?.annotations.count == 2)
+    }
+
     // MARK: - Rasterize path
 
     @Test("Rasterize at medium DPI produces valid output")

@@ -18,6 +18,7 @@ enum PDFwringerError: LocalizedError {
     case sourceEqualsDestination
     case documentTooLarge(String)
     case documentPermissionsDenied
+    case sensitiveAnnotationsRequireFlattening
 
     var errorDescription: String? {
         switch self {
@@ -38,6 +39,8 @@ enum PDFwringerError: LocalizedError {
             String(localized: "Document is too large to process safely: \(detail)")
         case .documentPermissionsDenied:
             String(localized: "This PDF's permissions do not allow this operation.")
+        case .sensitiveAnnotationsRequireFlattening:
+            String(localized: "This PDF contains forms, signatures, redactions, or unsupported annotations. Flatten annotations instead of removing them.")
         }
     }
 }

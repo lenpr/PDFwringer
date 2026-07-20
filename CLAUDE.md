@@ -73,7 +73,7 @@ landing → singleFile → compressing / splitting / rotating / editingMetadata 
 
 ## Compression dual-engine
 
-- **Lossless** (`CompressionLevel.lossless`): Strips document-level metadata, re-serializes via PDFKit. When `removeAnnotations: true`, also removes all page annotations (links, highlights, etc.).
+- **Lossless** (`CompressionLevel.lossless`): Strips document-level metadata and re-serializes via PDFKit. Optional annotation removal is limited to known comment, markup, stamp, popup, and link types; forms, signatures, redactions, and unknown subtypes fail closed and must be flattened instead.
 - **Rasterize** (`CompressionLevel.high/medium/low`): Renders each page to a bitmap at target DPI, encodes as JPEG, assembles new PDF via CGContext. Flattens all content. Oversized pages (where point dimensions exceed A3 at the target DPI — common in scanned PDFs and iPhone photos) are automatically capped to prevent bitmap inflation.
 - **Size estimation**: `CompressViewModel` provides instant heuristic estimates (based on page dimensions × DPI × JPEG ratio) shown with a "~" prefix, then replaces them with a batched first-page probe. The batch opens the source once and renders once per DPI/color combination before encoding all JPEG qualities.
 

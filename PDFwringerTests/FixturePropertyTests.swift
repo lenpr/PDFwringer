@@ -402,6 +402,24 @@ struct FixtureAnnotationTests {
         defer { try? FileManager.default.removeItem(at: output) }
 
         let compressor = PDFCompressor()
+        if !PDFCompressor.annotationRemovalIsSafe(in: sourceDoc) {
+            do {
+                _ = try await compressor.compress(
+                    source: fixture.url,
+                    destination: output,
+                    level: .lossless,
+                    quality: .good,
+                    grayscale: false,
+                    removeAnnotations: true,
+                    progress: { _ in }
+                )
+                Issue.record("Sensitive annotations should be refused: \(fixture)")
+            } catch PDFwringerError.sensitiveAnnotationsRequireFlattening {
+                #expect(!FileManager.default.fileExists(atPath: output.path(percentEncoded: false)))
+            }
+            return
+        }
+
         try await compressor.compress(
             source: fixture.url, destination: output,
             level: .lossless, quality: .good, grayscale: false, removeAnnotations: true,
