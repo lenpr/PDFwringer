@@ -98,9 +98,7 @@ struct PDFMetadataEditor {
         flattenAnnotations: Bool = false,
         progress: ((Double) -> Void)? = nil
     ) async throws {
-        guard source.standardizedFileURL != destination.standardizedFileURL else {
-            throw PDFwringerError.sourceEqualsDestination
-        }
+        try FileSystemIdentity.requireDistinct(source, destination)
 
         if document.isLocked { throw PDFwringerError.documentIsLocked }
         guard document.pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }

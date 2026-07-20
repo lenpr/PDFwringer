@@ -49,14 +49,11 @@ struct PDFSplitter {
         destination: URL,
         progress: (Double) -> Void
     ) async throws -> [URL] {
-        if case .keepPages = mode {
-            guard source.standardizedFileURL != destination.standardizedFileURL else {
-                throw PDFwringerError.sourceEqualsDestination
-            }
-        } else if case .removePages = mode {
-            guard source.standardizedFileURL != destination.standardizedFileURL else {
-                throw PDFwringerError.sourceEqualsDestination
-            }
+        switch mode {
+        case .splitEveryN:
+            break
+        case .keepPages, .removePages:
+            try FileSystemIdentity.requireDistinct(source, destination)
         }
 
         if document.isLocked { throw PDFwringerError.documentIsLocked }

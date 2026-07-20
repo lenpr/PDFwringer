@@ -78,9 +78,7 @@ struct PDFColorAdjuster {
         let start = ContinuousClock.now
         Log.colorAdjust.info("Starting color adjust: brightness=\(settings.brightness), contrast=\(settings.contrast), saturation=\(settings.saturation)")
 
-        guard source.standardizedFileURL != destination.standardizedFileURL else {
-            throw PDFwringerError.sourceEqualsDestination
-        }
+        try FileSystemIdentity.requireDistinct(source, destination)
         if document.isLocked { throw PDFwringerError.documentIsLocked }
 
         let pageCount = document.pageCount

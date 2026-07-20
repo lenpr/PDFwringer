@@ -58,9 +58,7 @@ struct PDFCompressor {
         let start = ContinuousClock.now
         Log.compress.info("Starting compression: level=\(level.title), quality=\(quality.title), grayscale=\(grayscale)")
 
-        guard source.standardizedFileURL != destination.standardizedFileURL else {
-            throw PDFwringerError.sourceEqualsDestination
-        }
+        try FileSystemIdentity.requireDistinct(source, destination)
         if document.isLocked { throw PDFwringerError.documentIsLocked }
         guard document.pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
 

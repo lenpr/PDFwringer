@@ -224,7 +224,7 @@ enum DocumentSaver {
     }
 
     static func save(document: PDFDocument, source: URL, to destination: URL) -> Result {
-        guard source.standardizedFileURL != destination.standardizedFileURL else {
+        guard !FileSystemIdentity.representsSameFile(source, destination) else {
             return Result(
                 message: PDFwringerError.sourceEqualsDestination.localizedDescription,
                 isError: true,

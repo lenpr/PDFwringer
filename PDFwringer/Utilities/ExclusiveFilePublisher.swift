@@ -29,7 +29,7 @@ enum ExclusiveFilePublisher {
         do {
             for stagedFile in stagedFiles {
                 try Task.checkCancellation()
-                guard let identity = fileIdentity(at: stagedFile.url) else {
+                guard let identity = FileSystemIdentity.entryIdentity(at: stagedFile.url) else {
                     throw PDFwringerError.cannotWriteOutput
                 }
                 let outputURL = try publish(
@@ -98,31 +98,14 @@ enum ExclusiveFilePublisher {
         throw PDFwringerError.cannotWriteOutput
     }
 
-    private struct FileIdentity: Equatable {
-        let device: UInt64
-        let inode: UInt64
-    }
-
     private struct PublishedOutput {
         let url: URL
-        let identity: FileIdentity
-    }
-
-    private static func fileIdentity(at url: URL) -> FileIdentity? {
-        url.withUnsafeFileSystemRepresentation { path in
-            guard let path else { return nil }
-            var information = stat()
-            guard lstat(path, &information) == 0 else { return nil }
-            return FileIdentity(
-                device: UInt64(information.st_dev),
-                inode: UInt64(information.st_ino)
-            )
-        }
+        let identity: FileSystemIdentity.Identity
     }
 
     private static func rollback(_ outputs: [PublishedOutput]) {
         for output in outputs.reversed() {
-            guard fileIdentity(at: output.url) == output.identity else {
+            guard FileSystemIdentity.entryIdentity(at: output.url) == output.identity else {
                 Log.fileIO.error(
                     "Skipped rollback of changed output: \(output.url.lastPathComponent, privacy: .private)"
                 )

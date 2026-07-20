@@ -22,9 +22,8 @@ struct PDFConcatenator {
     ) async throws -> Result {
         guard !sources.isEmpty else { throw PDFwringerError.emptyFileList }
 
-        let destStandardized = destination.standardizedFileURL
-        if sources.contains(where: { $0.standardizedFileURL == destStandardized }) {
-            throw PDFwringerError.sourceEqualsDestination
+        for source in sources {
+            try FileSystemIdentity.requireDistinct(source, destination)
         }
 
         let start = ContinuousClock.now
