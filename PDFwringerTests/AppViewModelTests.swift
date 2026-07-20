@@ -173,14 +173,20 @@ struct AppViewModelTests {
         }
     }
 
-    @Test("handleDrop ignores non-PDF files entirely")
+    @Test("handleDrop ignores non-PDF files, including images")
     func handleDropNonPDF() {
         let vm = AppViewModel()
-        let txt = URL.temporaryDirectory.appending(component: "file.txt")
+        let stem = UUID().uuidString
+        let txt = URL.temporaryDirectory.appending(component: "\(stem).txt")
+        let image = URL.temporaryDirectory.appending(component: "\(stem).png")
         try! "data".write(to: txt, atomically: true, encoding: .utf8)
-        defer { TestPDFGenerator.cleanup(txt) }
+        try! "data".write(to: image, atomically: true, encoding: .utf8)
+        defer {
+            TestPDFGenerator.cleanup(txt)
+            TestPDFGenerator.cleanup(image)
+        }
 
-        vm.handleDrop([txt])
+        vm.handleDrop([txt, image])
         #expect(vm.isLanding)
     }
 

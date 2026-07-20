@@ -1,8 +1,6 @@
 import Testing
 import PDFKit
 import Foundation
-import CoreGraphics
-import ImageIO
 
 /// Tests that cancellation is a reliable contract across all long-running services.
 /// Each test starts an operation, cancels after first progress, and verifies cleanup.
@@ -280,32 +278,10 @@ struct CancellationContractTests {
     func cancellationAtFinalProgress() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "final_cancel.pdf")
         let directory = TestPDFGenerator.makeTempDirectory()
-        let image = directory.appending(component: "input.png")
         defer {
             TestPDFGenerator.cleanup(source)
             TestPDFGenerator.cleanup(directory)
         }
-
-        let context = try #require(CGContext(
-            data: nil,
-            width: 10,
-            height: 10,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ))
-        let cgImage = try #require(context.makeImage())
-        let imageData = NSMutableData()
-        let imageDestination = try #require(CGImageDestinationCreateWithData(
-            imageData,
-            "public.png" as CFString,
-            1,
-            nil
-        ))
-        CGImageDestinationAddImage(imageDestination, cgImage, nil)
-        try #require(CGImageDestinationFinalize(imageDestination))
-        try (imageData as Data).write(to: image)
 
         let compressed = directory.appending(component: "compressed.pdf")
         await expectCancellationAtFinalProgress(output: compressed) { reportProgress in
@@ -343,14 +319,6 @@ struct CancellationContractTests {
             )
         }
 
-        let converted = directory.appending(component: "converted.pdf")
-        await expectCancellationAtFinalProgress(output: converted) { reportProgress in
-            try await PDFImageConverter().convert(
-                images: [image],
-                destination: converted,
-                progress: reportProgress
-            )
-        }
     }
 
     @Test("Pre-cancelled lossless compression does not publish output")

@@ -117,15 +117,6 @@ class AppViewModel {
 
     func handleDrop(_ urls: [URL]) {
         let pdfURLs = urls.filter { $0.pathExtension.lowercased() == "pdf" }
-        let imageURLs = PDFImageConverter.imageFiles(from: urls)
-
-        // If only images were dropped, offer to convert them
-        if pdfURLs.isEmpty && !imageURLs.isEmpty {
-            cancelPendingIntake()
-            convertImagesToPDF(imageURLs)
-            return
-        }
-
         guard !pdfURLs.isEmpty else { return }
 
         if pdfURLs.count == 1 {
@@ -351,20 +342,4 @@ class AppViewModel {
         return copy
     }
 
-    // MARK: - Image to PDF
-
-    func convertImagesToPDF(_ imageURLs: [URL]) {
-        guard let destination = FileDialogHelper.showSavePanel(suggestedName: "converted.pdf") else { return }
-
-        Task {
-            do {
-                let converter = PDFImageConverter()
-                try await converter.convert(images: imageURLs, destination: destination, progress: { _ in })
-                loadSingleFile(destination)
-            } catch {
-                errorMessage = error.localizedDescription
-                showErrorAlert = true
-            }
-        }
-    }
 }

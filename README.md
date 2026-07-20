@@ -87,10 +87,6 @@ Export selected pages as JPEG or PNG files at configurable DPI (72/150/300). JPE
 
 Drag pages in a sidebar list to rearrange their order. Quick-actions for reversing page order or resetting to original. Saves the reordered document to a new file.
 
-### Image to PDF
-
-Drop image files (JPG, PNG, TIFF, HEIC) directly into the app to convert them into a PDF. Each image becomes one page, auto-scaled to fit reasonable dimensions.
-
 ---
 
 ## Page Range Syntax
