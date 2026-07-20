@@ -4,7 +4,7 @@ import Foundation
 
 /// Coarse performance regression tests plus ViewModel lifecycle state checks.
 
-@Suite("Performance Bounds")
+@Suite("Performance Bounds", .serialized)
 @MainActor
 struct PerformanceBoundsTests {
 
