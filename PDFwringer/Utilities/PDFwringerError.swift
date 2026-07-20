@@ -49,9 +49,23 @@ enum Formatting {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 
-    /// Returns available disk space at the given URL's volume, or nil if unavailable.
+    /// Returns available disk space on the volume that contains the URL. Save-panel
+    /// destinations commonly do not exist yet, so walk up to the nearest existing
+    /// ancestor before asking for volume capacity.
     static func availableDiskSpace(at url: URL) -> Int64? {
-        let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        guard url.isFileURL else { return nil }
+
+        let fileManager = FileManager.default
+        var existingURL = url.standardizedFileURL
+        while !fileManager.fileExists(atPath: existingURL.path(percentEncoded: false)) {
+            let parent = existingURL.deletingLastPathComponent()
+            guard parent != existingURL else { return nil }
+            existingURL = parent
+        }
+
+        let values = try? existingURL.resourceValues(
+            forKeys: [.volumeAvailableCapacityForImportantUsageKey]
+        )
         return values?.volumeAvailableCapacityForImportantUsage
     }
 

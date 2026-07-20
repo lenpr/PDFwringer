@@ -216,4 +216,22 @@ struct UtilityTests {
         #expect(Formatting.fileSize(1_048_576).contains("1"))
         #expect(Formatting.fileSize(1_048_576).contains("MB"))
     }
+
+    @Test("Formatting finds disk capacity for a new destination")
+    func diskCapacityForNewDestination() throws {
+        let directory = TestPDFGenerator.makeTempDirectory()
+        defer { TestPDFGenerator.cleanup(directory) }
+        let destination = directory.appending(component: "new-output.pdf")
+
+        #expect(!FileManager.default.fileExists(atPath: destination.path(percentEncoded: false)))
+        _ = try #require(Formatting.availableDiskSpace(at: directory))
+        let destinationCapacity = try #require(Formatting.availableDiskSpace(at: destination))
+
+        #expect(destinationCapacity > 0)
+    }
+
+    @Test("Formatting rejects non-file URLs for disk capacity")
+    func diskCapacityRejectsNonFileURL() {
+        #expect(Formatting.availableDiskSpace(at: URL(string: "https://example.com/out.pdf")!) == nil)
+    }
 }

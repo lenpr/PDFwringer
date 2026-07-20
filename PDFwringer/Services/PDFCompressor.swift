@@ -274,80 +274,74 @@ struct PDFCompressor {
             }
         }
 
-        let tempURL = AtomicFileWriter.tempDirectory.appending(component: UUID().uuidString + ".pdf")
-        defer { try? FileManager.default.removeItem(at: tempURL) }
+        try await AtomicFileWriter.write(to: destination) { stagedURL in
+            var emptyBox = CGRect.zero
+            guard let outputCtx = CGContext(stagedURL as CFURL, mediaBox: &emptyBox, nil) else {
+                throw PDFwringerError.cannotCreateOutput
+            }
 
-        var emptyBox = CGRect.zero
-        guard let outputCtx = CGContext(tempURL as CFURL, mediaBox: &emptyBox, nil) else {
-            throw PDFwringerError.cannotCreateOutput
-        }
+            var outputIsClosed = false
+            do {
+                for i in 0..<pageCount {
+                    try Task.checkCancellation()
 
-        var outputIsClosed = false
-        do {
+                    let pageData = try autoreleasepool { () throws -> Data in
+                        guard let page = document.page(at: i) else {
+                            throw PDFwringerError.cannotOpenDocument
+                        }
+                        guard let data = page.dataRepresentation else {
+                            throw PDFwringerError.cannotOpenDocument
+                        }
+                        return data
+                    }
 
-            for i in 0..<pageCount {
+                    let encodedPage = try await PDFPageWorker.run(pageData: pageData) { page in
+                        guard let (rendered, displaySize) = Self.renderPage(
+                            page,
+                            dpi: dpi,
+                            grayscale: grayscale
+                        ) else {
+                            throw PDFwringerError.cannotCreateOutput
+                        }
+                        guard let jpegData = Self.jpegEncode(image: rendered, quality: quality) else {
+                            throw PDFwringerError.cannotWriteOutput
+                        }
+                        return PDFPageWorker.EncodedPage(data: jpegData, displaySize: displaySize)
+                    }
+
+                    try autoreleasepool {
+                        guard let provider = CGDataProvider(data: encodedPage.data as CFData),
+                              let jpegImage = CGImage(
+                                  jpegDataProviderSource: provider,
+                                  decode: nil,
+                                  shouldInterpolate: true,
+                                  intent: .defaultIntent
+                              )
+                        else {
+                            throw PDFwringerError.cannotWriteOutput
+                        }
+
+                        var outBox = CGRect(origin: .zero, size: encodedPage.displaySize)
+                        outputCtx.beginPage(mediaBox: &outBox)
+                        outputCtx.draw(jpegImage, in: outBox)
+                        outputCtx.endPage()
+                    }
+
+                    progress(Double(i + 1) / Double(pageCount))
+                }
+
                 try Task.checkCancellation()
-
-                let pageData = try autoreleasepool { () throws -> Data in
-                    guard let page = document.page(at: i) else {
-                        throw PDFwringerError.cannotOpenDocument
-                    }
-                    guard let data = page.dataRepresentation else {
-                        throw PDFwringerError.cannotOpenDocument
-                    }
-                    return data
-                }
-
-                let encodedPage = try await PDFPageWorker.run(pageData: pageData) { page in
-                    guard let (rendered, displaySize) = Self.renderPage(
-                        page,
-                        dpi: dpi,
-                        grayscale: grayscale
-                    ) else {
-                        throw PDFwringerError.cannotCreateOutput
-                    }
-                    guard let jpegData = Self.jpegEncode(image: rendered, quality: quality) else {
-                        throw PDFwringerError.cannotWriteOutput
-                    }
-                    return PDFPageWorker.EncodedPage(data: jpegData, displaySize: displaySize)
-                }
-
-                try autoreleasepool {
-                    guard let provider = CGDataProvider(data: encodedPage.data as CFData),
-                          let jpegImage = CGImage(
-                              jpegDataProviderSource: provider,
-                              decode: nil,
-                              shouldInterpolate: true,
-                              intent: .defaultIntent
-                          )
-                    else {
-                        throw PDFwringerError.cannotWriteOutput
-                    }
-
-                    var outBox = CGRect(origin: .zero, size: encodedPage.displaySize)
-                    outputCtx.beginPage(mediaBox: &outBox)
-                    outputCtx.draw(jpegImage, in: outBox)
-                    outputCtx.endPage()
-                }
-
-                progress(Double(i + 1) / Double(pageCount))
-            }
-
-            try Task.checkCancellation()
-            outputCtx.closePDF()
-            outputIsClosed = true
-
-            try Self.validateOutput(at: tempURL, expectedPageCount: pageCount)
-
-            try AtomicFileWriter.write(to: destination) { destTemp in
-                try FileManager.default.copyItem(at: tempURL, to: destTemp)
-                return true
-            }
-        } catch {
-            if !outputIsClosed {
                 outputCtx.closePDF()
+                outputIsClosed = true
+
+                try Self.validateOutput(at: stagedURL, expectedPageCount: pageCount)
+                return true
+            } catch {
+                if !outputIsClosed {
+                    outputCtx.closePDF()
+                }
+                throw error
             }
-            throw error
         }
     }
 
