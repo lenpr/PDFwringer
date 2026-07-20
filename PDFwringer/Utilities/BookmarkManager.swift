@@ -22,14 +22,15 @@ enum BookmarkManager {
             relativeTo: nil
         ) else { return }
 
-        // Remove existing entry for same path (avoid duplicates)
+        // Resolve only for de-duplication; do not persist plaintext file paths.
         let standardized = url.standardizedFileURL.path(percentEncoded: false)
         bookmarks.removeAll { entry in
-            entry.path == standardized
+            guard let resolved = resolveBookmark(entry.data) else { return true }
+            return resolved.url.standardizedFileURL.path(percentEncoded: false) == standardized
         }
 
         // Add new entry at the front
-        bookmarks.insert(BookmarkEntry(path: standardized, data: data), at: 0)
+        bookmarks.insert(BookmarkEntry(data: data), at: 0)
 
         // Trim to max
         if bookmarks.count > maxBookmarks {
@@ -46,34 +47,42 @@ enum BookmarkManager {
     static func resolveBookmarks() -> [URL] {
         let bookmarks = loadBookmarkData()
         var resolved: [URL] = []
+        var retained: [BookmarkEntry] = []
 
         for entry in bookmarks {
-            var isStale = false
-            guard let url = try? URL(
-                resolvingBookmarkData: entry.data,
-                options: .withSecurityScope,
-                relativeTo: nil,
-                bookmarkDataIsStale: &isStale
-            ) else { continue }
+            guard let bookmark = resolveBookmark(entry.data) else { continue }
+            var data = entry.data
 
-            if isStale {
-                // Bookmark is stale — try to recreate it
-                if url.startAccessingSecurityScopedResource() {
-                    saveBookmark(for: url)
-                    url.stopAccessingSecurityScopedResource()
-                }
+            if bookmark.isStale {
+                guard startAccessing(bookmark.url) else { continue }
+                defer { stopAccessing(bookmark.url) }
+                guard let refreshed = try? bookmark.url.bookmarkData(
+                    options: .withSecurityScope,
+                    includingResourceValuesForKeys: nil,
+                    relativeTo: nil
+                ) else { continue }
+                data = refreshed
             }
 
-            resolved.append(url)
+            resolved.append(bookmark.url)
+            retained.append(BookmarkEntry(data: data))
         }
+
+        // Always rewrite so installations with the legacy plaintext `path`
+        // field are migrated even when every bookmark is otherwise unchanged.
+        saveBookmarkData(retained)
 
         return resolved
     }
 
-    /// Resolves a single bookmark URL and starts security-scoped access.
-    /// Caller must call `url.stopAccessingSecurityScopedResource()` when done.
-    static func accessURL(from resolvedURL: URL) -> Bool {
+    /// Starts access to a resolved bookmark URL. Every successful call must be
+    /// balanced by exactly one `stopAccessing` call.
+    static func startAccessing(_ resolvedURL: URL) -> Bool {
         resolvedURL.startAccessingSecurityScopedResource()
+    }
+
+    static func stopAccessing(_ resolvedURL: URL) {
+        resolvedURL.stopAccessingSecurityScopedResource()
     }
 
     // MARK: - Clear
@@ -86,8 +95,18 @@ enum BookmarkManager {
     // MARK: - Storage
 
     private struct BookmarkEntry: Codable {
-        let path: String
         let data: Data
+    }
+
+    private static func resolveBookmark(_ data: Data) -> (url: URL, isStale: Bool)? {
+        var isStale = false
+        guard let url = try? URL(
+            resolvingBookmarkData: data,
+            options: .withSecurityScope,
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+        ) else { return nil }
+        return (url, isStale)
     }
 
     private static func loadBookmarkData() -> [BookmarkEntry] {

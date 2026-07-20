@@ -47,6 +47,18 @@ class AppViewModel {
     private var pendingLockedURL: URL?
     private var fileIntakeTask: Task<Void, Never>?
     private var fileIntakeID: UUID?
+    private var activeSecurityScopedURL: URL?
+    private var pendingSecurityScopedURL: URL?
+    @ObservationIgnored private let beginSecurityScopedAccess: @MainActor (URL) -> Bool
+    @ObservationIgnored private let endSecurityScopedAccess: @MainActor (URL) -> Void
+
+    init(
+        beginSecurityScopedAccess: @escaping @MainActor (URL) -> Bool = BookmarkManager.startAccessing,
+        endSecurityScopedAccess: @escaping @MainActor (URL) -> Void = BookmarkManager.stopAccessing
+    ) {
+        self.beginSecurityScopedAccess = beginSecurityScopedAccess
+        self.endSecurityScopedAccess = endSecurityScopedAccess
+    }
 
     var windowTitle: String {
         switch state {
@@ -127,8 +139,26 @@ class AppViewModel {
     }
 
     func loadSingleFile(_ url: URL) {
+        loadSingleFile(url, requiresSecurityScopedAccess: false)
+    }
+
+    func openRecentDocument(_ url: URL) {
+        loadSingleFile(url, requiresSecurityScopedAccess: true)
+    }
+
+    private func loadSingleFile(_ url: URL, requiresSecurityScopedAccess: Bool) {
         cancelPendingIntake()
+        if requiresSecurityScopedAccess {
+            guard beginSecurityScopedAccess(url) else {
+                errorMessage = PDFwringerError.accessDenied.localizedDescription
+                showErrorAlert = true
+                return
+            }
+            pendingSecurityScopedURL = url
+        }
+
         guard let doc = PDFDocument(url: url) else {
+            cancelPendingIntake()
             Log.app.warning("Cannot open file: \(url.lastPathComponent, privacy: .private)")
             errorMessage = "Cannot open '\(url.lastPathComponent)'. The file may be corrupted or not a valid PDF."
             showErrorAlert = true
@@ -141,6 +171,7 @@ class AppViewModel {
             showPasswordPrompt = true
             return
         }
+        commitPendingSecurityScope()
         currentPage = 0
         currentFileSize = (try? FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false))[.size] as? Int64) ?? 0
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
@@ -160,6 +191,7 @@ class AppViewModel {
             return
         }
         if doc.unlock(withPassword: passwordText) {
+            commitPendingSecurityScope()
             currentPage = 0
             currentFileSize = (try? FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false))[.size] as? Int64) ?? 0
             NSDocumentController.shared.noteNewRecentDocumentURL(url)
@@ -279,6 +311,7 @@ class AppViewModel {
     }
 
     func startOver() {
+        stopActiveSecurityScope()
         state = .landing
         currentPage = 0
         currentFileSize = 0
@@ -299,6 +332,7 @@ class AppViewModel {
         case 1:
             loadSingleFile(items[0].url)
         default:
+            commitPendingSecurityScope()
             for item in items {
                 NSDocumentController.shared.noteNewRecentDocumentURL(item.url)
                 BookmarkManager.saveBookmark(for: item.url)
@@ -313,10 +347,26 @@ class AppViewModel {
         fileIntakeTask?.cancel()
         fileIntakeTask = nil
         fileIntakeID = nil
+        if let pendingSecurityScopedURL {
+            endSecurityScopedAccess(pendingSecurityScopedURL)
+            self.pendingSecurityScopedURL = nil
+        }
         pendingLockedURL = nil
         showPasswordPrompt = false
         passwordText = ""
         wrongPasswordAttempt = false
+    }
+
+    private func commitPendingSecurityScope() {
+        stopActiveSecurityScope()
+        activeSecurityScopedURL = pendingSecurityScopedURL
+        pendingSecurityScopedURL = nil
+    }
+
+    private func stopActiveSecurityScope() {
+        guard let activeSecurityScopedURL else { return }
+        endSecurityScopedAccess(activeSecurityScopedURL)
+        self.activeSecurityScopedURL = nil
     }
 
     private func makeWorkingCopy(of document: PDFDocument) -> PDFDocument? {

@@ -42,6 +42,11 @@ struct EncryptedWorkflowTests {
         #expect(viewModel.recentDocuments.contains {
             $0.standardizedFileURL == source.standardizedFileURL
         })
+        let storedBookmarks = try #require(
+            UserDefaults.standard.data(forKey: Self.bookmarkDefaultsKey)
+        )
+        let bookmarkJSON = try #require(String(data: storedBookmarks, encoding: .utf8))
+        #expect(!bookmarkJSON.contains("\"path\""))
         #expect(NSDocumentController.shared.recentDocumentURLs.contains {
             $0.standardizedFileURL == source.standardizedFileURL
         })

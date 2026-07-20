@@ -51,6 +51,51 @@ struct AppViewModelTests {
         #expect(vm.isLanding)
     }
 
+    @Test("Recent-document security scopes are balanced across failures and replacement")
+    func recentDocumentScopesAreBalanced() {
+        let first = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "recent-first.pdf")
+        let second = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "recent-second.pdf")
+        let missing = URL.temporaryDirectory.appending(component: "\(UUID()).pdf")
+        defer {
+            TestPDFGenerator.cleanup(first)
+            TestPDFGenerator.cleanup(second)
+        }
+
+        var started: [URL] = []
+        var stopped: [URL] = []
+        let vm = AppViewModel(
+            beginSecurityScopedAccess: { url in
+                started.append(url)
+                return true
+            },
+            endSecurityScopedAccess: { stopped.append($0) }
+        )
+
+        vm.openRecentDocument(first)
+        #expect(started == [first])
+        #expect(stopped.isEmpty)
+
+        vm.openRecentDocument(missing)
+        #expect(started == [first, missing])
+        #expect(stopped == [missing])
+        guard case .singleFile(let retainedURL, _) = vm.state else {
+            Issue.record("Expected the first recent document to remain active")
+            return
+        }
+        #expect(retainedURL == first)
+
+        vm.openRecentDocument(second)
+        #expect(started == [first, missing, second])
+        #expect(stopped == [missing, first])
+
+        vm.selectCompress()
+        vm.goBack()
+        #expect(stopped == [missing, first])
+
+        vm.startOver()
+        #expect(stopped == [missing, first, second])
+    }
+
     @Test("loadMultipleFiles transitions directly to merging state")
     func loadMultipleFiles() async throws {
         let url1 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "a.pdf")
