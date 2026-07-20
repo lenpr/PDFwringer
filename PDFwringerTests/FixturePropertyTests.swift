@@ -250,7 +250,7 @@ struct FixtureReprocessTests {
                 "Split of rotated output should produce correct count: \(fixture)")
     }
 
-    @Test("Split parts can be merged back", arguments: FixtureDiscovery.assemblyFixtures)
+    @Test("Split parts can be merged back", arguments: FixtureDiscovery.assemblyDerivationFixtures)
     func splitPartsCanMerge(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 2, fixture.pageCount <= 20 else { return }
 

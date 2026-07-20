@@ -121,7 +121,7 @@ struct TextPreservationTests {
         assertTextNormalized(source: fixture.url, output: output, operation: "rotate 90°")
     }
 
-    @Test("Split preserves text in extracted pages", arguments: FixtureDiscovery.assemblyFixtures)
+    @Test("Split preserves text in extracted pages", arguments: FixtureDiscovery.assemblyDerivationFixtures)
     func splitPreservesText(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 2 else { return }
         guard hasReliableText(fixture: fixture) else { return }
@@ -138,7 +138,7 @@ struct TextPreservationTests {
         assertSplitTextPresent(source: fixture.url, output: output, sourcePageIndex: 0)
     }
 
-    @Test("Merge preserves text from all sources", arguments: FixtureDiscovery.assemblyFixtures)
+    @Test("Merge preserves text from all sources", arguments: FixtureDiscovery.assemblyDerivationFixtures)
     func mergePreservesText(fixture: FixtureDiscovery.Fixture) async throws {
         guard hasReliableText(fixture: fixture) else { return }
         guard fixture.pageCount <= 20 else { return }
@@ -229,7 +229,7 @@ struct PageGeometryTests {
         )
     }
 
-    @Test("Split preserves geometry of kept pages", arguments: FixtureDiscovery.assemblyFixtures)
+    @Test("Split preserves geometry of kept pages", arguments: FixtureDiscovery.assemblyDerivationFixtures)
     func splitPreservesGeometry(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 2 else { return }
 

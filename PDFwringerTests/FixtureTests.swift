@@ -157,7 +157,7 @@ struct FixtureRotateTests {
 @MainActor
 struct FixtureSplitTests {
 
-    @Test("Split every 1 page produces correct file count", arguments: FixtureDiscovery.assemblyFixtures)
+    @Test("Split every 1 page produces correct file count", arguments: FixtureDiscovery.assemblyDerivationFixtures)
     func splitEveryPage(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 2, fixture.pageCount <= 50 else { return } // Skip huge docs
 
@@ -183,7 +183,7 @@ struct FixtureSplitTests {
         }
     }
 
-    @Test("Keep first page extracts correctly", arguments: FixtureDiscovery.assemblyFixtures)
+    @Test("Keep first page extracts correctly", arguments: FixtureDiscovery.assemblyDerivationFixtures)
     func keepFirstPage(fixture: FixtureDiscovery.Fixture) async throws {
         let output = FixtureDiscovery.outputURL(for: fixture, suffix: "_page1.pdf")
         defer { try? FileManager.default.removeItem(at: output) }
@@ -201,7 +201,7 @@ struct FixtureSplitTests {
         _ = pages
     }
 
-    @Test("Remove first page produces n-1 pages", arguments: FixtureDiscovery.assemblyFixtures)
+    @Test("Remove first page produces n-1 pages", arguments: FixtureDiscovery.assemblyDerivationFixtures)
     func removeFirstPage(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 2 else { return }
 
@@ -226,7 +226,7 @@ struct FixtureSplitTests {
 @MainActor
 struct FixtureMergeTests {
 
-    @Test("Merge fixture with itself doubles page count", arguments: FixtureDiscovery.assemblyFixtures)
+    @Test("Merge fixture with itself doubles page count", arguments: FixtureDiscovery.assemblyDerivationFixtures)
     func mergeWithSelf(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount <= 100 else { return } // Skip huge docs for memory
 
@@ -247,7 +247,7 @@ struct FixtureMergeTests {
 
     @Test("Merge all openable fixtures into one document")
     func mergeAllFixtures() async throws {
-        let fixtures = FixtureDiscovery.assemblyFixtures
+        let fixtures = FixtureDiscovery.assemblyDerivationFixtures
         guard fixtures.count >= 2 else { return }
 
         // Limit to first 5 to avoid excessive memory/time
@@ -549,7 +549,7 @@ struct FixturePipelineTests {
         _ = pages
     }
 
-    @Test("Split and merge round-trip preserves page count", arguments: FixtureDiscovery.assemblyFixtures)
+    @Test("Split and merge round-trip preserves page count", arguments: FixtureDiscovery.assemblyDerivationFixtures)
     func splitMergeRoundTrip(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 2, fixture.pageCount <= 30 else { return }
 

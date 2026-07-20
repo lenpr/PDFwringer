@@ -60,10 +60,18 @@ enum FixtureDiscovery {
         }
     }()
 
-    /// Fixtures whose permissions allow splitting, merging, rotating, or reordering pages.
+    /// Fixtures whose permissions allow page assembly, including rotation.
     static let assemblyFixtures: [Fixture] = {
         openableFixtures.filter { fixture in
             PDFDocument(url: fixture.url)?.allowsDocumentAssembly == true
+        }
+    }()
+
+    /// Fixtures whose permissions allow content-copying derivatives such as
+    /// splitting, merging, or reordering pages.
+    static let assemblyDerivationFixtures: [Fixture] = {
+        assemblyFixtures.filter { fixture in
+            PDFDocument(url: fixture.url)?.allowsCopying == true
         }
     }()
 
