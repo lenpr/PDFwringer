@@ -97,17 +97,24 @@ struct PDFColorAdjuster {
 
         try Task.checkCancellation()
         guard !settings.isIdentity else {
+            guard let data = document.dataRepresentation(), !data.isEmpty else {
+                throw PDFwringerError.cannotWriteOutput
+            }
+            progress(1.0)
+            try Task.checkCancellation()
             try AtomicFileWriter.write(to: destination) { tempURL in
-                try FileManager.default.copyItem(at: source, to: tempURL)
+                try data.write(to: tempURL)
                 guard let verificationDocument = PDFDocument(url: tempURL) else { return false }
                 if document.isEncrypted {
-                    return verificationDocument.isEncrypted
+                    guard verificationDocument.isEncrypted else { return false }
+                    if verificationDocument.isLocked { return true }
+                    return verificationDocument.pageCount == pageCount
+                        && verificationDocument.accessPermissions == document.accessPermissions
                 }
                 return !verificationDocument.isLocked
                     && verificationDocument.pageCount == pageCount
             }
-            progress(1.0)
-            Log.colorAdjust.info("Identity settings — copied source unchanged")
+            Log.colorAdjust.info("Identity settings — serialized authoritative document unchanged")
             return
         }
 

@@ -221,6 +221,34 @@ struct EncryptedWorkflowTests {
         assertSourceIsStillLocked(source)
     }
 
+    @Test("Identity color save preserves source encryption")
+    func identityColorPreservesEncryption() async throws {
+        let source = try makeEncryptedPDF(pageCount: 2, filename: "identity-color.pdf")
+        let outputDirectory = TestPDFGenerator.makeTempDirectory()
+        let output = outputDirectory.appending(component: "identity-color-output.pdf")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(outputDirectory)
+        }
+
+        let document = try unlockedDocument(at: source)
+        try await PDFColorAdjuster().adjust(
+            document: document,
+            source: source,
+            destination: output,
+            settings: .init(),
+            pages: nil,
+            progress: { _ in }
+        )
+
+        let outputDocument = try #require(PDFDocument(url: output))
+        #expect(outputDocument.isEncrypted)
+        #expect(outputDocument.isLocked)
+        #expect(outputDocument.unlock(withPassword: Self.password))
+        #expect(outputDocument.pageCount == 2)
+        assertSourceIsStillLocked(source)
+    }
+
     @Test("Metadata reads and writes from the unlocked document")
     func metadataUsesUnlockedDocument() async throws {
         let source = try makeEncryptedPDF(pageCount: 2, filename: "metadata.pdf")

@@ -354,33 +354,41 @@ struct PDFColorAdjusterTests {
         #expect(try Data(contentsOf: output) == originalDestination)
     }
 
-    @Test("Identity adjustment rejects a replaced source without overwriting")
-    func identityRejectsReplacedSource() async throws {
-        let validSource = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
-        let replacedSource = TestPDFGenerator.makeTempDirectory().appending(component: "replaced.pdf")
+    @Test("Identity adjustment saves the authoritative document after source replacement")
+    func identityUsesAuthoritativeDocument() async throws {
+        let authoritativeSource = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "authoritative.pdf")
+        let replacedSource = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "replacement.pdf")
         let output = TestPDFGenerator.makeTempDirectory().appending(component: "identity.pdf")
-        let originalDestination = Data("existing destination".utf8)
-        try Data("not a PDF".utf8).write(to: replacedSource)
-        try originalDestination.write(to: output)
         defer {
-            TestPDFGenerator.cleanup(validSource)
+            TestPDFGenerator.cleanup(authoritativeSource)
             TestPDFGenerator.cleanup(replacedSource)
             TestPDFGenerator.cleanup(output)
         }
 
-        let document = try #require(PDFDocument(url: validSource))
-        await #expect(throws: PDFwringerError.self) {
-            try await PDFColorAdjuster().adjust(
-                document: document,
-                source: replacedSource,
-                destination: output,
-                settings: .init(),
-                pages: nil,
-                progress: { _ in }
-            )
-        }
+        let document = try #require(PDFDocument(url: authoritativeSource))
+        document.documentAttributes = [
+            PDFDocumentAttribute.titleAttribute: "Authoritative title"
+        ]
+        let replacementDocument = try #require(PDFDocument(url: replacedSource))
+        replacementDocument.documentAttributes = [
+            PDFDocumentAttribute.titleAttribute: "Replacement title"
+        ]
+        #expect(replacementDocument.write(to: replacedSource))
 
-        #expect(try Data(contentsOf: output) == originalDestination)
+        try await PDFColorAdjuster().adjust(
+            document: document,
+            source: replacedSource,
+            destination: output,
+            settings: .init(),
+            pages: nil,
+            progress: { _ in }
+        )
+
+        let outputDocument = try #require(PDFDocument(url: output))
+        #expect(
+            outputDocument.documentAttributes?[PDFDocumentAttribute.titleAttribute] as? String
+                == "Authoritative title"
+        )
     }
 
     // MARK: - Progress

@@ -281,6 +281,17 @@ struct CancellationContractTests {
             )
         }
 
+        let identityAdjusted = directory.appending(component: "identity-adjusted.pdf")
+        await expectCancellationAtFinalProgress(output: identityAdjusted) { reportProgress in
+            try await PDFColorAdjuster().adjust(
+                source: source,
+                destination: identityAdjusted,
+                settings: .init(),
+                pages: nil,
+                progress: reportProgress
+            )
+        }
+
         let flattened = directory.appending(component: "flattened.pdf")
         await expectCancellationAtFinalProgress(output: flattened) { reportProgress in
             try await PDFMetadataEditor().write(
