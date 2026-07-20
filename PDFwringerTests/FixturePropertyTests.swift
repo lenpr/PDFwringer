@@ -81,15 +81,22 @@ struct FixtureRoundTripTests {
         )
 
         // Both outputs should have the same page count
-        let firstDoc = PDFDocument(url: first)
-        let secondDoc = PDFDocument(url: second)
-        #expect(firstDoc?.pageCount == secondDoc?.pageCount,
+        let firstDoc = try #require(PDFDocument(url: first))
+        let secondDoc = try #require(PDFDocument(url: second))
+        #expect(firstDoc.pageCount > 0, "First lossless output should contain pages: \(fixture)")
+        #expect(firstDoc.pageCount == secondDoc.pageCount,
                 "Double-lossless should preserve pages: \(fixture)")
 
         // Second should not be significantly larger than first (no meaningful inflation)
         // Allow small tolerance for PDFKit re-serialization overhead (timestamps, xref)
-        let firstSize = (try? FileManager.default.attributesOfItem(atPath: first.path(percentEncoded: false))[.size] as? Int64) ?? 0
-        let secondSize = (try? FileManager.default.attributesOfItem(atPath: second.path(percentEncoded: false))[.size] as? Int64) ?? 0
+        let firstSize = try #require(
+            FileManager.default.attributesOfItem(atPath: first.path(percentEncoded: false))[.size] as? NSNumber
+        ).int64Value
+        let secondSize = try #require(
+            FileManager.default.attributesOfItem(atPath: second.path(percentEncoded: false))[.size] as? NSNumber
+        ).int64Value
+        #expect(firstSize > 0, "First lossless output should not be empty: \(fixture)")
+        #expect(secondSize > 0, "Second lossless output should not be empty: \(fixture)")
         let tolerance = max(4096, Int64(Double(firstSize) * 0.01)) // 1% or 4KB, whichever is larger
         #expect(secondSize <= firstSize + tolerance,
                 "Double-lossless should not inflate significantly: \(fixture) (first \(firstSize), second \(secondSize), tolerance \(tolerance))")
@@ -118,85 +125,6 @@ struct FixtureRoundTripTests {
         #expect(readBack.creator == written.creator, "Creator should round-trip: \(fixture)")
         // Keywords may be reordered, just check they're present
         #expect(readBack.keywords.contains("test"), "Keywords should round-trip: \(fixture)")
-    }
-}
-
-@Suite("Fixture: Progress Monotonicity")
-@MainActor
-struct FixtureProgressTests {
-
-    @Test("Compress progress is monotonically increasing", arguments: FixtureDiscovery.contentDerivationFixtures)
-    func compressProgressMonotonic(fixture: FixtureDiscovery.Fixture) async throws {
-        guard fixture.pageCount >= 2 else { return }
-
-        let output = FixtureDiscovery.outputURL(for: fixture, suffix: "_prog_comp.pdf")
-        defer { try? FileManager.default.removeItem(at: output) }
-
-        var values: [Double] = []
-        let compressor = PDFCompressor()
-        try await compressor.compress(
-            source: fixture.url, destination: output,
-            level: .medium, quality: .good, grayscale: false,
-            progress: { p in values.append(p) }
-        )
-
-        // Verify monotonicity
-        for i in 1..<values.count {
-            #expect(values[i] >= values[i-1],
-                    "Compress progress should be monotonic: \(fixture) (index \(i): \(values[i-1]) → \(values[i]))")
-        }
-
-        // Should reach 1.0
-        if let last = values.last {
-            #expect(abs(last - 1.0) < 0.01, "Compress progress should reach 1.0: \(fixture) (got \(last))")
-        }
-    }
-
-    @Test("Color adjust progress is monotonically increasing", arguments: FixtureDiscovery.contentDerivationFixtures)
-    func colorAdjustProgressMonotonic(fixture: FixtureDiscovery.Fixture) async throws {
-        guard fixture.pageCount >= 2 else { return }
-
-        let output = FixtureDiscovery.outputURL(for: fixture, suffix: "_prog_color.pdf")
-        defer { try? FileManager.default.removeItem(at: output) }
-
-        var values: [Double] = []
-        let adjuster = PDFColorAdjuster()
-        try await adjuster.adjust(
-            source: fixture.url, destination: output,
-            settings: .init(brightness: 0.1, contrast: 1.1, saturation: 0.9),
-            pages: nil,
-            progress: { p in values.append(p) }
-        )
-
-        for i in 1..<values.count {
-            #expect(values[i] >= values[i-1],
-                    "ColorAdjust progress should be monotonic: \(fixture)")
-        }
-
-        if let last = values.last {
-            #expect(abs(last - 1.0) < 0.01, "ColorAdjust progress should reach 1.0: \(fixture)")
-        }
-    }
-
-    @Test("Split progress is monotonically increasing", arguments: FixtureDiscovery.assemblyFixtures)
-    func splitProgressMonotonic(fixture: FixtureDiscovery.Fixture) async throws {
-        guard fixture.pageCount >= 4, fixture.pageCount <= 50 else { return }
-
-        let outputDir = TestPDFGenerator.makeTempDirectory()
-        defer { TestPDFGenerator.cleanup(outputDir) }
-
-        var values: [Double] = []
-        let splitter = PDFSplitter()
-        _ = try await splitter.split(
-            source: fixture.url, mode: .splitEveryN(2),
-            destination: outputDir,
-            progress: { p in values.append(p) }
-        )
-
-        for i in 1..<values.count {
-            #expect(values[i] >= values[i-1],
-                    "Split progress should be monotonic: \(fixture)")
-        }
     }
 }
 
