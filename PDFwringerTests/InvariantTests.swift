@@ -16,8 +16,12 @@ struct TextPreservationTests {
         let sourceText = PDFAssertions.extractText(from: source)
         let outputText = PDFAssertions.extractText(from: output)
 
-        // Page counts must match for comparable operations
-        if sourceText.count != outputText.count { return }
+        guard sourceText.count == outputText.count else {
+            Issue.record(
+                "Text comparison failed for \(operation): page count differs (source \(sourceText.count), output \(outputText.count))"
+            )
+            return
+        }
 
         for (i, (s, o)) in zip(sourceText, outputText).enumerated() {
             let ns = s.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ")
@@ -39,7 +43,12 @@ struct TextPreservationTests {
     /// For split operations: just verify the output has SOME text if the source page had text.
     private func assertSplitTextPresent(source: URL, output: URL, sourcePageIndex: Int) {
         let sourceText = PDFAssertions.extractText(from: source)
-        guard sourcePageIndex < sourceText.count else { return }
+        guard sourceText.indices.contains(sourcePageIndex) else {
+            Issue.record(
+                "Split text comparison requested invalid source page \(sourcePageIndex + 1) for a \(sourceText.count)-page document"
+            )
+            return
+        }
         let pageText = sourceText[sourcePageIndex].trimmingCharacters(in: .whitespacesAndNewlines)
         guard !pageText.isEmpty else { return }
         // Skip CJK/non-embedded font PDFs where extraction is unreliable
@@ -58,7 +67,7 @@ struct TextPreservationTests {
         let text = PDFAssertions.extractText(from: fixture.url).joined()
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
-        // If >80% of characters are basic Latin, text extraction is likely stable
+        // If more than half the characters are basic Latin, extraction is likely stable.
         let latinCount = trimmed.filter { $0.isASCII }.count
         return Double(latinCount) / Double(trimmed.count) > 0.5
     }

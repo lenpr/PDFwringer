@@ -12,7 +12,7 @@ enum PDFAssertions {
     /// Extracts all text from a PDF, page by page.
     static func extractText(from url: URL) -> [String] {
         guard let doc = PDFDocument(url: url) else { return [] }
-        return (0..<doc.pageCount).compactMap { doc.page(at: $0)?.string }
+        return (0..<doc.pageCount).map { doc.page(at: $0)?.string ?? "" }
     }
 
     /// Asserts that text content is preserved between source and output PDFs.
@@ -47,11 +47,8 @@ enum PDFAssertions {
         }
     }
 
-    /// Asserts that at least one page has extractable text (for fixtures known to have text).
-    static func assertHasExtractableText(
-        url: URL,
-        sourceLocation: SourceLocation = #_sourceLocation
-    ) -> Bool {
+    /// Returns whether at least one page has extractable text.
+    static func hasExtractableText(url: URL) -> Bool {
         let texts = extractText(from: url)
         return texts.contains { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }

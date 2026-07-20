@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import PDFKit
+import CoreText
 
 @Suite("Utilities")
 @MainActor
@@ -213,6 +214,34 @@ struct UtilityTests {
     }
 
     // MARK: - DocumentSaver
+
+    @Test("Text extraction preserves blank-page positions")
+    func textExtractionPreservesPageAlignment() throws {
+        let combinedURL = URL.temporaryDirectory.appending(component: UUID().uuidString + "_aligned.pdf")
+        defer { TestPDFGenerator.cleanup(combinedURL) }
+
+        var mediaBox = CGRect(x: 0, y: 0, width: 612, height: 792)
+        let context = try #require(CGContext(combinedURL as CFURL, mediaBox: &mediaBox, nil))
+        context.beginPage(mediaBox: &mediaBox)
+        context.endPage()
+        context.beginPage(mediaBox: &mediaBox)
+        let text = NSAttributedString(
+            string: "Page 1",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 48),
+                .foregroundColor: NSColor.black,
+            ]
+        )
+        context.textPosition = CGPoint(x: 100, y: 400)
+        CTLineDraw(CTLineCreateWithAttributedString(text), context)
+        context.endPage()
+        context.closePDF()
+
+        let extracted = PDFAssertions.extractText(from: combinedURL)
+        #expect(extracted.count == 2)
+        #expect(extracted[0].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        #expect(extracted[1].contains("Page 1"))
+    }
 
     @Test("DocumentSaver refuses to replace its source document")
     func documentSaverRejectsSourceDestination() throws {

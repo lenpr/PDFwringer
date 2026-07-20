@@ -11,6 +11,7 @@ enum FixtureManifest {
         let filename: String
         let pageCount: Int
         let hasText: Bool
+        let hasExtractableText: Bool
         let hasAnnotations: Bool
         let isEncrypted: Bool
         let isModifiable: Bool
@@ -22,6 +23,7 @@ enum FixtureManifest {
             _ filename: String,
             pages: Int,
             text: Bool = true,
+            extractableText: Bool? = nil,
             annotations: Bool = false,
             encrypted: Bool = false,
             modifiable: Bool = true,
@@ -32,6 +34,7 @@ enum FixtureManifest {
             self.filename = filename
             self.pageCount = pages
             self.hasText = text
+            self.hasExtractableText = extractableText ?? text
             self.hasAnnotations = annotations
             self.isEncrypted = encrypted
             self.isModifiable = modifiable
@@ -57,7 +60,7 @@ enum FixtureManifest {
         "transparent.pdf": .init("transparent.pdf", pages: 1, text: false, category: "fonts_color", notes: "Transparency/compositing"),
         "xobject_image.pdf": .init("xobject_image.pdf", pages: 1, text: false, category: "fonts_color", notes: "Image XObject"),
         "cmyk_image.pdf": .init("cmyk_image.pdf", pages: 1, text: false, category: "fonts_color", notes: "CMYK color space image"),
-        "pdf20_bpc_image.pdf": .init("pdf20_bpc_image.pdf", pages: 1, text: false, category: "fonts_color", notes: "Black point compensation"),
+        "pdf20_bpc_image.pdf": .init("pdf20_bpc_image.pdf", pages: 1, text: false, extractableText: true, category: "fonts_color", notes: "Black point compensation"),
 
         // Annotations
         "text_widget.pdf": .init("text_widget.pdf", pages: 1, annotations: true, category: "annotations", notes: "Text form widget"),
@@ -75,7 +78,7 @@ enum FixtureManifest {
 
         // Security
         "password_protected.pdf": .init("password_protected.pdf", pages: 1, encrypted: true, modifiable: false, canOpen: false, category: "security", notes: "Password: openpassword"),
-        "sechandler.pdf": .init("sechandler.pdf", pages: 1, text: true, annotations: true, encrypted: false, modifiable: false, category: "security", notes: "Permission-restricted, no assembly allowed"),
+        "sechandler.pdf": .init("sechandler.pdf", pages: 1, text: true, extractableText: false, annotations: true, encrypted: false, modifiable: false, category: "security", notes: "Permission-restricted, no assembly allowed"),
 
         // Scanned
         "hubbard_ocr.pdf": .init("hubbard_ocr.pdf", pages: 1, text: true, category: "scanned", notes: "Scanned with OCR text layer"),
@@ -85,7 +88,7 @@ enum FixtureManifest {
         // Mixed
         "cropped_rotated_scaled.pdf": .init("cropped_rotated_scaled.pdf", pages: 4, text: true, category: "mixed", notes: "Various page box transformations"),
         "noembed_jis7.pdf": .init("noembed_jis7.pdf", pages: 1, text: true, category: "mixed", notes: "Japanese non-embedded font"),
-        "pdf20_utf8_annotation.pdf": .init("pdf20_utf8_annotation.pdf", pages: 1, text: true, annotations: true, category: "mixed", notes: "Thai UTF-8 annotation"),
+        "pdf20_utf8_annotation.pdf": .init("pdf20_utf8_annotation.pdf", pages: 1, text: true, extractableText: false, annotations: true, category: "mixed", notes: "Thai UTF-8 annotation"),
         "pdf20_output_intent.pdf": .init("pdf20_output_intent.pdf", pages: 2, text: true, category: "mixed", notes: "Page-level output intent"),
 
         // Large
@@ -141,15 +144,11 @@ struct FixtureManifestTests {
     @Test("Manifest text expectations match reality", arguments: FixtureDiscovery.openableFixtures)
     func textStatusMatchesManifest(fixture: FixtureDiscovery.Fixture) {
         guard let expected = FixtureManifest.expected(for: fixture) else { return }
-        guard expected.hasText else { return }
-
-        // Text extraction is best-effort; some PDFs with text use encodings
-        // that PDFKit can't decode. Don't fail, just note as known issue.
-        let hasText = PDFAssertions.assertHasExtractableText(url: fixture.url)
-        if !hasText {
-            // Known limitation — PDFKit text extraction doesn't work for all PDFs
-            // This is informational, not a failure
-        }
+        let actual = PDFAssertions.hasExtractableText(url: fixture.url)
+        #expect(
+            actual == expected.hasExtractableText,
+            "Extractable-text mismatch for \(fixture.filename): expected \(expected.hasExtractableText), got \(actual)"
+        )
     }
 
     @Test("On-disk corpus exactly matches the manifest")
