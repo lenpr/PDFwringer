@@ -129,7 +129,7 @@ struct CropOptionsView: View {
 
                 // Resize section
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(String(localized: "Resize to paper size"))
+                    Text(String(localized: "Set page size"))
                         .font(.callout.weight(.medium))
 
                     HStack(spacing: 12) {
@@ -150,6 +150,10 @@ struct CropOptionsView: View {
                         Button(String(localized: "Resize")) { applyResize() }
                             .buttonStyle(.borderedProminent)
                     }
+
+                    Text(String(localized: "Centers the new page bounds without scaling the content."))
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
 
                 // Save button
@@ -185,7 +189,8 @@ struct CropOptionsView: View {
             : paperSize
         guard let page = document.page(at: currentPage) else { return target }
         let current = page.bounds(for: .cropBox).size
-        if abs(current.width - target.width) < 1 && abs(current.height - target.height) < 1 {
+        let pageTarget = PDFCropGeometry.pageSpaceSize(for: target, rotation: page.rotation)
+        if abs(current.width - pageTarget.width) < 1 && abs(current.height - pageTarget.height) < 1 {
             return nil
         }
         return target

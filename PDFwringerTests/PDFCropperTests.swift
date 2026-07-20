@@ -25,6 +25,46 @@ struct PDFCropperTests {
         #expect(abs(newBounds.height - (originalBounds.height - 30)) < 0.01)
     }
 
+    @Test("Display-edge crop geometry follows page rotation")
+    func cropGeometryFollowsRotation() throws {
+        let bounds = CGRect(x: 100, y: 200, width: 400, height: 600)
+        let expected: [Int: CGRect] = [
+            0: CGRect(x: 130, y: 220, width: 330, height: 570),
+            90: CGRect(x: 110, y: 230, width: 370, height: 530),
+            180: CGRect(x: 140, y: 210, width: 330, height: 570),
+            270: CGRect(x: 120, y: 240, width: 370, height: 530)
+        ]
+
+        for rotation in [0, 90, 180, 270] {
+            let calculated = PDFCropGeometry.cropBounds(
+                in: bounds,
+                rotation: rotation,
+                top: 10,
+                bottom: 20,
+                left: 30,
+                right: 40
+            )
+            #expect(calculated == expected[rotation])
+
+            let document = PDFDocument()
+            let page = PDFPage()
+            page.setBounds(bounds, for: .mediaBox)
+            page.setBounds(bounds, for: .cropBox)
+            page.rotation = rotation
+            document.insert(page, at: 0)
+            _ = try cropper.crop(
+                document: document,
+                indices: [0],
+                top: 10,
+                bottom: 20,
+                left: 30,
+                right: 40
+            )
+            #expect(page.bounds(for: .cropBox) == expected[rotation])
+            #expect(page.rotation == rotation)
+        }
+    }
+
     @Test("Crop skips pages where insets exceed dimensions")
     func cropSkipsOversizedInsets() throws {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "oversize.pdf")
@@ -69,6 +109,44 @@ struct PDFCropperTests {
         let bounds = doc.page(at: 0)!.bounds(for: .cropBox)
         #expect(abs(bounds.width - target.width) < 0.01)
         #expect(abs(bounds.height - target.height) < 0.01)
+    }
+
+    @Test("Resize centers display-oriented bounds on rotated pages")
+    func resizeCentersRotatedBounds() throws {
+        let original = CGRect(x: 100, y: 200, width: 400, height: 600)
+        let displayTarget = CGSize(width: 240, height: 320)
+
+        for rotation in [0, 90, 180, 270] {
+            let expectedSize = rotation == 90 || rotation == 270
+                ? CGSize(width: 320, height: 240)
+                : displayTarget
+            let expected = CGRect(
+                x: original.midX - expectedSize.width / 2,
+                y: original.midY - expectedSize.height / 2,
+                width: expectedSize.width,
+                height: expectedSize.height
+            )
+            #expect(PDFCropGeometry.resizeBounds(
+                in: original,
+                rotation: rotation,
+                displayTargetSize: displayTarget
+            ) == expected)
+
+            let document = PDFDocument()
+            let page = PDFPage()
+            page.setBounds(original, for: .mediaBox)
+            page.setBounds(original, for: .cropBox)
+            page.rotation = rotation
+            document.insert(page, at: 0)
+            _ = try cropper.resize(
+                document: document,
+                indices: [0],
+                targetSize: displayTarget
+            )
+            #expect(page.bounds(for: .mediaBox) == expected)
+            #expect(page.bounds(for: .cropBox) == expected)
+            #expect(page.rotation == rotation)
+        }
     }
 
     @Test("Resize ignores out-of-bounds indices")
