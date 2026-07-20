@@ -17,8 +17,10 @@ APP_NAME := PDFwringer
 APP_BUNDLE := $(BUILD_DIR)/$(APP_NAME).app
 DMG := $(BUILD_DIR)/$(APP_NAME).dmg
 TEST_NAME := PDFwringerTests
-APP_SOURCE_LIST := $(BUILD_DIR)/app-sources.list
-TEST_SOURCE_LIST := $(BUILD_DIR)/test-sources.list
+APP_SOURCE_HASH := $(shell printf '%s\n' $(SOURCES) | shasum -a 256 | cut -d ' ' -f 1)
+TEST_SOURCE_HASH := $(shell printf '%s\n' $(TESTABLE_SOURCES) $(TEST_SOURCES) | shasum -a 256 | cut -d ' ' -f 1)
+APP_SOURCE_STAMP := $(BUILD_DIR)/app-sources-$(APP_SOURCE_HASH).stamp
+TEST_SOURCE_STAMP := $(BUILD_DIR)/test-sources-$(TEST_SOURCE_HASH).stamp
 FIXTURE_CHECKSUMS := PDFwringerTests/Fixtures/SHA256SUMS
 CORPUS_TEST_FILTER := DifferentialEquivalenceTests|Fixture.*Tests|PageGeometryTests|PerformanceBoundsTests|TextPreservationTests|VisualRegressionTests
 
@@ -30,23 +32,23 @@ TESTING_RPATH_DIR := $(SDK_PLATFORM_PATH)/Developer/usr/lib
 
 .DEFAULT_GOAL := build
 
-.PHONY: build clean run test test-fast test-corpus verify-fixtures verify-release-inputs verify-release-tag app release dmg sign notarize FORCE
+.PHONY: build clean run test test-fast test-corpus verify-fixtures verify-release-inputs verify-release-tag app release dmg sign notarize
 
-FORCE:
-
-$(APP_SOURCE_LIST): FORCE
+$(APP_SOURCE_STAMP):
 	@mkdir -p $(BUILD_DIR)
-	@printf '%s\n' $(SOURCES) > $@.tmp
-	@if ! cmp -s $@.tmp $@; then mv $@.tmp $@; else rm $@.tmp; fi
+	@find $(BUILD_DIR) -maxdepth 1 -type f -name 'app-sources-*.stamp' \
+		! -name '$(notdir $@)' -delete
+	@touch $@
 
-$(TEST_SOURCE_LIST): FORCE
+$(TEST_SOURCE_STAMP):
 	@mkdir -p $(BUILD_DIR)
-	@printf '%s\n' $(TESTABLE_SOURCES) $(TEST_SOURCES) > $@.tmp
-	@if ! cmp -s $@.tmp $@; then mv $@.tmp $@; else rm $@.tmp; fi
+	@find $(BUILD_DIR) -maxdepth 1 -type f -name 'test-sources-*.stamp' \
+		! -name '$(notdir $@)' -delete
+	@touch $@
 
 build: $(BUILD_DIR)/$(APP_NAME)
 
-$(BUILD_DIR)/$(APP_NAME): Makefile $(APP_SOURCE_LIST) $(SOURCES)
+$(BUILD_DIR)/$(APP_NAME): Makefile $(APP_SOURCE_STAMP) $(SOURCES)
 	@mkdir -p $(BUILD_DIR)
 	swiftc $(SWIFT_FLAGS) -o $@ $(SOURCES)
 
@@ -133,7 +135,7 @@ verify-fixtures: $(FIXTURE_CHECKSUMS)
 	}
 	@echo "Verified external fixture corpus."
 
-$(BUILD_DIR)/$(TEST_NAME): Makefile $(TEST_SOURCE_LIST) $(TESTABLE_SOURCES) $(TEST_SOURCES)
+$(BUILD_DIR)/$(TEST_NAME): Makefile $(TEST_SOURCE_STAMP) $(TESTABLE_SOURCES) $(TEST_SOURCES)
 	@mkdir -p $(BUILD_DIR)
 	swiftc -target $(TARGET) -sdk $(SDK) $(SWIFT_LANGUAGE_FLAGS) -parse-as-library \
 		-framework PDFKit -framework AppKit -framework Foundation \
