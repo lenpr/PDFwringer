@@ -155,9 +155,10 @@ cp -R .build/PDFwringer.app ~/Applications/
 make test          # compile and run every suite
 make test-fast     # unit, view-model, workflow, and safety suites
 make test-corpus   # slower fixture, invariant, visual, and performance suites
+make verify-fixtures # validate the external corpus without running tests
 ```
 
-Uses [Swift Testing](https://developer.apple.com/documentation/testing). Tests cover services, models, utilities, and view models. A real-world PDF fixture corpus (36 files) exercises all operations against diverse document types. PDFs are also generated programmatically for unit tests — no setup needed.
+Uses [Swift Testing](https://developer.apple.com/documentation/testing). The fast lane generates PDFs programmatically and needs no setup. `make test` and `make test-corpus` additionally require the curated 36-file external corpus; they fail before testing when files are missing or do not match the recorded checksums. The corpus is intentionally not distributed until its upstream provenance and licenses are documented. See `PDFwringerTests/Fixtures/README.md`.
 
 ---
 

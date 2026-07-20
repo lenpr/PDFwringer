@@ -152,9 +152,14 @@ struct FixtureManifestTests {
         }
     }
 
-    @Test("All on-disk fixtures have manifest entries")
-    func allFixturesInManifest() {
-        let unmapped = FixtureDiscovery.allFixtures.filter { FixtureManifest.expected(for: $0) == nil }
-        #expect(unmapped.isEmpty, "Fixtures missing from manifest: \(unmapped.map(\.filename).joined(separator: ", "))")
+    @Test("On-disk corpus exactly matches the manifest")
+    func corpusMatchesManifest() {
+        let discovered = Set(FixtureDiscovery.allFixtures.map { "\($0.category)/\($0.filename)" })
+        let expected = Set(FixtureManifest.manifest.values.map { "\($0.category)/\($0.filename)" })
+        let missing = expected.subtracting(discovered).sorted()
+        let unexpected = discovered.subtracting(expected).sorted()
+
+        #expect(missing.isEmpty, "Missing fixtures: \(missing.joined(separator: ", "))")
+        #expect(unexpected.isEmpty, "Unexpected fixtures: \(unexpected.joined(separator: ", "))")
     }
 }

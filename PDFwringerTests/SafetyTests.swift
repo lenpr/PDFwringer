@@ -164,7 +164,7 @@ struct PathEdgeCaseTests {
         }
 
         let splitter = PDFSplitter()
-        try await splitter.split(
+        _ = try await splitter.split(
             source: source, mode: .keepPages([0]),
             destination: output, progress: { _ in }
         )

@@ -3,7 +3,7 @@ import PDFKit
 import Foundation
 
 /// Comprehensive integration tests that run all PDF operations against real-world fixture files.
-/// Tests are automatically skipped if no fixtures are present in PDFwringerTests/Fixtures/.
+/// `make test-corpus` verifies the external corpus before running these parameterized cases.
 @Suite("Fixture: Compress")
 @MainActor
 struct FixtureCompressTests {

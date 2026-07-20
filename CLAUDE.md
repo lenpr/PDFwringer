@@ -20,7 +20,10 @@ No Swift Package Manager — the project uses an Xcode project with a parallel M
 ## Tests
 
 ```bash
-make test       # compile + run all tests via Swift Testing
+make test          # compile + run all tests; requires the external PDF corpus
+make test-fast     # generated unit, workflow, and safety tests; no setup
+make test-corpus   # fixture, invariant, visual, and performance tests
+make verify-fixtures # validate corpus completeness and checksums
 ```
 
 Uses Swift Testing (`import Testing`, `@Test`, `#expect`). Tests compile the Services/Models/Utilities/ViewModels layer without SwiftUI.

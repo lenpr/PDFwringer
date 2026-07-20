@@ -119,8 +119,8 @@ struct PDFRotatorTests {
 
     @Test("In-memory rotation refuses permission-restricted documents")
     func restrictedDocumentIsNotMutated() throws {
-        let source = FixtureDiscovery.fixturesDirectory
-            .appending(components: "security", "sechandler.pdf")
+        let source = TestPDFGenerator.makeAssemblyRestrictedPDF()
+        defer { TestPDFGenerator.cleanup(source) }
         let document = try #require(PDFDocument(url: source))
         let page = try #require(document.page(at: 0))
         let originalRotation = page.rotation
@@ -146,12 +146,14 @@ struct PDFRotatorTests {
 
     @Test("File rotation fails closed when document assembly is forbidden")
     func restrictedDocumentCreatesNoOutput() async throws {
-        let source = FixtureDiscovery.fixturesDirectory
-            .appending(components: "security", "sechandler.pdf")
+        let source = TestPDFGenerator.makeAssemblyRestrictedPDF()
         let outputDirectory = TestPDFGenerator.makeTempDirectory()
         let output = outputDirectory.appending(component: "restricted-rotation.pdf")
         let originalData = try Data(contentsOf: source)
-        defer { TestPDFGenerator.cleanup(outputDirectory) }
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(outputDirectory)
+        }
 
         do {
             try await rotator.rotate(

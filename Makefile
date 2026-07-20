@@ -19,6 +19,7 @@ APP_BUNDLE := $(BUILD_DIR)/$(APP_NAME).app
 TEST_NAME := PDFwringerTests
 APP_SOURCE_LIST := $(BUILD_DIR)/app-sources.list
 TEST_SOURCE_LIST := $(BUILD_DIR)/test-sources.list
+FIXTURE_CHECKSUMS := PDFwringerTests/Fixtures/SHA256SUMS
 FAST_TEST_FILTER := AppViewModelTests|AtomicWriteSafetyTests|CancellationContractTests|CompressViewModelTests|ConcatenateViewModelTests|EncryptedWorkflowTests|EndToEndTests|FailureModeTests|PDFColorAdjusterTests|PDFCompressorTests|PDFConcatenatorTests|PDFCropperTests|PDFFileItemTests|PDFImageConverterTests|PDFImageExporterTests|PDFMetadataEditorTests|PDFRotatorTests|PDFSplitterTests|PageRangeParserTests|PageSelectionTests|PathEdgeCaseTests|SourceEqualsDestinationTests|SplitViewModelTests|UtilityTests|ViewModelLifecycleTests
 CORPUS_TEST_FILTER := DifferentialEquivalenceTests|Fixture.*Tests|PageGeometryTests|PerformanceBoundsTests|TextPreservationTests|VisualRegressionTests
 
@@ -34,7 +35,7 @@ ifeq ($(wildcard $(TESTING_FW_DIR)/Testing.framework),)
     TESTING_RPATH_DIR := /Library/Developer/CommandLineTools/Library/Developer/usr/lib
 endif
 
-.PHONY: build clean run test test-fast test-corpus app release dmg sign notarize FORCE
+.PHONY: build clean run test test-fast test-corpus verify-fixtures app release dmg sign notarize FORCE
 
 FORCE:
 
@@ -105,7 +106,7 @@ notarize: sign
 	@rm -f $(BUILD_DIR)/$(APP_NAME).zip
 	@echo "Notarized and stapled $(APP_BUNDLE)"
 
-test: $(BUILD_DIR)/$(TEST_NAME)
+test: verify-fixtures $(BUILD_DIR)/$(TEST_NAME)
 	$(BUILD_DIR)/$(TEST_NAME)
 
 # Fast lane: unit + viewmodel + safety tests only (no fixtures, <5s)
@@ -113,8 +114,22 @@ test-fast: $(BUILD_DIR)/$(TEST_NAME)
 	$(BUILD_DIR)/$(TEST_NAME) --filter "$(FAST_TEST_FILTER)"
 
 # Slow/corpus lane: fixture, invariant, visual, differential, and performance tests
-test-corpus: $(BUILD_DIR)/$(TEST_NAME)
+test-corpus: verify-fixtures $(BUILD_DIR)/$(TEST_NAME)
 	$(BUILD_DIR)/$(TEST_NAME) --filter "$(CORPUS_TEST_FILTER)"
+
+verify-fixtures: $(FIXTURE_CHECKSUMS)
+	@expected_count=$$(wc -l < $(FIXTURE_CHECKSUMS) | tr -d ' '); \
+	actual_count=$$(find PDFwringerTests/Fixtures -type f -name '*.pdf' | wc -l | tr -d ' '); \
+	if [ "$$actual_count" -ne "$$expected_count" ]; then \
+		echo "Fixture corpus is incomplete: expected $$expected_count PDFs, found $$actual_count." >&2; \
+		echo "See PDFwringerTests/Fixtures/README.md for setup details." >&2; \
+		exit 1; \
+	fi
+	@shasum -a 256 --quiet --strict --check $(FIXTURE_CHECKSUMS) || { \
+		echo "Fixture corpus checksum validation failed." >&2; \
+		exit 1; \
+	}
+	@echo "Verified external fixture corpus."
 
 $(BUILD_DIR)/$(TEST_NAME): Makefile $(TEST_SOURCE_LIST) $(TESTABLE_SOURCES) $(TEST_SOURCES)
 	@mkdir -p $(BUILD_DIR)

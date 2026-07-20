@@ -27,11 +27,6 @@ enum FixtureDiscovery {
         return thisFile.deletingLastPathComponent().appending(component: "Fixtures")
     }()
 
-    /// Returns true if there are any fixture PDFs available for testing.
-    static var hasFixtures: Bool {
-        !allFixtures.isEmpty
-    }
-
     /// All discovered PDF fixtures, recursively found in the Fixtures directory.
     /// Cached after first access within a test run.
     static let allFixtures: [Fixture] = {
@@ -139,16 +134,10 @@ enum FixtureDiscovery {
 
     /// Creates a temporary output URL for fixture test results.
     static func outputURL(for fixture: Fixture, suffix: String) -> URL {
-        let dir = URL.temporaryDirectory.appending(component: "PDFwringer_fixture_tests")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let name = fixture.url.deletingPathExtension().lastPathComponent + suffix
-        return dir.appending(component: name)
-    }
-
-    /// Cleans up all fixture test output files.
-    static func cleanupOutputs() {
-        let dir = URL.temporaryDirectory.appending(component: "PDFwringer_fixture_tests")
-        try? FileManager.default.removeItem(at: dir)
+        let baseName = fixture.url.deletingPathExtension().lastPathComponent
+        return URL.temporaryDirectory.appending(
+            component: "PDFwringer-\(UUID().uuidString)-\(baseName)\(suffix)"
+        )
     }
 
     /// Validates that a PDF at the given URL is readable with the expected page count.

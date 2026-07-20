@@ -5,5 +5,5 @@ xcuserdata/
 DerivedData/
 *.xcworkspace/
 
-# Test fixtures (real PDFs — too large for git)
+# External PDF corpus (not redistributed; see Fixtures/README.md)
 PDFwringerTests/Fixtures/**/*.pdf

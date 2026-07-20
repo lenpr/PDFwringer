@@ -47,6 +47,22 @@ enum TestPDFGenerator {
         return url
     }
 
+    /// Creates an unlocked PDF whose user permissions forbid document assembly.
+    static func makeAssemblyRestrictedPDF(filename: String = "restricted.pdf") -> URL {
+        let document = PDFDocument()
+        document.insert(PDFPage(), at: 0)
+
+        let url = URL.temporaryDirectory.appending(component: UUID().uuidString + "_" + filename)
+        let options: [PDFDocumentWriteOption: Any] = [
+            .ownerPasswordOption: "test-owner-password",
+            .accessPermissionsOption: PDFAccessPermissions.allowsContentCopying.rawValue
+        ]
+        guard document.write(to: url, withOptions: options) else {
+            fatalError("Cannot create permission-restricted PDF for test")
+        }
+        return url
+    }
+
     /// Creates a PDF with oversized page dimensions (simulates iPhone camera PDFs where
     /// point dimensions match raw pixel counts, e.g. 3024×4032 pt for a 12 MP photo).
     static func makeOversizedPDF(pageCount: Int, width: CGFloat = 3024, height: CGFloat = 4032, filename: String = "oversized.pdf") -> URL {
