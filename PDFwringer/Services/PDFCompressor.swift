@@ -81,7 +81,6 @@ struct PDFCompressor {
             try PDFPermissionPolicy.require(.copyContent, .changeDocument, for: document)
             try await compressRasterize(
                 document: document,
-                source: source,
                 destination: destination,
                 dpi: level.dpi,
                 quality: quality.value,
@@ -287,7 +286,6 @@ struct PDFCompressor {
 
     private func compressRasterize(
         document: PDFDocument,
-        source: URL,
         destination: URL,
         dpi: CGFloat,
         quality: CGFloat,
@@ -300,10 +298,13 @@ struct PDFCompressor {
             throw PDFwringerError.documentTooLarge("\(pageCount) pages exceeds the 10,000 page limit for rasterization")
         }
 
-        // Estimate output size for disk space check (rough: source size * 0.5 as lower bound)
+        let estimatedNeeded = try await PDFRasterizer.estimatedEncodedOutputBytes(
+            document: document,
+            pageIndices: Array(0..<pageCount),
+            dpi: dpi,
+            bytesPerPixel: 4
+        )
         if let available = Formatting.availableDiskSpace(at: destination) {
-            let sourceSize = (try? FileManager.default.attributesOfItem(atPath: source.path(percentEncoded: false))[.size] as? Int64) ?? 0
-            let estimatedNeeded = max(sourceSize / 2, Int64(pageCount) * 50_000)
             if estimatedNeeded > available {
                 throw PDFwringerError.insufficientDiskSpace(needed: estimatedNeeded, available: available)
             }

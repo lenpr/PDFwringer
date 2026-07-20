@@ -431,6 +431,42 @@ struct PDFCompressorTests {
         #expect(result == nil)
     }
 
+    @Test("Raster disk estimates use capped page pixel dimensions")
+    func rasterDiskEstimateUsesGeometry() async throws {
+        let letterSize = CGSize(width: 612, height: 792)
+        let dimensions = try #require(PDFRasterizer.pixelDimensions(
+            displaySize: letterSize,
+            dpi: 150
+        ))
+        #expect(dimensions == .init(width: 1_275, height: 1_650))
+
+        let perPage = try #require(PDFRasterizer.estimatedEncodedSizeUpperBound(
+            displaySize: letterSize,
+            dpi: 150,
+            bytesPerPixel: 4
+        ))
+        #expect(perPage == 1_275 * 1_650 * 4 + 65_536)
+        #expect(perPage > 8_000_000)
+
+        let oversizedDimensions = try #require(PDFRasterizer.pixelDimensions(
+            displaySize: CGSize(width: 3_024, height: 4_032),
+            dpi: 300
+        ))
+        #expect(max(oversizedDimensions.width, oversizedDimensions.height) <= Int(16.5 * 300))
+        #expect(min(oversizedDimensions.width, oversizedDimensions.height) <= Int(11.7 * 300))
+
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
+        defer { TestPDFGenerator.cleanup(source) }
+        let document = try #require(PDFDocument(url: source))
+        let total = try await PDFRasterizer.estimatedEncodedOutputBytes(
+            document: document,
+            pageIndices: [0, 1],
+            dpi: 150,
+            bytesPerPixel: 4
+        )
+        #expect(total == perPage * 2)
+    }
+
     @Test("PDFKit raster matches Core Graphics for rotated pages")
     func pdfKitRasterPreservesRotatedPage() throws {
         let source = TestPDFGenerator.makeCroppedRasterFixture(

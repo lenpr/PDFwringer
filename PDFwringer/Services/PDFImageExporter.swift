@@ -120,10 +120,13 @@ struct PDFImageExporter {
             indicesToExport = Array(0..<pageCount)
         }
 
-        // Guard: disk space estimate (rough: pages × average image size at target DPI)
-        let dpi = Double(options.dpi)
-        let estimatedBytesPerPage = Int64((dpi * dpi * 0.3).rounded(.up))
-        let estimatedTotal = estimatedBytesPerPage * Int64(indicesToExport.count)
+        let bytesPerPixel = options.format == .png ? 5 : 4
+        let estimatedTotal = try await PDFRasterizer.estimatedEncodedOutputBytes(
+            document: document,
+            pageIndices: indicesToExport,
+            dpi: options.dpi,
+            bytesPerPixel: bytesPerPixel
+        )
         if let available = Formatting.availableDiskSpace(at: outputDirectory) {
             if estimatedTotal > available {
                 throw PDFwringerError.insufficientDiskSpace(needed: estimatedTotal, available: available)
