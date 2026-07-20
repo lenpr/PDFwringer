@@ -220,16 +220,15 @@ class AppViewModel {
         fileIntakeID = requestID
 
         let task = Task.detached(priority: .userInitiated) { [weak self] in
-            var items: [PDFFileItem] = []
-            items.reserveCapacity(urls.count)
-            for url in urls {
-                guard !Task.isCancelled else { return }
-                if let item = PDFFileItem.from(url: url) {
-                    items.append(item)
-                }
+            do {
+                let items = try await PDFFileItem.load(urls: urls)
+                try Task.checkCancellation()
+                await self?.completeFileIntake(items, requestID: requestID)
+            } catch is CancellationError {
+                // A newer intake or navigation transition superseded this batch.
+            } catch {
+                await self?.completeFileIntake([], requestID: requestID)
             }
-            guard !Task.isCancelled else { return }
-            await self?.completeFileIntake(items, requestID: requestID)
         }
         fileIntakeTask = task
         return task

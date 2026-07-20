@@ -6,6 +6,9 @@ struct MergeOptionsView: View {
 
     @State private var vm = ConcatenateViewModel()
     @State private var isDropTargeted = false
+    @State private var fileIntakeTask: Task<Void, Never>?
+    @State private var fileIntakeID: UUID?
+    @State private var isAddingFiles = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -56,12 +59,16 @@ struct MergeOptionsView: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 .buttonStyle(.plain)
+                                .disabled(vm.isProcessing)
                                 .accessibilityLabel(String(localized: "Remove file"))
                             }
                             .padding(.vertical, 2)
                         }
                         .onMove { files.move(fromOffsets: $0, toOffset: $1) }
-                        .onDelete { files.remove(atOffsets: $0) }
+                        .onDelete { offsets in
+                            if !vm.isProcessing { files.remove(atOffsets: offsets) }
+                        }
+                        .moveDisabled(vm.isProcessing)
                     }
                     .listStyle(.inset(alternatesRowBackgrounds: true))
                     .overlay {
@@ -76,23 +83,33 @@ struct MergeOptionsView: View {
                         files.sort { $0.filename.localizedCaseInsensitiveCompare($1.filename) == .orderedAscending }
                     }
                     .controlSize(.small)
-                    .disabled(files.count < 2)
+                    .disabled(files.count < 2 || vm.isProcessing)
                     .accessibilityLabel(String(localized: "Sort ascending"))
 
                     Button("Z\u{2009}\u{2192}\u{2009}A") {
                         files.sort { $0.filename.localizedCaseInsensitiveCompare($1.filename) == .orderedDescending }
                     }
                     .controlSize(.small)
-                    .disabled(files.count < 2)
+                    .disabled(files.count < 2 || vm.isProcessing)
                     .accessibilityLabel(String(localized: "Sort descending"))
 
                     Spacer()
+
+                    if isAddingFiles {
+                        ProgressView()
+                            .controlSize(.small)
+                        Button(String(localized: "Cancel")) { cancelFileIntake() }
+                            .buttonStyle(.plain)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     Button(String(localized: "Add Files...")) {
                         guard let urls = FileDialogHelper.showOpenPanel(allowsMultiple: true) else { return }
                         addFiles(urls)
                     }
                     .controlSize(.small)
+                    .disabled(vm.isProcessing)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -144,7 +161,7 @@ struct MergeOptionsView: View {
                     .keyboardShortcut("s")
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                    .disabled(files.count < 2 || vm.isProcessing)
+                    .disabled(files.count < 2 || vm.isProcessing || isAddingFiles)
                 }
 
                 if vm.isProcessing {
@@ -173,7 +190,10 @@ struct MergeOptionsView: View {
             .frame(minWidth: 300, idealWidth: 340)
             .tint(.coral)
         }
-        .onDisappear { vm.cancel() }
+        .onDisappear {
+            vm.cancel()
+            cancelFileIntake()
+        }
     }
 
     private var totalPages: Int {
@@ -181,7 +201,38 @@ struct MergeOptionsView: View {
     }
 
     private func addFiles(_ urls: [URL]) {
-        files.append(contentsOf: PDFFileItem.from(urls: urls))
+        guard !vm.isProcessing else { return }
+        cancelFileIntake()
+        let requestID = UUID()
+        fileIntakeID = requestID
+        isAddingFiles = true
+
+        fileIntakeTask = Task {
+            defer {
+                if fileIntakeID == requestID {
+                    fileIntakeTask = nil
+                    fileIntakeID = nil
+                    isAddingFiles = false
+                }
+            }
+            do {
+                let newFiles = try await PDFFileItem.load(urls: urls)
+                try Task.checkCancellation()
+                guard fileIntakeID == requestID else { return }
+                files.append(contentsOf: newFiles)
+            } catch is CancellationError {
+                // A newer selection or navigation transition superseded this batch.
+            } catch {
+                // Invalid files are filtered by the loader; other failures add nothing.
+            }
+        }
+    }
+
+    private func cancelFileIntake() {
+        fileIntakeTask?.cancel()
+        fileIntakeTask = nil
+        fileIntakeID = nil
+        isAddingFiles = false
     }
 
     private func performMerge() async {

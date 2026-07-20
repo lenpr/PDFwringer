@@ -37,7 +37,7 @@ struct PDFFileItemTests {
     }
 
     @Test("from(urls:) filters to valid PDFs only")
-    func fromMultipleURLs() {
+    func fromMultipleURLs() async throws {
         let pdf1 = TestPDFGenerator.makeRenderedPDF(pageCount: 2, filename: "one.pdf")
         let pdf2 = TestPDFGenerator.makeRenderedPDF(pageCount: 4, filename: "two.pdf")
         let txt = URL.temporaryDirectory.appending(component: "skip.txt")
@@ -48,14 +48,14 @@ struct PDFFileItemTests {
             TestPDFGenerator.cleanup(txt)
         }
 
-        let items = PDFFileItem.from(urls: [pdf1, txt, pdf2])
+        let items = try await PDFFileItem.load(urls: [pdf1, txt, pdf2])
         #expect(items.count == 2)
         #expect(items[0].pageCount == 2)
         #expect(items[1].pageCount == 4)
     }
 
     @Test("from(urls:) preserves input order")
-    func preservesOrder() {
+    func preservesOrder() async throws {
         let pdf1 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "z_last.pdf")
         let pdf2 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "a_first.pdf")
         defer {
@@ -63,9 +63,23 @@ struct PDFFileItemTests {
             TestPDFGenerator.cleanup(pdf2)
         }
 
-        let items = PDFFileItem.from(urls: [pdf1, pdf2])
+        let items = try await PDFFileItem.load(urls: [pdf1, pdf2])
         #expect(items[0].filename.contains("z_last"))
         #expect(items[1].filename.contains("a_first"))
+    }
+
+    @Test("Batch loading does not block MainActor")
+    @MainActor
+    func batchLoadingLeavesMainActorResponsive() async throws {
+        let pdf = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "responsive.pdf")
+        defer { TestPDFGenerator.cleanup(pdf) }
+
+        var heartbeat = false
+        Task { @MainActor in heartbeat = true }
+        let items = try await PDFFileItem.load(urls: Array(repeating: pdf, count: 20))
+
+        #expect(heartbeat)
+        #expect(items.count == 20)
     }
 
     @Test("Each item gets a unique ID")

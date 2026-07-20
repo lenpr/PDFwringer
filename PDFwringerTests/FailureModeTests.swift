@@ -449,8 +449,8 @@ struct FailureModeTests {
         #expect(vm.isLanding)
     }
 
-    @Test("PDFFileItem.from filters out non-loadable URLs")
-    func fileItemFromFiltersCorrupt() {
+    @Test("PDFFileItem batch loading filters out non-loadable URLs")
+    func fileItemLoadingFiltersCorrupt() async throws {
         let valid = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
         let corrupt = URL.temporaryDirectory.appending(component: UUID().uuidString + "_corrupt.pdf")
         try! Data("junk".utf8).write(to: corrupt)
@@ -459,7 +459,7 @@ struct FailureModeTests {
             TestPDFGenerator.cleanup(corrupt)
         }
 
-        let items = PDFFileItem.from(urls: [valid, corrupt])
+        let items = try await PDFFileItem.load(urls: [valid, corrupt])
         #expect(items.count == 1)
     }
 

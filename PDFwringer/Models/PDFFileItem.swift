@@ -22,8 +22,20 @@ struct PDFFileItem: Identifiable, Sendable {
         return PDFFileItem(url: url, pageCount: doc.pageCount)
     }
 
-    /// Creates PDFFileItems from multiple URLs, filtering to valid PDFs.
-    static func from(urls: [URL]) -> [PDFFileItem] {
-        urls.compactMap { from(url: $0) }
+    /// Loads a batch away from actor-isolated callers while preserving input order.
+    static func load(urls: [URL]) async throws -> [PDFFileItem] {
+        var items: [PDFFileItem] = []
+        items.reserveCapacity(urls.count)
+        for (index, url) in urls.enumerated() {
+            try Task.checkCancellation()
+            if let item = from(url: url) {
+                items.append(item)
+            }
+            if (index + 1).isMultiple(of: 10) {
+                await Task.yield()
+            }
+        }
+        try Task.checkCancellation()
+        return items
     }
 }
