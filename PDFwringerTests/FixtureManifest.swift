@@ -14,7 +14,7 @@ enum FixtureManifest {
         let hasExtractableText: Bool
         let hasAnnotations: Bool
         let isEncrypted: Bool
-        let isModifiable: Bool
+        let allowsDocumentChanges: Bool
         let canOpen: Bool
         let category: String
         let notes: String
@@ -26,7 +26,7 @@ enum FixtureManifest {
             extractableText: Bool? = nil,
             annotations: Bool = false,
             encrypted: Bool = false,
-            modifiable: Bool = true,
+            allowsDocumentChanges: Bool = true,
             canOpen: Bool = true,
             category: String = "smoke",
             notes: String = ""
@@ -37,7 +37,7 @@ enum FixtureManifest {
             self.hasExtractableText = extractableText ?? text
             self.hasAnnotations = annotations
             self.isEncrypted = encrypted
-            self.isModifiable = modifiable
+            self.allowsDocumentChanges = allowsDocumentChanges
             self.canOpen = canOpen
             self.category = category
             self.notes = notes
@@ -56,7 +56,7 @@ enum FixtureManifest {
         // Fonts, color, images
         "rotated.pdf": .init("rotated.pdf", pages: 1, text: true, category: "fonts_color", notes: "Pre-rotated pages"),
         "vertical.pdf": .init("vertical.pdf", pages: 3, text: true, category: "fonts_color", notes: "CJK vertical writing"),
-        "zapfdingbats.pdf": .init("zapfdingbats.pdf", pages: 2, text: true, category: "fonts_color", notes: "Standard 14 symbol font"),
+        "zapfdingbats.pdf": .init("zapfdingbats.pdf", pages: 2, text: true, annotations: true, category: "fonts_color", notes: "Standard 14 symbol font"),
         "transparent.pdf": .init("transparent.pdf", pages: 1, text: false, category: "fonts_color", notes: "Transparency/compositing"),
         "xobject_image.pdf": .init("xobject_image.pdf", pages: 1, text: false, category: "fonts_color", notes: "Image XObject"),
         "cmyk_image.pdf": .init("cmyk_image.pdf", pages: 1, text: false, category: "fonts_color", notes: "CMYK color space image"),
@@ -77,8 +77,8 @@ enum FixtureManifest {
         "irs_w9.pdf": .init("irs_w9.pdf", pages: 6, text: true, annotations: true, category: "forms", notes: "IRS fillable form"),
 
         // Security
-        "password_protected.pdf": .init("password_protected.pdf", pages: 1, encrypted: true, modifiable: false, canOpen: false, category: "security", notes: "Password: openpassword"),
-        "sechandler.pdf": .init("sechandler.pdf", pages: 1, text: true, extractableText: false, annotations: true, encrypted: false, modifiable: false, category: "security", notes: "Permission-restricted, no assembly allowed"),
+        "password_protected.pdf": .init("password_protected.pdf", pages: 1, encrypted: true, allowsDocumentChanges: false, canOpen: false, category: "security", notes: "Password: openpassword"),
+        "sechandler.pdf": .init("sechandler.pdf", pages: 1, text: true, extractableText: false, annotations: true, encrypted: true, category: "security", notes: "Permission-restricted, no copying or assembly allowed"),
 
         // Scanned
         "hubbard_ocr.pdf": .init("hubbard_ocr.pdf", pages: 1, text: true, category: "scanned", notes: "Scanned with OCR text layer"),
@@ -86,7 +86,7 @@ enum FixtureManifest {
         "usgs_orthoimagery.pdf": .init("usgs_orthoimagery.pdf", pages: 4, text: true, category: "scanned", notes: "USGS brochure with maps"),
 
         // Mixed
-        "cropped_rotated_scaled.pdf": .init("cropped_rotated_scaled.pdf", pages: 4, text: true, category: "mixed", notes: "Various page box transformations"),
+        "cropped_rotated_scaled.pdf": .init("cropped_rotated_scaled.pdf", pages: 4, text: true, annotations: true, category: "mixed", notes: "Various page box transformations"),
         "noembed_jis7.pdf": .init("noembed_jis7.pdf", pages: 1, text: true, category: "mixed", notes: "Japanese non-embedded font"),
         "pdf20_utf8_annotation.pdf": .init("pdf20_utf8_annotation.pdf", pages: 1, text: true, extractableText: false, annotations: true, category: "mixed", notes: "Thai UTF-8 annotation"),
         "pdf20_output_intent.pdf": .init("pdf20_output_intent.pdf", pages: 2, text: true, category: "mixed", notes: "Page-level output intent"),
@@ -95,9 +95,9 @@ enum FixtureManifest {
         "fdsys_architecture.pdf": .init("fdsys_architecture.pdf", pages: 87, text: true, category: "large", notes: "87-page government document"),
 
         // Quarantine (may not open cleanly)
-        "poppler_fuzzed.pdf": .init("poppler_fuzzed.pdf", pages: 0, text: false, canOpen: false, category: "quarantine", notes: "Fuzzed Poppler regression"),
-        "ghostscript_fuzzed.pdf": .init("ghostscript_fuzzed.pdf", pages: 0, text: false, canOpen: false, category: "quarantine", notes: "Fuzzed Ghostscript regression"),
-        "pdfbox_regression.pdf": .init("pdfbox_regression.pdf", pages: 0, text: false, canOpen: false, category: "quarantine", notes: "PDFBox parser regression"),
+        "poppler_fuzzed.pdf": .init("poppler_fuzzed.pdf", pages: 1, text: false, annotations: true, category: "quarantine", notes: "Fuzzed Poppler regression; opens in current PDFKit"),
+        "ghostscript_fuzzed.pdf": .init("ghostscript_fuzzed.pdf", pages: 1, text: false, category: "quarantine", notes: "Fuzzed Ghostscript regression; opens in current PDFKit"),
+        "pdfbox_regression.pdf": .init("pdfbox_regression.pdf", pages: 1, text: false, category: "quarantine", notes: "PDFBox parser regression; opens in current PDFKit"),
         "redhat_regression.pdf": .init("redhat_regression.pdf", pages: 0, text: false, canOpen: false, category: "quarantine", notes: "RedHat security regression"),
     ]
 
@@ -126,19 +126,45 @@ struct FixtureManifestTests {
     func openabilityMatchesManifest(fixture: FixtureDiscovery.Fixture) {
         guard let expected = FixtureManifest.expected(for: fixture) else { return }
 
-        let canActuallyOpen = PDFDocument(url: fixture.url) != nil && fixture.pageCount > 0
-        if expected.canOpen {
-            #expect(canActuallyOpen, "Manifest says \(fixture.filename) should be openable but it's not")
+        let canActuallyOpen = if let document = PDFDocument(url: fixture.url) {
+            !document.isLocked && document.pageCount > 0
+        } else {
+            false
         }
+        #expect(
+            canActuallyOpen == expected.canOpen,
+            "Openability mismatch for \(fixture.filename): expected \(expected.canOpen), got \(canActuallyOpen)"
+        )
     }
 
     @Test("Manifest annotation expectations match reality", arguments: FixtureDiscovery.openableFixtures)
     func annotationStatusMatchesManifest(fixture: FixtureDiscovery.Fixture) {
         guard let expected = FixtureManifest.expected(for: fixture) else { return }
-        guard expected.hasAnnotations else { return }
 
         let count = PDFAssertions.annotationCount(in: fixture.url)
-        #expect(count > 0, "Manifest says \(fixture.filename) has annotations but found \(count)")
+        let hasAnnotations = count > 0
+        #expect(
+            hasAnnotations == expected.hasAnnotations,
+            "Annotation mismatch for \(fixture.filename): expected \(expected.hasAnnotations), found \(count)"
+        )
+    }
+
+    @Test("Manifest security expectations match reality", arguments: FixtureDiscovery.allFixtures)
+    func securityStatusMatchesManifest(fixture: FixtureDiscovery.Fixture) {
+        guard let expected = FixtureManifest.expected(for: fixture) else { return }
+        guard let document = PDFDocument(url: fixture.url) else {
+            #expect(!expected.canOpen, "Could not validate security properties for openable fixture \(fixture.filename)")
+            return
+        }
+
+        #expect(
+            document.isEncrypted == expected.isEncrypted,
+            "Encryption mismatch for \(fixture.filename): expected \(expected.isEncrypted), got \(document.isEncrypted)"
+        )
+        #expect(
+            document.allowsDocumentChanges == expected.allowsDocumentChanges,
+            "Document-change permission mismatch for \(fixture.filename): expected \(expected.allowsDocumentChanges), got \(document.allowsDocumentChanges)"
+        )
     }
 
     @Test("Manifest text expectations match reality", arguments: FixtureDiscovery.openableFixtures)
