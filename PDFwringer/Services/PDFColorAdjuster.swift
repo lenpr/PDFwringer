@@ -51,6 +51,31 @@ struct PDFColorAdjuster {
             throw PDFwringerError.cannotOpenDocument
         }
         if document.isLocked { throw PDFwringerError.documentIsLocked }
+        if let pages {
+            guard !pages.isEmpty,
+                  pages.allSatisfy({ (0..<document.pageCount).contains($0) }) else {
+                let range = pages.map { String($0 + 1) }.joined(separator: ", ")
+                throw PDFwringerError.invalidPageRange(range)
+            }
+        }
+
+        if settings.isIdentity {
+            try FileSystemIdentity.requireDistinct(source, destination)
+            try Task.checkCancellation()
+            progress(1.0)
+            try Task.checkCancellation()
+            try await AtomicFileWriter.write(to: destination) { tempURL in
+                try await Task.detached(priority: .userInitiated) {
+                    try FileManager.default.copyItem(at: source, to: tempURL)
+                }.value
+                try Task.checkCancellation()
+                guard let verificationDocument = PDFDocument(url: tempURL) else { return false }
+                return verificationDocument.pageCount == document.pageCount
+                    && verificationDocument.isLocked == document.isLocked
+            }
+            Log.colorAdjust.info("Identity settings — copied source without re-serialization")
+            return
+        }
 
         try await adjust(
             document: document,

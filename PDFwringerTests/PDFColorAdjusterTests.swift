@@ -27,6 +27,7 @@ struct PDFColorAdjusterTests {
             progress: { _ in }
         )
 
+        #expect(try Data(contentsOf: output) == Data(contentsOf: source))
         let sourceDocument = try #require(PDFDocument(url: source))
         let outputDocument = try #require(PDFDocument(url: output))
         #expect(outputDocument.pageCount == sourceDocument.pageCount)
