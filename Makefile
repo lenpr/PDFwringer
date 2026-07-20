@@ -4,12 +4,10 @@ TARGET := arm64-apple-macosx26.0
 SWIFT_LANGUAGE_FLAGS := -swift-version 6 -strict-concurrency=complete
 SWIFT_FLAGS := -target $(TARGET) -sdk $(SDK) $(SWIFT_LANGUAGE_FLAGS) -parse-as-library -framework SwiftUI -framework PDFKit -framework AppKit
 RELEASE_FLAGS := -O -whole-module-optimization
-VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
-ifeq ($(VERSION),)
-    VERSION := 0.0.0
-endif
 SIGN_IDENTITY ?= Developer ID Application: Lukas N.P. Egger (7DGU3C2XRL)
 ENTITLEMENTS := PDFwringer/PDFwringer.entitlements
+INFO_PLIST := PDFwringer/Info.plist
+BUNDLE_VERSION := $(shell /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" $(INFO_PLIST))
 NOTARY_PROFILE ?= notarytool-profile
 SOURCES := $(shell find PDFwringer -name '*.swift' | LC_ALL=C sort)
 TEST_SOURCES := $(shell find PDFwringerTests -name '*.swift' | LC_ALL=C sort)
@@ -32,7 +30,7 @@ TESTING_RPATH_DIR := $(SDK_PLATFORM_PATH)/Developer/usr/lib
 
 .DEFAULT_GOAL := build
 
-.PHONY: build clean run test test-fast test-corpus verify-fixtures app release dmg sign notarize FORCE
+.PHONY: build clean run test test-fast test-corpus verify-fixtures verify-release-tag app release dmg sign notarize FORCE
 
 FORCE:
 
@@ -54,28 +52,13 @@ $(BUILD_DIR)/$(APP_NAME): Makefile $(APP_SOURCE_LIST) $(SOURCES)
 
 app: $(APP_BUNDLE)
 
-$(APP_BUNDLE): Makefile $(BUILD_DIR)/$(APP_NAME) $(ENTITLEMENTS) PDFwringer/Resources/AppIcon.icns
+$(APP_BUNDLE): Makefile $(BUILD_DIR)/$(APP_NAME) $(ENTITLEMENTS) $(INFO_PLIST) PDFwringer/Resources/AppIcon.icns
 	@rm -rf $(APP_BUNDLE)
 	@mkdir -p $(APP_BUNDLE)/Contents/MacOS
 	@mkdir -p $(APP_BUNDLE)/Contents/Resources
 	@cp $(BUILD_DIR)/$(APP_NAME) $(APP_BUNDLE)/Contents/MacOS/$(APP_NAME)
 	@cp PDFwringer/Resources/AppIcon.icns $(APP_BUNDLE)/Contents/Resources/AppIcon.icns
-	@/usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string $(APP_NAME)" $(APP_BUNDLE)/Contents/Info.plist
-	@/usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string com.pdfwringer.app" $(APP_BUNDLE)/Contents/Info.plist
-	@/usr/libexec/PlistBuddy -c "Add :CFBundleName string $(APP_NAME)" $(APP_BUNDLE)/Contents/Info.plist
-	@/usr/libexec/PlistBuddy -c "Add :CFBundlePackageType string APPL" $(APP_BUNDLE)/Contents/Info.plist
-	@/usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $(VERSION)" $(APP_BUNDLE)/Contents/Info.plist
-	@/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string 1" $(APP_BUNDLE)/Contents/Info.plist
-	@/usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string AppIcon" $(APP_BUNDLE)/Contents/Info.plist
-	@/usr/libexec/PlistBuddy -c "Add :LSMinimumSystemVersion string 26.0" $(APP_BUNDLE)/Contents/Info.plist
-	@/usr/libexec/PlistBuddy -c "Add :NSHighResolutionCapable bool true" $(APP_BUNDLE)/Contents/Info.plist
-	@/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes array" $(APP_BUNDLE)/Contents/Info.plist
-	@/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0 dict" $(APP_BUNDLE)/Contents/Info.plist
-	@/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:CFBundleTypeName string PDF Document" $(APP_BUNDLE)/Contents/Info.plist
-	@/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:CFBundleTypeRole string Viewer" $(APP_BUNDLE)/Contents/Info.plist
-	@/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:LSItemContentTypes array" $(APP_BUNDLE)/Contents/Info.plist
-	@/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:LSItemContentTypes:0 string com.adobe.pdf" $(APP_BUNDLE)/Contents/Info.plist
-	@/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:LSHandlerRank string Alternate" $(APP_BUNDLE)/Contents/Info.plist
+	@cp $(INFO_PLIST) $(APP_BUNDLE)/Contents/Info.plist
 	@xattr -cr $(APP_BUNDLE)
 	@codesign --force --options runtime --sign - \
 		--entitlements $(ENTITLEMENTS) $(APP_BUNDLE)
@@ -86,7 +69,16 @@ release:
 	@$(MAKE) -B SWIFT_FLAGS='$(SWIFT_FLAGS) $(RELEASE_FLAGS)' app
 	@echo "Release build ready at $(APP_BUNDLE)"
 
-sign: release
+verify-release-tag:
+	@expected_tag="v$(BUNDLE_VERSION)"; \
+	actual_tag=$$(git describe --tags --exact-match 2>/dev/null || true); \
+	if [ "$$actual_tag" != "$$expected_tag" ]; then \
+		echo "Refusing signed release: HEAD must be tagged $$expected_tag (found $${actual_tag:-no exact tag})." >&2; \
+		exit 1; \
+	fi
+
+sign: verify-release-tag
+	@$(MAKE) release
 	@xattr -cr $(APP_BUNDLE)
 	@codesign --force --options runtime --timestamp --sign "$(SIGN_IDENTITY)" \
 		--entitlements $(ENTITLEMENTS) $(APP_BUNDLE)
