@@ -39,7 +39,7 @@ Models/       → Value types: CompressionLevel, JPEGQuality, PDFFileItem, Paper
 Services/     → Stateless PDF operations plus PDFPageWorker isolation and shared PDFRasterizer primitives
 ViewModels/   → @Observable classes: AppViewModel, CompressViewModel, ConcatenateViewModel, SplitViewModel, ColorAdjustViewModel
 Views/        → SwiftUI views + shared components: OptionsHeaderView, PageSelectionView, PDFPreviewView, CropPreviewPanel, PageThumbnailStripView, DropReceiverView, ResultMessageView, ActionCardView, ColorAdjustOptionsView
-Utilities/    → PDFwringerError, FileDialogHelper, BookmarkManager, Formatting, AtomicFileWriter, Log, Color.coral (all in PDFwringerError.swift except BookmarkManager)
+Utilities/    → PDFwringerError, FileDialogHelper, BookmarkManager, Formatting, AtomicFileWriter, ExclusiveFilePublisher, Log, Color.coral
 Resources/    → Asset catalog, AppIcon.icns
 ```
 
@@ -61,12 +61,12 @@ landing → singleFile → compressing / splitting / rotating / editingMetadata 
 - **Source/dest guard**: All services that take both source and destination URLs guard against `source == destination` at the top, throwing `PDFwringerError.sourceEqualsDestination`.
 - **Sandbox**: App is sandboxed with `com.apple.security.files.user-selected.read-write`. File access uses `NSSavePanel`/`NSOpenPanel` — never raw path construction. Open Recent stores security-scoped bookmark data without a separate plaintext path and balances access for the lifetime of the active document.
 - **PDF reading**: `PDFRasterizer.openDocument(at:)` reads file data into memory first (works around CGPDFDocument sandbox restrictions). Other services use `PDFDocument(url:)`.
-- **Temp files**: `AtomicFileWriter` stages single-file outputs in an item-replacement directory on the destination volume, then atomically moves or replaces the destination.
+- **Temp files**: Single-file and multi-file workflows stage outputs in item-replacement directories on the destination volume. Multi-file publication uses exclusive renames and rolls back files already published if the batch fails or is cancelled.
 - **State management**: ViewModels use `@Observable` (Observation framework). Views own their VM via `@State`.
 - **Drop handling**: `DropReceiverView` wraps `DropNSView` (NSView subclass) for reliable drag-and-drop in sandbox. Returns `nil` from `hitTest` so SwiftUI buttons underneath remain clickable. Multi-file intake validates PDFs off MainActor, then routes zero/one/many readable files to error/single-file/merge state respectively.
 - **File items**: `PDFFileItem.from(url:)` / `.from(urls:)` is the single factory for creating items from URLs (filters PDFs, reads page count). Struct is `Sendable`.
 - **Formatting**: `Formatting.fileSize(_:)` is the shared byte-formatting utility. `Formatting.triggerShake(_:)` provides the shared invalid-input shake animation.
-- **Atomic writes**: `AtomicFileWriter` (in `PDFwringerError.swift`) writes to a temp file in a dedicated subdirectory (`URL.temporaryDirectory/PDFwringer/`), then uses `FileManager.replaceItemAt` for safe destination replacement. Cleans up on failure. All services use this consistently.
+- **Atomic writes**: `AtomicFileWriter` stages single-file outputs on the destination volume, then moves or atomically replaces the destination. `ExclusiveFilePublisher` provides no-clobber publication and rollback for multi-file batches. Both clean up staging data on failure.
 - **Logging**: `Log` enum (in `PDFwringerError.swift`) provides structured `os.Logger` instances per category (compress, merge, split, rotate, metadata).
 - **Thumbnails**: `ThumbnailCache` is `@MainActor @Observable` with a generation counter for SwiftUI refresh. It snapshots the authoritative page on `MainActor`, renders a worker-local page off actor, and constructs the cached `NSImage` back on `MainActor`.
 

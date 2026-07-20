@@ -113,6 +113,38 @@ struct CancellationContractTests {
         #expect(!FileManager.default.fileExists(atPath: output.path(percentEncoded: false)))
     }
 
+    @Test("PDFSplitter batch cancellation publishes no partial files")
+    func splitterBatchCancellation() async throws {
+        let source = makeLargeSource()
+        let outputDirectory = TestPDFGenerator.makeTempDirectory()
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(outputDirectory)
+        }
+
+        var operationTask: Task<Void, Error>?
+        operationTask = Task { @MainActor in
+            _ = try await PDFSplitter().split(
+                source: source,
+                mode: .splitEveryN(1),
+                destination: outputDirectory,
+                progress: { value in
+                    if value > 0 { operationTask?.cancel() }
+                }
+            )
+        }
+        let task = try #require(operationTask)
+
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
+        let outputs = try FileManager.default.contentsOfDirectory(
+            at: outputDirectory,
+            includingPropertiesForKeys: nil
+        )
+        #expect(outputs.isEmpty)
+    }
+
     @Test("PDFConcatenator cancellation cleans up")
     func concatenatorCancellation() async throws {
         let source1 = makeLargeSource()
@@ -260,6 +292,15 @@ struct CancellationContractTests {
             )
         }
 
+        let extracted = directory.appending(component: "extracted.pdf")
+        await expectCancellationAtFinalProgress(output: extracted) { reportProgress in
+            _ = try await PDFSplitter().split(
+                source: source,
+                mode: .keepPages([0]),
+                destination: extracted,
+                progress: reportProgress
+            )
+        }
     }
 
     @Test("Pre-cancelled lossless compression does not publish output")

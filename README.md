@@ -192,7 +192,7 @@ PDFwringer/
 ├── Services/        Stateless PDF ops plus isolated workers and shared raster primitives
 ├── ViewModels/      @Observable classes (AppViewModel, CompressViewModel, ConcatenateViewModel, SplitViewModel)
 ├── Views/           SwiftUI views, shared components (OptionsHeaderView, PageSelectionView, PDFPreviewView, CropPreviewPanel)
-├── Utilities/       Error types, file dialogs, formatting helpers, Color.coral
+├── Utilities/       Error types, atomic/exclusive file publication, dialogs, formatting helpers
 └── Resources/       Asset catalog, AppIcon.icns
 ```
 
@@ -201,7 +201,7 @@ PDFwringer/
 - **Document-first flow** — drop/select files first, then choose an action
 - **NSView drop overlay** — SwiftUI's `onDrop` is unreliable in sandboxed apps; `DropReceiverView` wraps an NSView that passes clicks through via `hitTest → nil`
 - **Background size estimation** — compression options open the source once and batch first-page probes for every setting
-- **Atomic writes** — all operations write to a temp file, then `FileManager.replaceItemAt` to the destination
+- **Safe publication** — single-file outputs use atomic replacement; multi-file batches stage everything on the destination volume, publish without clobbering existing files, and roll back partial batches
 - **Strict concurrency** — full Swift 6 `SWIFT_STRICT_CONCURRENCY = complete`; UI state and authoritative `PDFDocument` access stay on `MainActor`, while isolated page snapshots render and encode on detached workers
 
 ---

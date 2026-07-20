@@ -1,6 +1,15 @@
 import Testing
 import PDFKit
 
+private final class MissingPageSplitterDocument: PDFDocument {
+    var inaccessiblePageIndex: Int?
+
+    override func page(at index: Int) -> PDFPage? {
+        if index == inaccessiblePageIndex { return nil }
+        return super.page(at: index)
+    }
+}
+
 @Suite("PDFSplitter")
 @MainActor
 struct PDFSplitterTests {
@@ -74,6 +83,74 @@ struct PDFSplitterTests {
 
         #expect(outputs.count == 1)
         #expect(PDFDocument(url: outputs[0])?.pageCount == 3)
+    }
+
+    @Test("Split batch publishes nothing when a later chunk cannot be read")
+    func splitBatchFailurePublishesNothing() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 3, filename: "incomplete.pdf")
+        let outputDir = TestPDFGenerator.makeTempDirectory()
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(outputDir)
+        }
+
+        let sourceDocument = try #require(PDFDocument(url: source))
+        let incompleteDocument = MissingPageSplitterDocument()
+        for pageIndex in 0..<sourceDocument.pageCount {
+            let page = try #require(sourceDocument.page(at: pageIndex)?.copy() as? PDFPage)
+            incompleteDocument.insert(page, at: incompleteDocument.pageCount)
+        }
+        incompleteDocument.inaccessiblePageIndex = 1
+
+        await #expect(throws: PDFwringerError.self) {
+            try await PDFSplitter().split(
+                document: incompleteDocument,
+                source: source,
+                mode: .splitEveryN(1),
+                destination: outputDir,
+                progress: { _ in }
+            )
+        }
+
+        let outputs = try FileManager.default.contentsOfDirectory(
+            at: outputDir,
+            includingPropertiesForKeys: nil
+        )
+        #expect(outputs.isEmpty)
+    }
+
+    @Test("Split batch preserves a collision created after staging")
+    func splitBatchHandlesLateCollision() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "report.pdf")
+        let outputDir = TestPDFGenerator.makeTempDirectory()
+        let baseName = source.deletingPathExtension().lastPathComponent
+        let canonical = outputDir.appending(component: "\(baseName)_001.pdf")
+        let sentinel = Data("existing".utf8)
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(outputDir)
+        }
+
+        var collisionError: Error?
+        var createdCollision = false
+        let outputs = try await PDFSplitter().split(
+            source: source,
+            mode: .splitEveryN(1),
+            destination: outputDir,
+            progress: { _ in
+                guard !createdCollision else { return }
+                createdCollision = true
+                do {
+                    try sentinel.write(to: canonical)
+                } catch {
+                    collisionError = error
+                }
+            }
+        )
+
+        #expect(collisionError == nil)
+        #expect(outputs.map(\.lastPathComponent) == ["\(baseName)_001_1.pdf"])
+        #expect(try Data(contentsOf: canonical) == sentinel)
     }
 
     // MARK: - Keep pages

@@ -117,7 +117,6 @@ struct PDFSplitter {
         progress: (Double) -> Void
     ) async throws -> [URL] {
         let pageCount = sourceDoc.pageCount
-        var outputURLs: [URL] = []
         var processedPages = 0
 
         let totalChunks = (pageCount + n - 1) / n
@@ -125,6 +124,17 @@ struct PDFSplitter {
         guard totalChunks <= 5_000 else {
             throw PDFwringerError.documentTooLarge("Split would create \(totalChunks) files, exceeding the 5,000 file limit")
         }
+
+        let fileManager = FileManager.default
+        let stagingDirectory = try fileManager.url(
+            for: .itemReplacementDirectory,
+            in: .userDomainMask,
+            appropriateFor: outputDir,
+            create: true
+        )
+        defer { try? fileManager.removeItem(at: stagingDirectory) }
+        var stagedOutputs: [ExclusiveFilePublisher.StagedFile] = []
+        stagedOutputs.reserveCapacity(totalChunks)
 
         for chunkIndex in 0..<totalChunks {
             try Task.checkCancellation()
@@ -143,36 +153,27 @@ struct PDFSplitter {
                 processedPages += 1
             }
 
-            let filename = String(format: "%@_%03d.pdf", baseName, chunkIndex + 1)
-            var outputURL = outputDir.appending(component: filename)
-            let tempURL = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")
-
-            // Avoid silently overwriting existing files — append a unique suffix on collision
-            var attempt = 0
-            while FileManager.default.fileExists(atPath: outputURL.path(percentEncoded: false)) {
-                attempt += 1
-                let uniqueName = String(format: "%@_%03d_%d.pdf", baseName, chunkIndex + 1, attempt)
-                outputURL = outputDir.appending(component: uniqueName)
-                if attempt > 100 { break } // Safety: don't loop forever
-            }
-
-            guard chunkDoc.write(to: tempURL) else {
+            let stagedURL = stagingDirectory
+                .appending(component: UUID().uuidString)
+                .appendingPathExtension("pdf")
+            let expectedPageCount = endPage - startPage
+            guard chunkDoc.write(to: stagedURL),
+                  let verificationDocument = PDFDocument(url: stagedURL),
+                  verificationDocument.pageCount == expectedPageCount,
+                  (0..<expectedPageCount).allSatisfy({ verificationDocument.page(at: $0) != nil }) else {
                 throw PDFwringerError.cannotWriteOutput
             }
-
-            do {
-                try FileManager.default.moveItem(at: tempURL, to: outputURL)
-            } catch {
-                try? FileManager.default.removeItem(at: tempURL)
-                throw error
-            }
-
-            outputURLs.append(outputURL)
+            stagedOutputs.append(ExclusiveFilePublisher.StagedFile(
+                url: stagedURL,
+                preferredStem: String(format: "%@_%03d", baseName, chunkIndex + 1),
+                pathExtension: "pdf"
+            ))
             progress(Double(processedPages) / Double(pageCount))
             await Task.yield()
         }
 
-        return outputURLs
+        try Task.checkCancellation()
+        return try ExclusiveFilePublisher.publish(stagedOutputs, to: outputDir)
     }
 
     // MARK: - Extract specific pages
@@ -210,8 +211,16 @@ struct PDFSplitter {
             throw PDFwringerError.invalidPageRange("no valid pages in range")
         }
 
+        try Task.checkCancellation()
         try AtomicFileWriter.write(to: destination) { tempURL in
-            outputDoc.write(to: tempURL)
+            guard outputDoc.write(to: tempURL),
+                  let verificationDocument = PDFDocument(url: tempURL),
+                  verificationDocument.pageCount == outputDoc.pageCount else {
+                return false
+            }
+            return (0..<outputDoc.pageCount).allSatisfy {
+                verificationDocument.page(at: $0) != nil
+            }
         }
     }
 }
