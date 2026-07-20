@@ -22,7 +22,9 @@ TEST_SOURCE_HASH := $(shell printf '%s\n' $(TESTABLE_SOURCES) $(TEST_SOURCES) | 
 APP_SOURCE_STAMP := $(BUILD_DIR)/app-sources-$(APP_SOURCE_HASH).stamp
 TEST_SOURCE_STAMP := $(BUILD_DIR)/test-sources-$(TEST_SOURCE_HASH).stamp
 FIXTURE_CHECKSUMS := PDFwringerTests/Fixtures/SHA256SUMS
-CORPUS_TEST_FILTER := DifferentialEquivalenceTests|Fixture.*Tests|PageGeometryTests|PerformanceBoundsTests|TextPreservationTests|VisualRegressionTests
+CORPUS_TEST_FILTER := DifferentialEquivalenceTests|Fixture.*Tests|PageGeometryTests|TextPreservationTests|VisualRegressionTests
+PERFORMANCE_TEST_FILTER := PerformanceBoundsTests
+SLOW_TEST_FILTER := $(CORPUS_TEST_FILTER)|$(PERFORMANCE_TEST_FILTER)
 
 # Keep the compiler plugin, framework, and runtime on the active Xcode toolchain.
 SWIFT_LIB_DIR := $(shell dirname $$(dirname $$(xcrun --find swift)))/lib
@@ -111,15 +113,18 @@ notarize: sign
 	@echo "Notarized and stapled $(APP_BUNDLE)"
 
 test: verify-fixtures $(BUILD_DIR)/$(TEST_NAME)
-	$(BUILD_DIR)/$(TEST_NAME)
+	$(BUILD_DIR)/$(TEST_NAME) --skip "$(SLOW_TEST_FILTER)"
+	$(BUILD_DIR)/$(TEST_NAME) --filter "$(CORPUS_TEST_FILTER)"
+	$(BUILD_DIR)/$(TEST_NAME) --filter "$(PERFORMANCE_TEST_FILTER)"
 
 # Fast lane: unit + viewmodel + safety tests only (no fixtures, <5s)
 test-fast: $(BUILD_DIR)/$(TEST_NAME)
-	$(BUILD_DIR)/$(TEST_NAME) --skip "$(CORPUS_TEST_FILTER)"
+	$(BUILD_DIR)/$(TEST_NAME) --skip "$(SLOW_TEST_FILTER)"
 
-# Slow/corpus lane: fixture, invariant, visual, differential, and performance tests
+# Slow lane: corpus tests first, then performance bounds without corpus contention.
 test-corpus: verify-fixtures $(BUILD_DIR)/$(TEST_NAME)
 	$(BUILD_DIR)/$(TEST_NAME) --filter "$(CORPUS_TEST_FILTER)"
+	$(BUILD_DIR)/$(TEST_NAME) --filter "$(PERFORMANCE_TEST_FILTER)"
 
 verify-fixtures: $(FIXTURE_CHECKSUMS)
 	@expected_count=$$(wc -l < $(FIXTURE_CHECKSUMS) | tr -d ' '); \
