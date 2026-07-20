@@ -9,6 +9,7 @@ class ColorAdjustViewModel {
     var saturation: Float = 1
 
     var previewImage: NSImage?
+    @ObservationIgnored private(set) var lastPublishedPreviewSettings: PDFColorAdjuster.Settings?
     var resultMessage: String?
     var isError = false
     var isSaving = false
@@ -95,6 +96,7 @@ class ColorAdjustViewModel {
                 guard let self,
                       self.previewGeneration == gen,
                       let preview = NSImage(data: previewData) else { return }
+                self.lastPublishedPreviewSettings = currentSettings
                 self.previewImage = preview
             } catch {
                 // Preview generation is best-effort; a subsequent change retries it.

@@ -230,24 +230,25 @@ struct ViewModelLifecycleTests {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "vm_preview.pdf")
         defer { TestPDFGenerator.cleanup(source) }
 
-        guard let doc = PDFDocument(url: source) else { return }
+        let document = try #require(PDFDocument(url: source))
 
         let vm = ColorAdjustViewModel()
+        defer { vm.cancelPreview() }
 
-        // Rapid slider changes should cancel previous previews
-        vm.brightness = 0.1
-        vm.updatePreview(document: doc, page: 0)
-        vm.brightness = 0.2
-        vm.updatePreview(document: doc, page: 0)
-        vm.brightness = 0.3
-        vm.updatePreview(document: doc, page: 0)
+        for brightness: Float in [-1, 0, 1] {
+            vm.brightness = brightness
+            vm.updatePreview(document: document, page: 0)
+        }
 
-        // Wait for the last preview to complete
-        try await Task.sleep(for: .milliseconds(300))
+        let expectedSettings = PDFColorAdjuster.Settings(brightness: 1)
+        let deadline = ContinuousClock.now + .seconds(5)
+        while vm.lastPublishedPreviewSettings != expectedSettings,
+              ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
 
-        // Should have a preview image (from the last request)
-        // The key assertion: no crash from stale/concurrent access
-        #expect(vm.previewImage != nil || true) // Just verify no crash
+        _ = try #require(vm.previewImage)
+        #expect(vm.lastPublishedPreviewSettings == expectedSettings)
     }
 
     @Test("Changing source clears stale results")
