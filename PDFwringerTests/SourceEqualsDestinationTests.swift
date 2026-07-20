@@ -14,7 +14,7 @@ struct SourceEqualsDestinationTests {
         await #expect(throws: PDFwringerError.self) {
             try await compressor.compress(
                 source: source, destination: source,
-                level: .lossless, quality: .good, grayscale: false, stripMetadata: false,
+                level: .lossless, quality: .good, grayscale: false,
                 progress: { _ in }
             )
         }

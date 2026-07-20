@@ -76,7 +76,7 @@ struct VisualRegressionTests {
         let compressor = PDFCompressor()
         try await compressor.compress(
             source: source, destination: output,
-            level: .lossless, quality: .good, grayscale: false, stripMetadata: false,
+            level: .lossless, quality: .good, grayscale: false,
             progress: { _ in }
         )
 

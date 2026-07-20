@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Wring every last byte out of your PDFs.</strong><br><br>
-  A lightweight native macOS app for compressing, merging, splitting, rotating, cropping, color-adjusting, watermarking, and editing PDF files.<br>
+  A lightweight native macOS app for compressing, merging, splitting, rotating, cropping, color-adjusting, exporting, and editing PDF files.<br>
   Built entirely with SwiftUI and PDFKit — zero external dependencies, zero network calls, zero data collection.
 </p>
 

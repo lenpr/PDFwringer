@@ -55,7 +55,7 @@ struct CancellationContractTests {
         operationTask = Task { @MainActor in
             _ = try await compressor.compress(
                 source: source, destination: output,
-                level: .medium, quality: .good, grayscale: false, stripMetadata: false,
+                level: .medium, quality: .good, grayscale: false,
                 progress: { p in
                     if p > 0 { operationTask?.cancel() }
                 }
@@ -233,7 +233,6 @@ struct CancellationContractTests {
                 level: .medium,
                 quality: .good,
                 grayscale: false,
-                stripMetadata: false,
                 progress: reportProgress
             )
         }
@@ -279,7 +278,7 @@ struct CancellationContractTests {
                 level: .lossless,
                 quality: .good,
                 grayscale: false,
-                stripMetadata: true,
+                removeAnnotations: true,
                 progress: { _ in }
             )
         }

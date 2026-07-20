@@ -20,7 +20,6 @@ struct FixtureCompressTests {
             level: .lossless,
             quality: .good,
             grayscale: false,
-            stripMetadata: false,
             progress: { _ in }
         )
 
@@ -41,7 +40,6 @@ struct FixtureCompressTests {
             level: .medium,
             quality: .good,
             grayscale: false,
-            stripMetadata: false,
             progress: { _ in }
         )
 
@@ -63,7 +61,6 @@ struct FixtureCompressTests {
             level: .low,
             quality: .moderate,
             grayscale: true,
-            stripMetadata: true,
             progress: { _ in }
         )
 
@@ -83,7 +80,6 @@ struct FixtureCompressTests {
             level: .high,
             quality: .best,
             grayscale: false,
-            stripMetadata: false,
             progress: { _ in }
         )
 
@@ -483,7 +479,7 @@ struct FixtureErrorTests {
         do {
             try await compressor.compress(
                 source: fixture.url, destination: output,
-                level: .lossless, quality: .good, grayscale: false, stripMetadata: false,
+                level: .lossless, quality: .good, grayscale: false,
                 progress: { _ in }
             )
             Issue.record("Should have thrown for locked PDF: \(fixture)")
@@ -506,7 +502,7 @@ struct FixtureErrorTests {
         do {
             try await compressor.compress(
                 source: fixture.url, destination: output,
-                level: .lossless, quality: .good, grayscale: false, stripMetadata: false,
+                level: .lossless, quality: .good, grayscale: false,
                 progress: { _ in }
             )
             Issue.record("Should have thrown for corrupt PDF: \(fixture)")
@@ -539,7 +535,7 @@ struct FixturePipelineTests {
         let compressor = PDFCompressor()
         try await compressor.compress(
             source: fixture.url, destination: compressed,
-            level: .medium, quality: .good, grayscale: false, stripMetadata: false,
+            level: .medium, quality: .good, grayscale: false,
             progress: { _ in }
         )
 

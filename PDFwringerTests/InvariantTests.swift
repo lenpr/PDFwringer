@@ -73,7 +73,7 @@ struct TextPreservationTests {
         let compressor = PDFCompressor()
         try await compressor.compress(
             source: fixture.url, destination: output,
-            level: .lossless, quality: .good, grayscale: false, stripMetadata: false,
+            level: .lossless, quality: .good, grayscale: false,
             progress: { _ in }
         )
 
@@ -177,7 +177,7 @@ struct PageGeometryTests {
         let compressor = PDFCompressor()
         try await compressor.compress(
             source: fixture.url, destination: output,
-            level: .lossless, quality: .good, grayscale: false, stripMetadata: false,
+            level: .lossless, quality: .good, grayscale: false,
             progress: { _ in }
         )
 

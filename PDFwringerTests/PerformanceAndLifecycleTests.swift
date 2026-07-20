@@ -23,7 +23,7 @@ struct PerformanceBoundsTests {
         let compressor = PDFCompressor()
         try await compressor.compress(
             source: source, destination: output,
-            level: .medium, quality: .good, grayscale: false, stripMetadata: false,
+            level: .medium, quality: .good, grayscale: false,
             progress: { _ in }
         )
         let elapsed = ContinuousClock.now - start
@@ -107,7 +107,7 @@ struct PerformanceBoundsTests {
         let compressor = PDFCompressor()
         let result = try await compressor.compress(
             source: source, destination: output,
-            level: .high, quality: .best, grayscale: false, stripMetadata: false,
+            level: .high, quality: .best, grayscale: false,
             progress: { _ in }
         )
 
@@ -130,7 +130,7 @@ struct PerformanceBoundsTests {
         let compressor = PDFCompressor()
         try await compressor.compress(
             source: source, destination: output,
-            level: .medium, quality: .good, grayscale: false, stripMetadata: false,
+            level: .medium, quality: .good, grayscale: false,
             progress: { _ in progressCount += 1 }
         )
 

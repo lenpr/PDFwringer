@@ -210,7 +210,6 @@ struct EncryptedWorkflowTests {
             level: .lossless,
             quality: .good,
             grayscale: false,
-            stripMetadata: false,
             progress: { _ in }
         )
 
@@ -279,7 +278,6 @@ struct EncryptedWorkflowTests {
             level: .low,
             quality: .moderate,
             grayscale: false,
-            stripMetadata: false,
             progress: { _ in }
         )
 

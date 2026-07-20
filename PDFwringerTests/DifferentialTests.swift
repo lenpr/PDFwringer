@@ -162,7 +162,7 @@ struct DifferentialEquivalenceTests {
         // Path A: compress then split
         try await compressor.compress(
             source: source, destination: compressed,
-            level: .medium, quality: .good, grayscale: false, stripMetadata: false,
+            level: .medium, quality: .good, grayscale: false,
             progress: { _ in }
         )
         let partsA = try await splitter.split(

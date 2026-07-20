@@ -69,14 +69,14 @@ struct FixtureRoundTripTests {
         // First compression
         try await compressor.compress(
             source: fixture.url, destination: first,
-            level: .lossless, quality: .good, grayscale: false, stripMetadata: false,
+            level: .lossless, quality: .good, grayscale: false,
             progress: { _ in }
         )
 
         // Second compression of the already-compressed output
         try await compressor.compress(
             source: first, destination: second,
-            level: .lossless, quality: .good, grayscale: false, stripMetadata: false,
+            level: .lossless, quality: .good, grayscale: false,
             progress: { _ in }
         )
 
@@ -136,7 +136,7 @@ struct FixtureProgressTests {
         let compressor = PDFCompressor()
         try await compressor.compress(
             source: fixture.url, destination: output,
-            level: .medium, quality: .good, grayscale: false, stripMetadata: false,
+            level: .medium, quality: .good, grayscale: false,
             progress: { p in values.append(p) }
         )
 
@@ -215,7 +215,7 @@ struct FixtureSizeSanityTests {
         let compressor = PDFCompressor()
         let result = try await compressor.compress(
             source: fixture.url, destination: output,
-            level: .low, quality: .low, grayscale: false, stripMetadata: true,
+            level: .low, quality: .low, grayscale: false,
             progress: { _ in }
         )
 
@@ -241,13 +241,13 @@ struct FixtureSizeSanityTests {
 
         try await compressor.compress(
             source: fixture.url, destination: colorOutput,
-            level: .medium, quality: .good, grayscale: false, stripMetadata: false,
+            level: .medium, quality: .good, grayscale: false,
             progress: { _ in }
         )
 
         try await compressor.compress(
             source: fixture.url, destination: grayOutput,
-            level: .medium, quality: .good, grayscale: true, stripMetadata: false,
+            level: .medium, quality: .good, grayscale: true,
             progress: { _ in }
         )
 
@@ -280,14 +280,14 @@ struct FixtureReprocessTests {
 
         try await compressor.compress(
             source: fixture.url, destination: first,
-            level: .medium, quality: .good, grayscale: false, stripMetadata: false,
+            level: .medium, quality: .good, grayscale: false,
             progress: { _ in }
         )
 
         // The output of compression should itself be a valid input
         try await compressor.compress(
             source: first, destination: second,
-            level: .low, quality: .moderate, grayscale: false, stripMetadata: false,
+            level: .low, quality: .moderate, grayscale: false,
             progress: { _ in }
         )
 
@@ -372,7 +372,7 @@ struct FixtureAnnotationTests {
         let compressor = PDFCompressor()
         try await compressor.compress(
             source: fixture.url, destination: output,
-            level: .lossless, quality: .good, grayscale: false, stripMetadata: false,
+            level: .lossless, quality: .good, grayscale: false,
             progress: { _ in }
         )
 
@@ -390,8 +390,8 @@ struct FixtureAnnotationTests {
                 "Lossless should preserve annotations: \(fixture) (source \(sourceAnnotationCount), output \(outputAnnotationCount))")
     }
 
-    @Test("Lossless with stripMetadata removes annotations", arguments: FixtureDiscovery.modifiableFixtures)
-    func stripMetadataRemovesAnnotations(fixture: FixtureDiscovery.Fixture) async throws {
+    @Test("Lossless annotation removal removes annotations", arguments: FixtureDiscovery.modifiableFixtures)
+    func removeAnnotationsRemovesAnnotations(fixture: FixtureDiscovery.Fixture) async throws {
         guard let sourceDoc = PDFDocument(url: fixture.url) else { return }
 
         var sourceAnnotationCount = 0
@@ -406,7 +406,7 @@ struct FixtureAnnotationTests {
         let compressor = PDFCompressor()
         try await compressor.compress(
             source: fixture.url, destination: output,
-            level: .lossless, quality: .good, grayscale: false, stripMetadata: true,
+            level: .lossless, quality: .good, grayscale: false, removeAnnotations: true,
             progress: { _ in }
         )
 
@@ -421,7 +421,7 @@ struct FixtureAnnotationTests {
         }
 
         #expect(outputAnnotationCount == 0,
-                "stripMetadata should remove all annotations: \(fixture) (still has \(outputAnnotationCount))")
+                "Annotation removal left \(outputAnnotationCount) annotation(s): \(fixture)")
     }
 
     @Test("Flatten renders annotations into page content", arguments: FixtureDiscovery.openableFixtures)

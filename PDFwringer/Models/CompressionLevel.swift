@@ -20,7 +20,7 @@ enum CompressionLevel: String, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .lossless: String(localized: "Strips metadata, preserves everything else")
+        case .lossless: String(localized: "Strips document metadata, preserves page content")
         case .high: String(localized: "Print quality, good for archival")
         case .medium: String(localized: "Good for on-screen reading")
         case .low: String(localized: "Smallest size, good for email")

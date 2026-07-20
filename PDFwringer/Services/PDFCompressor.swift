@@ -19,7 +19,7 @@ struct PDFCompressor {
         level: CompressionLevel,
         quality: JPEGQuality,
         grayscale: Bool,
-        stripMetadata: Bool,
+        removeAnnotations: Bool = false,
         progress: (Double) -> Void
     ) async throws -> Result {
         guard FileManager.default.isReadableFile(atPath: source.path(percentEncoded: false)) else {
@@ -37,7 +37,7 @@ struct PDFCompressor {
             level: level,
             quality: quality,
             grayscale: grayscale,
-            stripMetadata: stripMetadata,
+            removeAnnotations: removeAnnotations,
             progress: progress
         )
     }
@@ -52,7 +52,7 @@ struct PDFCompressor {
         level: CompressionLevel,
         quality: JPEGQuality,
         grayscale: Bool,
-        stripMetadata: Bool,
+        removeAnnotations: Bool = false,
         progress: (Double) -> Void
     ) async throws -> Result {
         let start = ContinuousClock.now
@@ -78,7 +78,7 @@ struct PDFCompressor {
             try await compressOptimize(
                 document: document,
                 destination: destination,
-                stripMetadata: stripMetadata,
+                removeAnnotations: removeAnnotations,
                 progress: progress
             )
         }
@@ -168,12 +168,12 @@ struct PDFCompressor {
         return totalOverflow ? nil : total
     }
 
-    // MARK: - Optimize path (preserves text; strips annotations only when stripMetadata is true)
+    // MARK: - Optimize path (preserves text; strips annotations only when removeAnnotations is true)
 
     private func compressOptimize(
         document: PDFDocument,
         destination: URL,
-        stripMetadata: Bool,
+        removeAnnotations: Bool,
         progress: (Double) -> Void
     ) async throws {
         try Task.checkCancellation()
@@ -187,7 +187,7 @@ struct PDFCompressor {
 
         doc.documentAttributes?.removeAll()
 
-        if stripMetadata {
+        if removeAnnotations {
             for i in 0..<doc.pageCount {
                 try Task.checkCancellation()
                 guard let page = doc.page(at: i) else {
@@ -216,7 +216,7 @@ struct PDFCompressor {
             try Self.validateOutput(
                 serializedOutput,
                 expectedPageCount: document.pageCount,
-                requireNoAnnotations: stripMetadata
+                requireNoAnnotations: removeAnnotations
             )
         }
 
@@ -236,7 +236,7 @@ struct PDFCompressor {
                 try Self.validateOutput(
                     output,
                     expectedPageCount: document.pageCount,
-                    requireNoAnnotations: stripMetadata
+                    requireNoAnnotations: removeAnnotations
                 )
                 return true
             } catch {

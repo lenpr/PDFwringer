@@ -13,7 +13,7 @@ class CompressViewModel {
     var selectedLevel: CompressionLevel = .medium
     var selectedQuality: JPEGQuality = .good
     var grayscale: Bool = false
-    var stripMetadata: Bool = false
+    var removeAnnotations: Bool = false
     var isProcessing = false
     var progress: Double = 0
     var resultMessage: String?
@@ -218,7 +218,7 @@ class CompressViewModel {
                     level: selectedLevel,
                     quality: selectedQuality,
                     grayscale: grayscale,
-                    stripMetadata: stripMetadata,
+                    removeAnnotations: removeAnnotations,
                     progress: { [weak self] p in self?.progress = p }
                 )
 

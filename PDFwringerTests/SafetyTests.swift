@@ -21,7 +21,7 @@ struct AtomicWriteSafetyTests {
         do {
             try await compressor.compress(
                 source: source, destination: badDest,
-                level: .lossless, quality: .good, grayscale: false, stripMetadata: false,
+                level: .lossless, quality: .good, grayscale: false,
                 progress: { _ in }
             )
             Issue.record("Should have thrown for missing destination directory")
@@ -91,7 +91,7 @@ struct AtomicWriteSafetyTests {
         let compressor = PDFCompressor()
         try await compressor.compress(
             source: source, destination: output,
-            level: .lossless, quality: .good, grayscale: false, stripMetadata: false,
+            level: .lossless, quality: .good, grayscale: false,
             progress: { _ in }
         )
 
@@ -110,7 +110,7 @@ struct AtomicWriteSafetyTests {
         do {
             try await compressor.compress(
                 source: source, destination: source,
-                level: .lossless, quality: .good, grayscale: false, stripMetadata: false,
+                level: .lossless, quality: .good, grayscale: false,
                 progress: { _ in }
             )
             Issue.record("Expected sourceEqualsDestination")
@@ -146,7 +146,7 @@ struct PathEdgeCaseTests {
         let compressor = PDFCompressor()
         try await compressor.compress(
             source: source, destination: output,
-            level: .lossless, quality: .good, grayscale: false, stripMetadata: false,
+            level: .lossless, quality: .good, grayscale: false,
             progress: { _ in }
         )
 
@@ -204,7 +204,7 @@ struct PathEdgeCaseTests {
         let compressor = PDFCompressor()
         try await compressor.compress(
             source: source, destination: output,
-            level: .lossless, quality: .good, grayscale: false, stripMetadata: false,
+            level: .lossless, quality: .good, grayscale: false,
             progress: { _ in }
         )
 
@@ -225,7 +225,7 @@ struct PathEdgeCaseTests {
         let compressor = PDFCompressor()
         try await compressor.compress(
             source: source, destination: output,
-            level: .lossless, quality: .good, grayscale: false, stripMetadata: false,
+            level: .lossless, quality: .good, grayscale: false,
             progress: { _ in }
         )
 

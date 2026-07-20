@@ -112,7 +112,6 @@ struct EndToEndTests {
                 level: .medium,
                 quality: .good,
                 grayscale: false,
-                stripMetadata: false,
                 progress: { _ in }
             )
             compressedFiles.append(dest)
@@ -339,7 +338,6 @@ struct EndToEndTests {
             level: .low,
             quality: .low,
             grayscale: true,
-            stripMetadata: true,
             progress: { _ in }
         )
 
@@ -441,14 +439,14 @@ struct EndToEndTests {
         try await compressor.compress(
             source: source, destination: pass1,
             level: .lossless, quality: .good,
-            grayscale: false, stripMetadata: false,
+            grayscale: false,
             progress: { _ in }
         )
 
         try await compressor.compress(
             source: pass1, destination: pass2,
             level: .lossless, quality: .good,
-            grayscale: false, stripMetadata: false,
+            grayscale: false,
             progress: { _ in }
         )
 
@@ -494,7 +492,7 @@ struct EndToEndTests {
 
         try await compressor.compress(
             source: source, destination: compressOut,
-            level: .medium, quality: .good, grayscale: false, stripMetadata: false,
+            level: .medium, quality: .good, grayscale: false,
             progress: { compressProgress.append($0) }
         )
 

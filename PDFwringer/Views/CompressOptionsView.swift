@@ -132,27 +132,22 @@ struct CompressOptionsView: View {
                                 .accessibilityValue(vm.selectedQuality == q ? "Selected" : "")
                         }
                     }
-                }
+                    Divider()
 
-                Divider()
+                    Toggle(isOn: $vm.grayscale) {
+                        Text(String(localized: "Convert to grayscale"))
+                            .font(.callout)
+                    }
+                    .toggleStyle(.checkbox)
+                } else {
+                    Divider()
 
-                Toggle(isOn: Binding(
-                    get: { vm.grayscale },
-                    set: { vm.grayscale = $0 }
-                )) {
-                    Text(String(localized: "Convert to grayscale"))
-                        .font(.callout)
+                    Toggle(isOn: $vm.removeAnnotations) {
+                        Text(String(localized: "Remove annotations (including links)"))
+                            .font(.callout)
+                    }
+                    .toggleStyle(.checkbox)
                 }
-                .toggleStyle(.checkbox)
-
-                Toggle(isOn: Binding(
-                    get: { vm.stripMetadata },
-                    set: { vm.stripMetadata = $0 }
-                )) {
-                    Text(String(localized: "Strip all metadata"))
-                        .font(.callout)
-                }
-                .toggleStyle(.checkbox)
 
                 if let warning = vm.largeFileWarning {
                     HStack(spacing: 6) {

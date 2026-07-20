@@ -28,14 +28,29 @@ struct PDFCompressorTests {
 
     // MARK: - Lossless path
 
-    @Test("Lossless compression produces valid output with same page count")
-    func losslessPreservesPages() async throws {
+    @Test("Lossless strips document metadata while preserving pages and annotations")
+    func losslessStripsDocumentMetadata() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 3, filename: "source.pdf")
         let output = TestPDFGenerator.makeTempDirectory().appending(component: "compressed.pdf")
         defer {
             TestPDFGenerator.cleanup(source)
             TestPDFGenerator.cleanup(output)
         }
+
+        let sourceDocument = try #require(PDFDocument(url: source))
+        sourceDocument.documentAttributes = [
+            PDFDocumentAttribute.titleAttribute: "Private title"
+        ]
+        let firstPage = try #require(sourceDocument.page(at: 0))
+        firstPage.addAnnotation(PDFAnnotation(
+            bounds: CGRect(x: 20, y: 20, width: 30, height: 30),
+            forType: .text,
+            withProperties: nil
+        ))
+        #expect(sourceDocument.write(to: source))
+        let persistedSource = try #require(PDFDocument(url: source))
+        let sourceAnnotationCount = try #require(persistedSource.page(at: 0)).annotations.count
+        #expect(sourceAnnotationCount > 0)
 
         let compressor = PDFCompressor()
         try await compressor.compress(
@@ -44,17 +59,18 @@ struct PDFCompressorTests {
             level: .lossless,
             quality: .good,
             grayscale: false,
-            stripMetadata: false,
             progress: { _ in }
         )
 
         let result = PDFDocument(url: output)
         #expect(result != nil)
         #expect(result?.pageCount == 3)
+        #expect(result?.documentAttributes?[PDFDocumentAttribute.titleAttribute] == nil)
+        #expect(result?.page(at: 0)?.annotations.count == sourceAnnotationCount)
     }
 
-    @Test("Lossless with stripMetadata produces output")
-    func losslessStripMetadata() async throws {
+    @Test("Lossless annotation removal produces output")
+    func losslessRemovesAnnotations() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2, filename: "meta.pdf")
         let output = TestPDFGenerator.makeTempDirectory().appending(component: "stripped.pdf")
         defer {
@@ -78,7 +94,7 @@ struct PDFCompressorTests {
             level: .lossless,
             quality: .good,
             grayscale: false,
-            stripMetadata: true,
+            removeAnnotations: true,
             progress: { _ in }
         )
 
@@ -107,7 +123,6 @@ struct PDFCompressorTests {
             level: .medium,
             quality: .good,
             grayscale: false,
-            stripMetadata: false,
             progress: { _ in }
         )
 
@@ -137,7 +152,6 @@ struct PDFCompressorTests {
             level: .medium,
             quality: .good,
             grayscale: false,
-            stripMetadata: false,
             progress: { _ in
                 if heartbeatAtFirstProgress == nil {
                     heartbeatAtFirstProgress = mainActorHeartbeat
@@ -193,7 +207,6 @@ struct PDFCompressorTests {
             level: .low,
             quality: .moderate,
             grayscale: true,
-            stripMetadata: false,
             progress: { _ in }
         )
 
@@ -217,13 +230,13 @@ struct PDFCompressorTests {
 
         try await compressor.compress(
             source: source, destination: outputLow,
-            level: .low, quality: .low, grayscale: false, stripMetadata: false,
+            level: .low, quality: .low, grayscale: false,
             progress: { _ in }
         )
 
         try await compressor.compress(
             source: source, destination: outputHigh,
-            level: .high, quality: .best, grayscale: false, stripMetadata: false,
+            level: .high, quality: .best, grayscale: false,
             progress: { _ in }
         )
 
@@ -271,7 +284,7 @@ struct PDFCompressorTests {
             try await compressor.compress(
                 source: bogus, destination: output,
                 level: .lossless, quality: .good,
-                grayscale: false, stripMetadata: false,
+                grayscale: false,
                 progress: { _ in }
             )
         }
@@ -301,7 +314,6 @@ struct PDFCompressorTests {
                 level: .medium,
                 quality: .good,
                 grayscale: false,
-                stripMetadata: false,
                 progress: { _ in }
             )
         }
@@ -384,7 +396,7 @@ struct PDFCompressorTests {
         try await compressor.compress(
             source: source, destination: output,
             level: .medium, quality: .good,
-            grayscale: false, stripMetadata: false,
+            grayscale: false,
             progress: { _ in }
         )
 
@@ -426,7 +438,7 @@ struct PDFCompressorTests {
         try await compressor.compress(
             source: source, destination: output,
             level: .medium, quality: .good,
-            grayscale: false, stripMetadata: false,
+            grayscale: false,
             progress: { _ in }
         )
 
@@ -479,7 +491,7 @@ struct PDFCompressorTests {
         try await compressor.compress(
             source: source, destination: output,
             level: .medium, quality: .good,
-            grayscale: false, stripMetadata: false,
+            grayscale: false,
             progress: { p in lastProgress = p }
         )
 
