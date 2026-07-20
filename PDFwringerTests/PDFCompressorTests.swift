@@ -235,35 +235,27 @@ struct PDFCompressorTests {
 
     // MARK: - Size estimation
 
-    @Test("compressFirstPage returns non-nil estimate for rendered PDF")
-    func sizeEstimation() async throws {
+    @Test("Batched first-page estimation returns every settings combination")
+    func batchedSizeEstimation() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 5, filename: "estimate.pdf")
         defer { TestPDFGenerator.cleanup(source) }
 
         let compressor = PDFCompressor()
-        let estimate = compressor.compressFirstPage(
-            source: source,
-            level: .medium,
-            quality: .good,
-            grayscale: false
-        )
+        let estimates = try compressor.estimateFirstPageSizes(source: source)
 
-        #expect(estimate != nil)
-        #expect(estimate! > 0)
+        let expectedCount = CompressionLevel.allCases.count * JPEGQuality.allCases.count * 2
+        #expect(estimates.count == expectedCount)
+        #expect(estimates.values.allSatisfy { $0 > 0 })
     }
 
-    @Test("compressFirstPage returns nil for nonexistent file")
-    func sizeEstimationBadFile() async throws {
+    @Test("Batched first-page estimation rejects a nonexistent file")
+    func batchedSizeEstimationBadFile() async throws {
         let bogus = URL.temporaryDirectory.appending(component: "nonexistent.pdf")
         let compressor = PDFCompressor()
-        let estimate = compressor.compressFirstPage(
-            source: bogus,
-            level: .medium,
-            quality: .good,
-            grayscale: false
-        )
 
-        #expect(estimate == nil)
+        #expect(throws: PDFwringerError.self) {
+            try compressor.estimateFirstPageSizes(source: bogus)
+        }
     }
 
     // MARK: - Error cases
@@ -412,8 +404,8 @@ struct PDFCompressorTests {
 
     // MARK: - Estimation accuracy
 
-    @Test("compressFirstPage estimate is in reasonable range of actual output")
-    func compressFirstPageEstimateReasonable() async throws {
+    @Test("Batched first-page estimate is in reasonable range of actual output")
+    func batchedFirstPageEstimateReasonable() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 4, filename: "est_acc.pdf")
         let output = TestPDFGenerator.makeTempDirectory().appending(component: "est_out.pdf")
         defer {
@@ -422,9 +414,13 @@ struct PDFCompressorTests {
         }
 
         let compressor = PDFCompressor()
-        let estimate = compressor.compressFirstPage(
-            source: source, level: .medium, quality: .good, grayscale: false
+        let estimates = try compressor.estimateFirstPageSizes(source: source)
+        let key = PDFCompressor.estimateKey(
+            level: .medium,
+            quality: .good,
+            grayscale: false
         )
+        let estimate = estimates[key]
         #expect(estimate != nil)
 
         try await compressor.compress(
@@ -443,8 +439,8 @@ struct PDFCompressorTests {
         #expect(estimate! > actualSize / 5, "Estimate \(estimate!) is too low vs actual \(actualSize)")
     }
 
-    @Test("compressFirstPage lossless returns ~95% of source size")
-    func compressFirstPageLosslessReturnsEstimate() async throws {
+    @Test("Batched estimation gives every lossless setting the same estimate")
+    func batchedLosslessEstimate() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 3, filename: "lossless_est.pdf")
         defer { TestPDFGenerator.cleanup(source) }
 
@@ -453,13 +449,18 @@ struct PDFCompressorTests {
         )[.size] as! Int64
 
         let compressor = PDFCompressor()
-        let estimate = compressor.compressFirstPage(
-            source: source, level: .lossless, quality: .good, grayscale: false
-        )
-
-        #expect(estimate != nil)
+        let estimates = try compressor.estimateFirstPageSizes(source: source)
         let expected = Int64(Double(sourceSize) * 0.95)
-        #expect(estimate == expected)
+        for quality in JPEGQuality.allCases {
+            for grayscale in [false, true] {
+                let key = PDFCompressor.estimateKey(
+                    level: .lossless,
+                    quality: quality,
+                    grayscale: grayscale
+                )
+                #expect(estimates[key] == expected)
+            }
+        }
     }
 
     // MARK: - Progress

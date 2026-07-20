@@ -57,4 +57,18 @@ struct CompressViewModelTests {
         #expect(vm.heuristicSizes[key] != nil)
         #expect(vm.heuristicSizes[key]! > 0)
     }
+
+    @Test("Cancelling estimation prevents exact results from publishing")
+    func cancellingEstimationSuppressesResults() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
+        defer { TestPDFGenerator.cleanup(source) }
+
+        let vm = CompressViewModel()
+        vm.setSource(source)
+        vm.cancelEstimation()
+
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(vm.estimatedSizes.isEmpty)
+        #expect(!vm.heuristicSizes.isEmpty)
+    }
 }

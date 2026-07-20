@@ -93,27 +93,80 @@ struct PDFCompressor {
         return Result(outputSize: outputSize)
     }
 
-    /// Compress a single page to estimate total output size without processing the entire document.
-    /// Extrapolates from first-page JPEG size to all pages (assumes roughly uniform page content).
-    /// Returns nil if the source cannot be read.
-    nonisolated func compressFirstPage(source: URL, level: CompressionLevel, quality: JPEGQuality, grayscale: Bool) -> Int64? {
-        guard level.isRasterize else {
-            guard let attrs = try? FileManager.default.attributesOfItem(atPath: source.path(percentEncoded: false)),
-                  let size = attrs[.size] as? Int64 else { return nil }
-            return Int64(Double(size) * 0.95)
+    /// Estimates every compression setting from one source open and at most one
+    /// first-page render per DPI/color combination. The first-page byte count is
+    /// extrapolated across the document, so estimates assume roughly uniform content.
+    nonisolated func estimateFirstPageSizes(source: URL) throws -> [String: Int64] {
+        try Task.checkCancellation()
+        guard let attributes = try? FileManager.default.attributesOfItem(
+            atPath: source.path(percentEncoded: false)
+        ), let sourceSize = attributes[.size] as? Int64 else {
+            throw PDFwringerError.fileNotReadable(source.lastPathComponent)
+        }
+        guard let document = Self.openPDF(at: source),
+              document.numberOfPages > 0,
+              let firstPage = document.page(at: 1) else {
+            throw PDFwringerError.cannotOpenDocument
         }
 
-        guard let doc = Self.openPDF(at: source),
-              doc.numberOfPages > 0,
-              let page = doc.page(at: 1) else { return nil }
+        var estimates: [String: Int64] = [:]
+        let losslessEstimate = Int64(Double(sourceSize) * 0.95)
+        for quality in JPEGQuality.allCases {
+            for grayscale in [false, true] {
+                estimates[Self.estimateKey(
+                    level: .lossless,
+                    quality: quality,
+                    grayscale: grayscale
+                )] = losslessEstimate
+            }
+        }
 
-        guard let (rendered, _) = Self.renderPage(page, dpi: level.dpi, grayscale: grayscale),
-              let jpegData = Self.jpegEncode(image: rendered, quality: quality.value)
-        else { return nil }
+        let pageCount = Int64(document.numberOfPages)
+        for level in CompressionLevel.allCases where level.isRasterize {
+            for grayscale in [false, true] {
+                try Task.checkCancellation()
+                guard let (rendered, _) = Self.renderPage(
+                    firstPage,
+                    dpi: level.dpi,
+                    grayscale: grayscale
+                ) else { continue }
 
-        let pageSize = Int64(jpegData.count)
-        let pageCount = Int64(doc.numberOfPages)
-        return (pageSize + 200) * pageCount + 1000
+                for quality in JPEGQuality.allCases {
+                    try Task.checkCancellation()
+                    guard let jpegData = Self.jpegEncode(image: rendered, quality: quality.value),
+                          let estimate = Self.extrapolatedSize(
+                            firstPageSize: Int64(jpegData.count),
+                            pageCount: pageCount
+                          ) else { continue }
+                    estimates[Self.estimateKey(
+                        level: level,
+                        quality: quality,
+                        grayscale: grayscale
+                    )] = estimate
+                }
+            }
+        }
+        return estimates
+    }
+
+    nonisolated static func estimateKey(
+        level: CompressionLevel,
+        quality: JPEGQuality,
+        grayscale: Bool
+    ) -> String {
+        "\(level.rawValue)-\(quality.rawValue)-\(grayscale)"
+    }
+
+    nonisolated private static func extrapolatedSize(
+        firstPageSize: Int64,
+        pageCount: Int64
+    ) -> Int64? {
+        let (perPage, perPageOverflow) = firstPageSize.addingReportingOverflow(200)
+        guard !perPageOverflow else { return nil }
+        let (pages, pagesOverflow) = perPage.multipliedReportingOverflow(by: pageCount)
+        guard !pagesOverflow else { return nil }
+        let (total, totalOverflow) = pages.addingReportingOverflow(1_000)
+        return totalOverflow ? nil : total
     }
 
     // MARK: - Optimize path (preserves text; strips annotations only when stripMetadata is true)

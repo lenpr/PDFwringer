@@ -204,7 +204,7 @@ PDFwringer/
 
 - **Document-first flow** — drop/select files first, then choose an action
 - **NSView drop overlay** — SwiftUI's `onDrop` is unreliable in sandboxed apps; `DropReceiverView` wraps an NSView that passes clicks through via `hitTest → nil`
-- **Background size estimation** — compression options probe the first page at each setting to give instant size feedback
+- **Background size estimation** — compression options open the source once and batch first-page probes for every setting
 - **Atomic writes** — all operations write to a temp file, then `FileManager.replaceItemAt` to the destination
 - **Strict concurrency** — full Swift 6 `SWIFT_STRICT_CONCURRENCY = complete`; UI state and authoritative `PDFDocument` access stay on `MainActor`, while isolated page snapshots render and encode on detached workers
 

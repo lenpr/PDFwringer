@@ -48,7 +48,11 @@ struct CompressOptionsView: View {
 
                 // Compression level options
                 ForEach(CompressionLevel.allCases) { level in
-                    let key = "\(level.rawValue)-\(vm.selectedQuality.rawValue)-\(vm.grayscale)"
+                    let key = PDFCompressor.estimateKey(
+                        level: level,
+                        quality: vm.selectedQuality,
+                        grayscale: vm.grayscale
+                    )
                     let estimatedSize = vm.estimatedSizes[key]
                     let heuristicSize = vm.heuristicSizes[key]
                     let displaySize = estimatedSize ?? heuristicSize
@@ -90,7 +94,6 @@ struct CompressOptionsView: View {
                     .contentShape(Rectangle())
                     .onTapGesture {
                         vm.selectedLevel = level
-                        vm.onSettingsChanged()
                     }
                     .accessibilityElement(children: .combine)
                     .accessibilityAddTraits(.isButton)
@@ -123,7 +126,6 @@ struct CompressOptionsView: View {
                                     withAnimation(.spring(duration: 0.25)) {
                                         vm.selectedQuality = q
                                     }
-                                    vm.onSettingsChanged()
                                 }
                                 .accessibilityAddTraits(.isButton)
                                 .accessibilityLabel("JPEG quality: \(q.title)")
@@ -136,7 +138,7 @@ struct CompressOptionsView: View {
 
                 Toggle(isOn: Binding(
                     get: { vm.grayscale },
-                    set: { vm.grayscale = $0; vm.onSettingsChanged() }
+                    set: { vm.grayscale = $0 }
                 )) {
                     Text(String(localized: "Convert to grayscale"))
                         .font(.callout)
@@ -202,6 +204,9 @@ struct CompressOptionsView: View {
         }
         .onAppear {
             vm.setSource(url, document: document)
+        }
+        .onDisappear {
+            vm.cancelEstimation()
         }
     }
 }

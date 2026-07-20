@@ -56,7 +56,7 @@ landing → singleFile → compressing / splitting / rotating / editingMetadata 
 
 ## Key conventions
 
-- **Concurrency**: Most service methods are `async throws` with cooperative cancellation (`Task.checkCancellation()`). Progress is reported via a `(Double) -> Void` closure (range 0.0–1.0). Raster workflows snapshot a page to `Data` on `MainActor`; `PDFPageWorker` reconstructs a private one-page document and renders/encodes it in a detached task, so PDFKit reference types never cross actor boundaries. `PDFCompressor.compressFirstPage` is `nonisolated` for background estimation.
+- **Concurrency**: Most service methods are `async throws` with cooperative cancellation (`Task.checkCancellation()`). Progress is reported via a `(Double) -> Void` closure (range 0.0–1.0). Raster workflows snapshot a page to `Data` on `MainActor`; `PDFPageWorker` reconstructs a private one-page document and renders/encodes it in a detached task, so PDFKit reference types never cross actor boundaries. `PDFCompressor.estimateFirstPageSizes` is `nonisolated` for background estimation.
 - **Cancellation**: Operation ViewModels store an `operationTask: Task<Void, Never>?` and expose a `cancel()` method. `AppViewModel` owns one background file-intake task and invalidates it whenever newer input or navigation supersedes it. Views show a Cancel button alongside progress indicators. Services check `Task.checkCancellation()` per page iteration, so cancellation takes effect within one page.
 - **Source/dest guard**: All services that take both source and destination URLs guard against `source == destination` at the top, throwing `PDFwringerError.sourceEqualsDestination`.
 - **Sandbox**: App is sandboxed with `com.apple.security.files.user-selected.read-write`. File access uses `NSSavePanel`/`NSOpenPanel` — never raw path construction.
@@ -74,7 +74,7 @@ landing → singleFile → compressing / splitting / rotating / editingMetadata 
 
 - **Lossless** (`CompressionLevel.lossless`): Strips document-level metadata, re-serializes via PDFKit. When `stripMetadata: true`, also removes all page annotations (links, highlights, etc.).
 - **Rasterize** (`CompressionLevel.high/medium/low`): Renders each page to a bitmap at target DPI, encodes as JPEG, assembles new PDF via CGContext. Flattens all content. Oversized pages (where point dimensions exceed A3 at the target DPI — common in scanned PDFs and iPhone photos) are automatically capped to prevent bitmap inflation.
-- **Size estimation**: `CompressViewModel` provides instant heuristic estimates (based on page dimensions × DPI × JPEG ratio) shown with "~" prefix, then replaces them with real first-page estimates computed in a background task.
+- **Size estimation**: `CompressViewModel` provides instant heuristic estimates (based on page dimensions × DPI × JPEG ratio) shown with a "~" prefix, then replaces them with a batched first-page probe. The batch opens the source once and renders once per DPI/color combination before encoding all JPEG qualities.
 
 ## Annotation flattening
 

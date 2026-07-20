@@ -3,9 +3,8 @@ import PDFKit
 
 /// Drives the compress flow: manages source file state, compression settings, background size estimation, and execution.
 ///
-/// Size estimates are computed in the background for every combination of level/quality/grayscale
-/// and cached by a composite key (e.g. "medium-good-false"). This allows instant display when the
-/// user switches settings.
+/// Size estimates are computed in one background batch and cached for every
+/// level/quality/grayscale combination.
 @MainActor @Observable
 class CompressViewModel {
     var sourceURL: URL?
@@ -27,6 +26,7 @@ class CompressViewModel {
     // Instant heuristic estimates (available immediately on file load)
     var heuristicSizes: [String: Int64] = [:]
     private var estimationTask: Task<Void, Never>?
+    private var estimationGeneration = 0
 
     private let compressor = PDFCompressor()
 
@@ -41,30 +41,11 @@ class CompressViewModel {
         return "Large file (\(Formatting.fileSize(sourceFileSize))). Rasterization may use significant memory and take a while."
     }
 
-    var currentEstimateKey: String {
-        "\(selectedLevel.rawValue)-\(selectedQuality.rawValue)-\(grayscale)"
-    }
-
-    var estimatedSizeText: String? {
-        guard sourceFileSize > 0 else { return nil }
-        guard let estimated = estimatedSizes[currentEstimateKey] else { return nil }
-        if estimated >= sourceFileSize {
-            return "\(Formatting.fileSize(estimated)) (may not reduce)"
-        }
-        let ratio = Int((1.0 - Double(estimated) / Double(sourceFileSize)) * 100)
-        return "\(Formatting.fileSize(estimated)) (\(ratio)% smaller)"
-    }
-
-    var isEstimating: Bool {
-        estimatedSizes[currentEstimateKey] == nil
-            && sourceURL != nil
-            && pdfDocument?.isEncrypted != true
-    }
-
     /// Convenience for non-interactive callers. Production flows should pass the
     /// already-loaded document so an unlocked encrypted source is not reopened.
     func setSource(_ url: URL) {
         guard let document = PDFDocument(url: url), !document.isLocked else {
+            invalidateEstimation()
             sourceURL = nil
             sourcePageCount = 0
             sourceFileSize = 0
@@ -77,6 +58,7 @@ class CompressViewModel {
     }
 
     func setSource(_ url: URL, document: PDFDocument) {
+        invalidateEstimation()
         sourceURL = url
         resultMessage = nil
         isError = false
@@ -94,13 +76,6 @@ class CompressViewModel {
 
         computeHeuristics()
         startBackgroundEstimation()
-    }
-
-    func onSettingsChanged() {
-        // If we don't have an estimate for the current settings, compute it
-        if estimatedSizes[currentEstimateKey] == nil {
-            startBackgroundEstimation()
-        }
     }
 
     private func computeHeuristics() {
@@ -135,7 +110,11 @@ class CompressViewModel {
 
             for quality in JPEGQuality.allCases {
                 for gs in [false, true] {
-                    let key = "\(level.rawValue)-\(quality.rawValue)-\(gs)"
+                    let key = PDFCompressor.estimateKey(
+                        level: level,
+                        quality: quality,
+                        grayscale: gs
+                    )
                     let estimate: Int64
 
                     if !level.isRasterize {
@@ -176,35 +155,44 @@ class CompressViewModel {
     }
 
     private func startBackgroundEstimation() {
-        estimationTask?.cancel()
-
         guard let source = sourceURL else { return }
         // The URL remains locked after PDFKit unlocks the in-memory document. Keep
         // heuristic estimates for encrypted sources instead of reopening the URL.
         guard pdfDocument?.isEncrypted != true else { return }
         let compressor = self.compressor
+        let generation = estimationGeneration
 
         estimationTask = Task.detached(priority: .utility) { [weak self] in
-            for level in CompressionLevel.allCases {
-                for quality in JPEGQuality.allCases {
-                    for gs in [false, true] {
-                        let key = "\(level.rawValue)-\(quality.rawValue)-\(gs)"
-
-                        if Task.isCancelled { return }
-
-                        let size = compressor.compressFirstPage(source: source, level: level, quality: quality, grayscale: gs)
-                        if Task.isCancelled { return }
-
-                        if let size {
-                            await MainActor.run { [weak self] in
-                                self?.estimatedSizes[key] = size
-                            }
-                        }
-                        await Task.yield()
-                    }
+            do {
+                let estimates = try compressor.estimateFirstPageSizes(source: source)
+                try Task.checkCancellation()
+                await MainActor.run { [weak self] in
+                    guard let self,
+                          self.estimationGeneration == generation,
+                          self.sourceURL == source else { return }
+                    self.estimatedSizes = estimates
+                    self.estimationTask = nil
+                }
+            } catch {
+                // Heuristic estimates remain available if exact probing fails.
+                await MainActor.run { [weak self] in
+                    guard let self,
+                          self.estimationGeneration == generation,
+                          self.sourceURL == source else { return }
+                    self.estimationTask = nil
                 }
             }
         }
+    }
+
+    private func invalidateEstimation() {
+        estimationTask?.cancel()
+        estimationTask = nil
+        estimationGeneration += 1
+    }
+
+    func cancelEstimation() {
+        invalidateEstimation()
     }
 
     func performCompression() async {
@@ -213,6 +201,7 @@ class CompressViewModel {
         let suggestedName = source.deletingPathExtension().lastPathComponent + "_compressed.pdf"
         guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
 
+        invalidateEstimation()
         isProcessing = true
         progress = 0
         resultMessage = nil
