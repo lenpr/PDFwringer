@@ -1,5 +1,8 @@
 SDK := $(shell xcrun --sdk macosx --show-sdk-path)
 SDK_PLATFORM_PATH := $(shell xcrun --sdk macosx --show-sdk-platform-path)
+SDK_VERSION := $(shell xcrun --sdk macosx --show-sdk-version)
+SWIFTC := $(shell xcrun --find swiftc)
+SWIFTC_VERSION := $(shell "$(SWIFTC)" --version 2>&1 | tr '\n' ' ')
 TARGET := arm64-apple-macosx26.0
 SWIFT_LANGUAGE_FLAGS := -swift-version 6 -strict-concurrency=complete
 SWIFT_FLAGS := -target $(TARGET) -sdk $(SDK) $(SWIFT_LANGUAGE_FLAGS) -parse-as-library -framework SwiftUI -framework PDFKit -framework AppKit
@@ -17,10 +20,6 @@ APP_NAME := PDFwringer
 APP_BUNDLE := $(BUILD_DIR)/$(APP_NAME).app
 DMG := $(BUILD_DIR)/$(APP_NAME).dmg
 TEST_NAME := PDFwringerTests
-APP_SOURCE_HASH := $(shell printf '%s\n' $(SOURCES) | shasum -a 256 | cut -d ' ' -f 1)
-TEST_SOURCE_HASH := $(shell printf '%s\n' $(TESTABLE_SOURCES) $(TEST_SOURCES) | shasum -a 256 | cut -d ' ' -f 1)
-APP_SOURCE_STAMP := $(BUILD_DIR)/app-sources-$(APP_SOURCE_HASH).stamp
-TEST_SOURCE_STAMP := $(BUILD_DIR)/test-sources-$(TEST_SOURCE_HASH).stamp
 FIXTURE_CHECKSUMS := PDFwringerTests/Fixtures/SHA256SUMS
 CORPUS_TEST_FILTER := DifferentialEquivalenceTests|Fixture.*Tests|PageGeometryTests|TextPreservationTests|VisualRegressionTests
 PERFORMANCE_TEST_FILTER := PerformanceBoundsTests
@@ -31,28 +30,32 @@ SWIFT_LIB_DIR := $(shell dirname $$(dirname $$(xcrun --find swift)))/lib
 TESTING_PLUGIN := $(SWIFT_LIB_DIR)/swift/host/plugins/testing/libTestingMacros.dylib
 TESTING_FW_DIR := $(SDK_PLATFORM_PATH)/Developer/Library/Frameworks
 TESTING_RPATH_DIR := $(SDK_PLATFORM_PATH)/Developer/usr/lib
+APP_BUILD_HASH := $(shell printf '%s\n' '$(SWIFTC)' '$(SWIFTC_VERSION)' '$(SDK)' '$(SDK_VERSION)' '$(TARGET)' '$(SWIFT_FLAGS)' $(SOURCES) | shasum -a 256 | cut -d ' ' -f 1)
+TEST_BUILD_HASH := $(shell printf '%s\n' '$(SWIFTC)' '$(SWIFTC_VERSION)' '$(SDK)' '$(SDK_VERSION)' '$(TARGET)' '$(SWIFT_LANGUAGE_FLAGS)' '$(TESTING_PLUGIN)' '$(TESTING_FW_DIR)' '$(TESTING_RPATH_DIR)' $(TESTABLE_SOURCES) $(TEST_SOURCES) | shasum -a 256 | cut -d ' ' -f 1)
+APP_BUILD_STAMP := $(BUILD_DIR)/app-build-$(APP_BUILD_HASH).stamp
+TEST_BUILD_STAMP := $(BUILD_DIR)/test-build-$(TEST_BUILD_HASH).stamp
 
 .DEFAULT_GOAL := build
 
 .PHONY: build clean run test test-fast test-corpus verify-fixtures verify-release-inputs verify-release-tag app release dmg sign notarize
 
-$(APP_SOURCE_STAMP):
+$(APP_BUILD_STAMP):
 	@mkdir -p $(BUILD_DIR)
-	@find $(BUILD_DIR) -maxdepth 1 -type f -name 'app-sources-*.stamp' \
+	@find $(BUILD_DIR) -maxdepth 1 -type f -name 'app-build-*.stamp' \
 		! -name '$(notdir $@)' -delete
 	@touch $@
 
-$(TEST_SOURCE_STAMP):
+$(TEST_BUILD_STAMP):
 	@mkdir -p $(BUILD_DIR)
-	@find $(BUILD_DIR) -maxdepth 1 -type f -name 'test-sources-*.stamp' \
+	@find $(BUILD_DIR) -maxdepth 1 -type f -name 'test-build-*.stamp' \
 		! -name '$(notdir $@)' -delete
 	@touch $@
 
 build: $(BUILD_DIR)/$(APP_NAME)
 
-$(BUILD_DIR)/$(APP_NAME): Makefile $(APP_SOURCE_STAMP) $(SOURCES)
+$(BUILD_DIR)/$(APP_NAME): Makefile $(APP_BUILD_STAMP) $(SOURCES)
 	@mkdir -p $(BUILD_DIR)
-	swiftc $(SWIFT_FLAGS) -o $@ $(SOURCES)
+	$(SWIFTC) $(SWIFT_FLAGS) -o $@ $(SOURCES)
 
 app: $(APP_BUNDLE)
 
@@ -140,9 +143,9 @@ verify-fixtures: $(FIXTURE_CHECKSUMS)
 	}
 	@echo "Verified external fixture corpus."
 
-$(BUILD_DIR)/$(TEST_NAME): Makefile $(TEST_SOURCE_STAMP) $(TESTABLE_SOURCES) $(TEST_SOURCES)
+$(BUILD_DIR)/$(TEST_NAME): Makefile $(TEST_BUILD_STAMP) $(TESTABLE_SOURCES) $(TEST_SOURCES)
 	@mkdir -p $(BUILD_DIR)
-	swiftc -target $(TARGET) -sdk $(SDK) $(SWIFT_LANGUAGE_FLAGS) -parse-as-library \
+	$(SWIFTC) -target $(TARGET) -sdk $(SDK) $(SWIFT_LANGUAGE_FLAGS) -parse-as-library \
 		-framework PDFKit -framework AppKit -framework Foundation \
 		-F $(TESTING_FW_DIR) \
 		-framework Testing \
