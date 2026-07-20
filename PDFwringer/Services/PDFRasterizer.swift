@@ -65,7 +65,6 @@ enum PDFRasterizer {
         let displaySize = rotatedDisplaySize(cropBox.size, rotation: page.rotation)
         return renderCanvas(displaySize: displaySize, dpi: dpi, grayscale: grayscale) {
             context, _ in
-            page.transform(context, for: .cropBox)
             page.draw(with: .cropBox, to: context)
         }
     }

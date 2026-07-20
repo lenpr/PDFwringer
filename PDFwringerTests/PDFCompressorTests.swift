@@ -23,6 +23,42 @@ private final class BoundaryBoundsPDFPage: PDFPage {
     }
 }
 
+private func rgbaPixels(of image: CGImage) -> [UInt8]? {
+    let bytesPerRow = image.width * 4
+    var pixels = [UInt8](repeating: 0, count: bytesPerRow * image.height)
+    guard let context = CGContext(
+        data: &pixels,
+        width: image.width,
+        height: image.height,
+        bitsPerComponent: 8,
+        bytesPerRow: bytesPerRow,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ) else {
+        return nil
+    }
+    context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+    return pixels
+}
+
+private func significantPixelDifference(_ first: CGImage, _ second: CGImage) -> Double? {
+    guard first.width == second.width,
+          first.height == second.height,
+          let firstPixels = rgbaPixels(of: first),
+          let secondPixels = rgbaPixels(of: second) else {
+        return nil
+    }
+
+    var changedPixels = 0
+    for offset in stride(from: 0, to: firstPixels.count, by: 4) {
+        let difference = abs(Int(firstPixels[offset]) - Int(secondPixels[offset]))
+            + abs(Int(firstPixels[offset + 1]) - Int(secondPixels[offset + 1]))
+            + abs(Int(firstPixels[offset + 2]) - Int(secondPixels[offset + 2]))
+        if difference > 30 { changedPixels += 1 }
+    }
+    return Double(changedPixels) / Double(first.width * first.height)
+}
+
 @Suite("PDFCompressor")
 @MainActor
 struct PDFCompressorTests {
@@ -342,6 +378,66 @@ struct PDFCompressorTests {
         let result = PDFRasterizer.render(page, dpi: 72, grayscale: false)
 
         #expect(result == nil)
+    }
+
+    @Test("PDFKit raster matches Core Graphics for rotated pages")
+    func pdfKitRasterPreservesRotatedPage() throws {
+        let source = TestPDFGenerator.makeCroppedRasterFixture(
+            cropOrigin: .zero,
+            rotation: 90,
+            filename: "rotated.pdf"
+        )
+        defer { TestPDFGenerator.cleanup(source.deletingLastPathComponent()) }
+
+        try assertPDFKitRasterMatchesCoreGraphics(source)
+    }
+
+    @Test("PDFKit raster matches Core Graphics for nonzero crop origins")
+    func pdfKitRasterPreservesOffsetCropBox() throws {
+        let source = TestPDFGenerator.makeCroppedRasterFixture(
+            cropOrigin: CGPoint(x: 108, y: 126),
+            rotation: 0,
+            filename: "offset-crop.pdf"
+        )
+        defer { TestPDFGenerator.cleanup(source.deletingLastPathComponent()) }
+
+        try assertPDFKitRasterMatchesCoreGraphics(source)
+    }
+
+    private func assertPDFKitRasterMatchesCoreGraphics(
+        _ source: URL,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) throws {
+        let pdfKitDocument = try #require(PDFDocument(url: source), sourceLocation: sourceLocation)
+        let pdfKitPage = try #require(pdfKitDocument.page(at: 0), sourceLocation: sourceLocation)
+        let coreGraphicsDocument = try #require(
+            PDFRasterizer.openDocument(at: source),
+            sourceLocation: sourceLocation
+        )
+        let coreGraphicsPage = try #require(
+            coreGraphicsDocument.page(at: 1),
+            sourceLocation: sourceLocation
+        )
+        let pdfKitRaster = try #require(
+            PDFRasterizer.render(pdfKitPage, dpi: 72, grayscale: false),
+            sourceLocation: sourceLocation
+        )
+        let coreGraphicsRaster = try #require(
+            PDFRasterizer.render(coreGraphicsPage, dpi: 72, grayscale: false),
+            sourceLocation: sourceLocation
+        )
+
+        #expect(pdfKitRaster.image.width == coreGraphicsRaster.image.width, sourceLocation: sourceLocation)
+        #expect(pdfKitRaster.image.height == coreGraphicsRaster.image.height, sourceLocation: sourceLocation)
+        let difference = try #require(
+            significantPixelDifference(pdfKitRaster.image, coreGraphicsRaster.image),
+            sourceLocation: sourceLocation
+        )
+        #expect(
+            difference < 0.01,
+            "PDFKit raster lost or displaced page content (pixel difference: \(difference))",
+            sourceLocation: sourceLocation
+        )
     }
 
     // MARK: - Pixel dimension capping

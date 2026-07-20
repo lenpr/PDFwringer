@@ -47,6 +47,55 @@ enum TestPDFGenerator {
         return url
     }
 
+    /// Creates a high-contrast page with content near every crop-box corner, then
+    /// persists the requested crop-box origin and page rotation through PDFKit.
+    static func makeCroppedRasterFixture(
+        cropOrigin: CGPoint,
+        rotation: Int,
+        filename: String = "cropped-raster.pdf"
+    ) -> URL {
+        let directory = makeTempDirectory()
+        let baseURL = directory.appending(component: "base.pdf")
+        let outputURL = directory.appending(component: filename)
+        let pageRect = CGRect(x: 0, y: 0, width: 612, height: 792)
+        let cropRect = CGRect(origin: cropOrigin, size: CGSize(width: 396, height: 540))
+
+        var mediaBox = pageRect
+        guard let context = CGContext(baseURL as CFURL, mediaBox: &mediaBox, nil) else {
+            fatalError("Cannot create cropped raster fixture")
+        }
+        context.beginPage(mediaBox: &mediaBox)
+        context.setFillColor(NSColor.white.cgColor)
+        context.fill(pageRect)
+
+        let markerSize = CGSize(width: 72, height: 72)
+        let markerOrigins = [
+            cropRect.origin,
+            CGPoint(x: cropRect.maxX - markerSize.width, y: cropRect.minY),
+            CGPoint(x: cropRect.minX, y: cropRect.maxY - markerSize.height),
+            CGPoint(x: cropRect.maxX - markerSize.width, y: cropRect.maxY - markerSize.height)
+        ]
+        let colors = [NSColor.red, .green, .blue, .black]
+        for (origin, color) in zip(markerOrigins, colors) {
+            context.setFillColor(color.cgColor)
+            context.fill(CGRect(origin: origin, size: markerSize))
+        }
+        context.endPage()
+        context.closePDF()
+
+        guard let document = PDFDocument(url: baseURL),
+              let page = document.page(at: 0) else {
+            fatalError("Cannot reopen cropped raster fixture")
+        }
+        page.setBounds(cropRect, for: .cropBox)
+        page.rotation = rotation
+        guard document.write(to: outputURL) else {
+            fatalError("Cannot persist cropped raster fixture")
+        }
+        try? FileManager.default.removeItem(at: baseURL)
+        return outputURL
+    }
+
     /// Creates an unlocked PDF whose user permissions forbid document assembly.
     static func makeAssemblyRestrictedPDF(filename: String = "restricted.pdf") -> URL {
         let document = PDFDocument()
