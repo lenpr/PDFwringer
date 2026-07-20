@@ -1,8 +1,43 @@
 import Foundation
 import PDFKit
+import Darwin
 
 /// Generates simple multi-page PDFs in a temp directory for use in tests.
 enum TestPDFGenerator {
+
+    static func fileSystemNameLimit(in directory: URL) -> Int {
+        let limit = directory.withUnsafeFileSystemRepresentation { path -> Int in
+            guard let path else { return -1 }
+            return Int(pathconf(path, _PC_NAME_MAX))
+        }
+        return limit > 0 ? limit : 255
+    }
+
+    static func fileSystemComponentLength(of url: URL) -> Int {
+        url.withUnsafeFileSystemRepresentation { path -> Int in
+            guard let path else { return .max }
+            var componentStart = path
+            var cursor = path
+            while cursor.pointee != 0 {
+                if cursor.pointee == 47 {
+                    componentStart = cursor.advanced(by: 1)
+                }
+                cursor = cursor.advanced(by: 1)
+            }
+            return Int(strlen(componentStart))
+        }
+    }
+
+    static func relocateToMaximumLengthPDFName(_ source: URL, in directory: URL) throws -> URL {
+        let extensionSuffix = ".pdf"
+        let stemLength = fileSystemNameLimit(in: directory) - extensionSuffix.utf8.count
+        guard stemLength > 0 else { throw PDFwringerError.cannotWriteOutput }
+        let destination = directory.appending(
+            component: String(repeating: "a", count: stemLength) + extensionSuffix
+        )
+        try FileManager.default.moveItem(at: source, to: destination)
+        return destination
+    }
 
     /// Creates a PDF with the given number of pages at a temp location.
     /// Each page contains its page number as text for identification.

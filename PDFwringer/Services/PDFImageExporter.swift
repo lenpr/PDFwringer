@@ -186,7 +186,8 @@ struct PDFImageExporter {
             try imageData.write(to: stagedURL)
             stagedOutputs.append(ExclusiveFilePublisher.StagedFile(
                 url: stagedURL,
-                preferredStem: String(format: "%@_page_%03d", baseName, pageIndex + 1),
+                baseStem: baseName,
+                generatedSuffix: String(format: "_page_%03d", pageIndex + 1),
                 pathExtension: options.format.fileExtension
             ))
 

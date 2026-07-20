@@ -163,7 +163,8 @@ struct PDFSplitter {
             }
             stagedOutputs.append(ExclusiveFilePublisher.StagedFile(
                 url: stagedURL,
-                preferredStem: String(format: "%@_%03d", baseName, chunkIndex + 1),
+                baseStem: baseName,
+                generatedSuffix: String(format: "_%03d", chunkIndex + 1),
                 pathExtension: "pdf"
             ))
             progress(Double(processedPages) / Double(pageCount))

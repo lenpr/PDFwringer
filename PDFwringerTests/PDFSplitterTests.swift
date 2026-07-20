@@ -153,6 +153,48 @@ struct PDFSplitterTests {
         #expect(try Data(contentsOf: canonical) == sentinel)
     }
 
+    @Test("Near-limit source names preserve split and collision suffixes")
+    func truncatesNearLimitSplitNames() async throws {
+        let generatedSource = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
+        let sourceDirectory = TestPDFGenerator.makeTempDirectory()
+        let outputDirectory = TestPDFGenerator.makeTempDirectory()
+        let source = try TestPDFGenerator.relocateToMaximumLengthPDFName(
+            generatedSource,
+            in: sourceDirectory
+        )
+        defer {
+            TestPDFGenerator.cleanup(sourceDirectory)
+            TestPDFGenerator.cleanup(outputDirectory)
+        }
+
+        let splitter = PDFSplitter()
+        let first = try await splitter.split(
+            source: source,
+            mode: .splitEveryN(1),
+            destination: outputDirectory,
+            progress: { _ in }
+        )
+        let originalData = try first.map { try Data(contentsOf: $0) }
+        let second = try await splitter.split(
+            source: source,
+            mode: .splitEveryN(1),
+            destination: outputDirectory,
+            progress: { _ in }
+        )
+
+        #expect(first.map(\.lastPathComponent).allSatisfy {
+            $0.hasSuffix("_001.pdf") || $0.hasSuffix("_002.pdf")
+        })
+        #expect(second.map(\.lastPathComponent).allSatisfy {
+            $0.hasSuffix("_001_1.pdf") || $0.hasSuffix("_002_1.pdf")
+        })
+        let nameLimit = TestPDFGenerator.fileSystemNameLimit(in: outputDirectory)
+        #expect((first + second).allSatisfy {
+            TestPDFGenerator.fileSystemComponentLength(of: $0) <= nameLimit
+        })
+        #expect(try first.map { try Data(contentsOf: $0) } == originalData)
+    }
+
     // MARK: - Keep pages
 
     @Test("Keep specific pages extracts correct subset")

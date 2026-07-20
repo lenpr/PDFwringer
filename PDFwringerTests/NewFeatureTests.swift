@@ -329,6 +329,51 @@ struct PDFImageExporterTests {
         ])
     }
 
+    @Test("Near-limit source names preserve export and collision suffixes")
+    func truncatesNearLimitExportNames() async throws {
+        let generatedSource = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
+        let sourceDirectory = TestPDFGenerator.makeTempDirectory()
+        let outputDirectory = TestPDFGenerator.makeTempDirectory()
+        let source = try TestPDFGenerator.relocateToMaximumLengthPDFName(
+            generatedSource,
+            in: sourceDirectory
+        )
+        defer {
+            TestPDFGenerator.cleanup(sourceDirectory)
+            TestPDFGenerator.cleanup(outputDirectory)
+        }
+
+        let exporter = PDFImageExporter()
+        let options = PDFImageExporter.Options(format: .jpeg, dpi: 72, quality: 0.8)
+        let first = try await exporter.exportPages(
+            source: source,
+            outputDirectory: outputDirectory,
+            options: options,
+            pageIndices: nil,
+            progress: { _ in }
+        )
+        let originalData = try first.map { try Data(contentsOf: $0) }
+        let second = try await exporter.exportPages(
+            source: source,
+            outputDirectory: outputDirectory,
+            options: options,
+            pageIndices: nil,
+            progress: { _ in }
+        )
+
+        #expect(first.map(\.lastPathComponent).allSatisfy {
+            $0.hasSuffix("_page_001.jpg") || $0.hasSuffix("_page_002.jpg")
+        })
+        #expect(second.map(\.lastPathComponent).allSatisfy {
+            $0.hasSuffix("_page_001_1.jpg") || $0.hasSuffix("_page_002_1.jpg")
+        })
+        let nameLimit = TestPDFGenerator.fileSystemNameLimit(in: outputDirectory)
+        #expect((first + second).allSatisfy {
+            TestPDFGenerator.fileSystemComponentLength(of: $0) <= nameLimit
+        })
+        #expect(try first.map { try Data(contentsOf: $0) } == originalData)
+    }
+
     @Test("Rendering failure leaves the output directory unchanged")
     func renderingFailureCreatesNoExports() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2, filename: "export_failure.pdf")

@@ -8,7 +8,8 @@ import OSLog
 enum ExclusiveFilePublisher {
     struct StagedFile {
         let url: URL
-        let preferredStem: String
+        let baseStem: String
+        let generatedSuffix: String
         let pathExtension: String
     }
 
@@ -23,6 +24,7 @@ enum ExclusiveFilePublisher {
         }
 
         let resolvedOutputDirectory = outputDirectory.standardizedFileURL.resolvingSymlinksInPath()
+        let componentNameLimit = nameLimit(in: outputDirectory)
         var publishedOutputs: [PublishedOutput] = []
         publishedOutputs.reserveCapacity(stagedFiles.count)
 
@@ -35,7 +37,8 @@ enum ExclusiveFilePublisher {
                 let outputURL = try publish(
                     stagedFile,
                     to: outputDirectory,
-                    resolvedOutputDirectory: resolvedOutputDirectory
+                    resolvedOutputDirectory: resolvedOutputDirectory,
+                    componentNameLimit: componentNameLimit
                 )
                 publishedOutputs.append(PublishedOutput(url: outputURL, identity: identity))
             }
@@ -49,17 +52,22 @@ enum ExclusiveFilePublisher {
     private static func publish(
         _ stagedFile: StagedFile,
         to outputDirectory: URL,
-        resolvedOutputDirectory: URL
+        resolvedOutputDirectory: URL,
+        componentNameLimit: Int
     ) throws -> URL {
         var suffix = 0
 
         while true {
-            let stem = suffix == 0
-                ? stagedFile.preferredStem
-                : "\(stagedFile.preferredStem)_\(suffix)"
-            let candidate = outputDirectory
-                .appending(component: stem)
-                .appendingPathExtension(stagedFile.pathExtension)
+            let collisionSuffix = suffix == 0 ? "" : "_\(suffix)"
+            let extensionSuffix = stagedFile.pathExtension.isEmpty
+                ? ""
+                : ".\(stagedFile.pathExtension)"
+            let candidate = try fittedCandidate(
+                outputDirectory: outputDirectory,
+                baseStem: stagedFile.baseStem,
+                protectedSuffix: stagedFile.generatedSuffix + collisionSuffix + extensionSuffix,
+                componentNameLimit: componentNameLimit
+            )
             let resolvedParent = candidate.deletingLastPathComponent()
                 .standardizedFileURL
                 .resolvingSymlinksInPath()
@@ -70,7 +78,52 @@ enum ExclusiveFilePublisher {
             if try renameExclusively(from: stagedFile.url, to: candidate) {
                 return candidate
             }
+            guard suffix < Int.max else { throw PDFwringerError.cannotWriteOutput }
             suffix += 1
+        }
+    }
+
+    /// Preserve generated page/chunk and collision suffixes while shortening only
+    /// the caller-derived source stem at a Character boundary.
+    private static func fittedCandidate(
+        outputDirectory: URL,
+        baseStem: String,
+        protectedSuffix: String,
+        componentNameLimit: Int
+    ) throws -> URL {
+        var fittedBase = baseStem
+        while true {
+            let candidate = outputDirectory.appending(component: fittedBase + protectedSuffix)
+            if try fileSystemComponentLength(of: candidate) <= componentNameLimit {
+                return candidate
+            }
+            guard !fittedBase.isEmpty else {
+                throw PDFwringerError.cannotWriteOutput
+            }
+            fittedBase.removeLast()
+        }
+    }
+
+    private static func nameLimit(in directory: URL) -> Int {
+        let limit = directory.withUnsafeFileSystemRepresentation { path -> Int in
+            guard let path else { return -1 }
+            return Int(pathconf(path, _PC_NAME_MAX))
+        }
+        return limit > 0 ? limit : 255
+    }
+
+    private static func fileSystemComponentLength(of url: URL) throws -> Int {
+        try url.withUnsafeFileSystemRepresentation { path -> Int in
+            guard let path else { throw PDFwringerError.cannotWriteOutput }
+            var componentStart = path
+            var cursor = path
+            while cursor.pointee != 0 {
+                if cursor.pointee == 47 {
+                    componentStart = cursor.advanced(by: 1)
+                }
+                cursor = cursor.advanced(by: 1)
+            }
+            return Int(strlen(componentStart))
         }
     }
 

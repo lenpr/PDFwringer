@@ -180,6 +180,38 @@ struct UtilityTests {
         #expect(FileManager.default.fileExists(atPath: destination.path(percentEncoded: false)))
     }
 
+    @Test("Exclusive publisher truncates Unicode without splitting characters")
+    func exclusivePublisherTruncatesUnicodeSafely() throws {
+        let stagingDirectory = TestPDFGenerator.makeTempDirectory()
+        let outputDirectory = TestPDFGenerator.makeTempDirectory()
+        let staged = stagingDirectory.appending(component: "staged.jpg")
+        let payload = Data("image".utf8)
+        try payload.write(to: staged)
+        defer {
+            TestPDFGenerator.cleanup(stagingDirectory)
+            TestPDFGenerator.cleanup(outputDirectory)
+        }
+
+        let generatedSuffix = "_page_001"
+        let output = try #require(ExclusiveFilePublisher.publish([
+            .init(
+                url: staged,
+                baseStem: String(repeating: "é", count: 300),
+                generatedSuffix: generatedSuffix,
+                pathExtension: "jpg"
+            )
+        ], to: outputDirectory).first)
+
+        let protectedSuffix = generatedSuffix + ".jpg"
+        #expect(output.lastPathComponent.hasSuffix(protectedSuffix))
+        let prefix = output.lastPathComponent.dropLast(protectedSuffix.count)
+        #expect(!prefix.isEmpty)
+        #expect(prefix.allSatisfy { String($0) == "é" })
+        #expect(TestPDFGenerator.fileSystemComponentLength(of: output)
+            <= TestPDFGenerator.fileSystemNameLimit(in: outputDirectory))
+        #expect(try Data(contentsOf: output) == payload)
+    }
+
     // MARK: - DocumentSaver
 
     @Test("DocumentSaver refuses to replace its source document")
