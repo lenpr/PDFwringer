@@ -1,3 +1,4 @@
+import Dispatch
 import Testing
 import PDFKit
 
@@ -171,24 +172,28 @@ struct PDFCompressorTests {
         let page = try #require(document.page(at: 0))
         let pageData = try #require(page.dataRepresentation)
         let (started, signalStarted) = AsyncStream<Void>.makeStream()
+        let releaseWorker = DispatchSemaphore(value: 0)
+        defer {
+            signalStarted.finish()
+            releaseWorker.signal()
+        }
 
         let operation = Task {
             try await PDFPageWorker.run(pageData: pageData) { _ in
                 signalStarted.yield()
-                for _ in 0..<10_000_000 {
-                    try Task.checkCancellation()
-                }
+                releaseWorker.wait()
+                try Task.checkCancellation()
             }
         }
 
         var iterator = started.makeAsyncIterator()
         _ = await iterator.next()
         operation.cancel()
+        releaseWorker.signal()
 
         await #expect(throws: CancellationError.self) {
             try await operation.value
         }
-        signalStarted.finish()
     }
 
     @Test("Rasterize with grayscale produces valid output")
