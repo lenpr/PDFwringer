@@ -13,6 +13,28 @@ private final class InvalidRepresentationPDFDocument: PDFDocument {
 @MainActor
 struct UtilityTests {
 
+    // MARK: - Formatting
+
+    @Test("Page tooltips reject dimensions outside integer range")
+    func pageTooltipRejectsExtremeDimensions() {
+        #expect(Formatting.pageTooltip(
+            pageNumber: 1,
+            cropBox: CGRect(x: 0, y: 0, width: 1e20, height: 1e20)
+        ) == "Page 1")
+        #expect(Formatting.pageTooltip(
+            pageNumber: 2,
+            cropBox: CGRect(x: 0, y: 0, width: CGFloat.infinity, height: 792)
+        ) == "Page 2")
+    }
+
+    @Test("Page tooltips include ordinary dimensions")
+    func pageTooltipIncludesOrdinaryDimensions() {
+        #expect(Formatting.pageTooltip(
+            pageNumber: 3,
+            cropBox: CGRect(x: 0, y: 0, width: 612.9, height: 792.1)
+        ) == "Page 3 — 612 × 792 pt")
+    }
+
     // MARK: - AtomicFileWriter
 
     @Test("AtomicFileWriter writes content to destination")

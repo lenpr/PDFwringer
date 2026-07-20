@@ -130,10 +130,10 @@ struct PageThumbnailStripView: View {
         guard let page = document.page(at: index) else {
             return "Page \(index + 1)"
         }
-        let box = page.bounds(for: .cropBox)
-        let w = Int(box.width)
-        let h = Int(box.height)
-        return "Page \(index + 1) — \(w) × \(h) pt"
+        return Formatting.pageTooltip(
+            pageNumber: index + 1,
+            cropBox: page.bounds(for: .cropBox)
+        )
     }
 
     private func toggleCurrentPageSelection() {

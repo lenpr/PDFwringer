@@ -74,6 +74,22 @@ enum Formatting {
         return values?.volumeAvailableCapacityForImportantUsage
     }
 
+    /// Formats untrusted PDF page geometry without trapping on values that
+    /// cannot be represented as integers.
+    static func pageTooltip(pageNumber: Int, cropBox: CGRect) -> String {
+        let width = cropBox.width
+        let height = cropBox.height
+        guard width.isFinite,
+              height.isFinite,
+              width >= 0,
+              height >= 0,
+              width < CGFloat(Int.max),
+              height < CGFloat(Int.max) else {
+            return "Page \(pageNumber)"
+        }
+        return "Page \(pageNumber) — \(Int(width)) × \(Int(height)) pt"
+    }
+
     /// Triggers a horizontal shake animation sequence on the given offset binding.
     @MainActor static func triggerShake(_ offset: Binding<CGFloat>) {
         Task { @MainActor in
