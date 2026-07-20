@@ -174,7 +174,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Log.app.info("PDFwringer launched, version=\(appVersion)")
-        AtomicFileWriter.cleanupStaleFiles()
+        AtomicFileWriter.cleanupLegacyTempFiles()
         installCrashHandler()
     }
 

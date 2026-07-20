@@ -181,6 +181,55 @@ struct UtilityTests {
         #expect(FileManager.default.fileExists(atPath: destination.path(percentEncoded: false)))
     }
 
+    @Test("Legacy temp cleanup removes only stale PDF files")
+    func legacyTempCleanupIsNarrowlyScoped() throws {
+        let directory = TestPDFGenerator.makeTempDirectory()
+        defer { TestPDFGenerator.cleanup(directory) }
+
+        let stalePDF = directory.appending(component: "stale.pdf")
+        let recentPDF = directory.appending(component: "recent.PDF")
+        let staleText = directory.appending(component: "unrelated.txt")
+        let nestedPDF = directory.appending(component: "nested.pdf")
+        for file in [stalePDF, recentPDF, staleText] {
+            try Data("temporary".utf8).write(to: file)
+        }
+        try FileManager.default.createDirectory(at: nestedPDF, withIntermediateDirectories: false)
+
+        let staleDate = Date(timeIntervalSince1970: 1)
+        try FileManager.default.setAttributes(
+            [.modificationDate: staleDate],
+            ofItemAtPath: stalePDF.path(percentEncoded: false)
+        )
+        try FileManager.default.setAttributes(
+            [.modificationDate: staleDate],
+            ofItemAtPath: staleText.path(percentEncoded: false)
+        )
+
+        let removed = AtomicFileWriter.cleanupLegacyTempFiles(
+            in: directory,
+            olderThan: Date().addingTimeInterval(-3600)
+        )
+
+        #expect(removed == 1)
+        #expect(!FileManager.default.fileExists(atPath: stalePDF.path(percentEncoded: false)))
+        #expect(FileManager.default.fileExists(atPath: recentPDF.path(percentEncoded: false)))
+        #expect(FileManager.default.fileExists(atPath: staleText.path(percentEncoded: false)))
+        #expect(FileManager.default.fileExists(atPath: nestedPDF.path(percentEncoded: false)))
+    }
+
+    @Test("Legacy temp cleanup does not create a missing directory")
+    func legacyTempCleanupDoesNotCreateDirectory() {
+        let directory = URL.temporaryDirectory
+            .appending(component: "missing-legacy-temp-\(UUID())")
+        defer { TestPDFGenerator.cleanup(directory) }
+
+        #expect(AtomicFileWriter.cleanupLegacyTempFiles(
+            in: directory,
+            olderThan: Date()
+        ) == 0)
+        #expect(!FileManager.default.fileExists(atPath: directory.path(percentEncoded: false)))
+    }
+
     @Test("Exclusive publisher truncates Unicode without splitting characters")
     func exclusivePublisherTruncatesUnicodeSafely() throws {
         let stagingDirectory = TestPDFGenerator.makeTempDirectory()

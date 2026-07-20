@@ -91,11 +91,10 @@ enum Formatting {
 /// Writes content to a temporary file then atomically replaces the destination.
 /// Cleans up the temp file on failure.
 enum AtomicFileWriter {
-    static let tempDirectory: URL = {
-        let dir = URL.temporaryDirectory.appending(component: "PDFwringer")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir
-    }()
+    // Releases before destination-volume staging wrote UUID-named PDFs here.
+    // Keep this migration cleanup for one release, then remove it and the launch calls.
+    private static let legacyTempDirectory = URL.temporaryDirectory
+        .appending(component: "PDFwringer")
 
     static func write(to destination: URL, using block: (URL) throws -> Bool) throws {
         let stagedFile = try StagedFile(destination: destination)
@@ -183,21 +182,47 @@ enum AtomicFileWriter {
         }
     }
 
-    static func cleanupStaleFiles() {
-        let fm = FileManager.default
-        guard let contents = try? fm.contentsOfDirectory(at: tempDirectory, includingPropertiesForKeys: [.creationDateKey]) else { return }
-        let cutoff = Date().addingTimeInterval(-3600)
+    static func cleanupLegacyTempFiles() {
+        let removed = cleanupLegacyTempFiles(
+            in: legacyTempDirectory,
+            olderThan: Date().addingTimeInterval(-3600)
+        )
+        if removed > 0 {
+            Log.fileIO.info("Cleaned up \(removed) legacy temp file(s)")
+        }
+    }
+
+    @discardableResult
+    static func cleanupLegacyTempFiles(in directory: URL, olderThan cutoff: Date) -> Int {
+        let fileManager = FileManager.default
+        let resourceKeys: Set<URLResourceKey> = [.contentModificationDateKey, .isRegularFileKey]
+        guard let contents = try? fileManager.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: Array(resourceKeys)
+        ) else {
+            return 0
+        }
+
         var removed = 0
         for file in contents {
-            guard let attrs = try? file.resourceValues(forKeys: [.creationDateKey]),
-                  let created = attrs.creationDate,
-                  created < cutoff else { continue }
-            try? fm.removeItem(at: file)
-            removed += 1
+            guard file.pathExtension.lowercased() == "pdf",
+                  let values = try? file.resourceValues(forKeys: resourceKeys),
+                  values.isRegularFile == true,
+                  let modified = values.contentModificationDate,
+                  modified < cutoff else {
+                continue
+            }
+
+            do {
+                try fileManager.removeItem(at: file)
+                removed += 1
+            } catch {
+                Log.fileIO.error(
+                    "Could not remove legacy temp file: \(error.localizedDescription, privacy: .private)"
+                )
+            }
         }
-        if removed > 0 {
-            Log.fileIO.info("Cleaned up \(removed) stale temp file(s)")
-        }
+        return removed
     }
 }
 
