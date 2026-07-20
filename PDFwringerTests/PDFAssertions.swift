@@ -26,7 +26,8 @@ enum PDFAssertions {
         let sourceText = extractText(from: source)
         let outputText = extractText(from: output)
 
-        guard sourceText.count == outputText.count else {
+        guard !sourceText.isEmpty, !outputText.isEmpty,
+              sourceText.count == outputText.count else {
             Issue.record(
                 "Text preservation failed for \(operation): page count differs (source \(sourceText.count), output \(outputText.count))",
                 sourceLocation: sourceLocation
@@ -93,7 +94,8 @@ enum PDFAssertions {
         let sourceGeom = extractGeometry(from: source)
         let outputGeom = extractGeometry(from: output)
 
-        guard sourceGeom.count == outputGeom.count else {
+        guard !sourceGeom.isEmpty, !outputGeom.isEmpty,
+              sourceGeom.count == outputGeom.count else {
             Issue.record(
                 "Geometry check failed for \(operation): page count differs (source \(sourceGeom.count), output \(outputGeom.count))",
                 sourceLocation: sourceLocation
@@ -141,8 +143,18 @@ enum PDFAssertions {
         let outputGeom = extractGeometry(from: output)
 
         let indicesToCheck = pageIndices ?? Array(0..<sourceGeom.count)
+        guard !sourceGeom.isEmpty,
+              sourceGeom.count == outputGeom.count,
+              !indicesToCheck.isEmpty,
+              indicesToCheck.allSatisfy({ sourceGeom.indices.contains($0) }) else {
+            Issue.record(
+                "Rotation check failed: source/output geometry is missing, mismatched, or the selection is invalid",
+                sourceLocation: sourceLocation
+            )
+            return
+        }
 
-        for i in indicesToCheck where i < sourceGeom.count && i < outputGeom.count {
+        for i in indicesToCheck {
             let expected = (sourceGeom[i].rotation + expectedDelta) % 360
             let actual = outputGeom[i].rotation
             if actual != expected {

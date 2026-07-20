@@ -101,7 +101,7 @@ struct VisualRegressionTests {
             try? FileManager.default.removeItem(at: output)
         }
 
-        guard let before = renderPage(from: source) else { return }
+        let before = try #require(renderPage(from: source))
 
         let compressor = PDFCompressor()
         try await compressor.compress(
@@ -110,10 +110,7 @@ struct VisualRegressionTests {
             progress: { _ in }
         )
 
-        guard let after = renderPage(from: output) else {
-            Issue.record("Cannot render output page")
-            return
-        }
+        let after = try #require(renderPage(from: output))
 
         let diff = pixelDifference(before: before.data, after: after.data, width: before.width, height: before.height)
         #expect(diff < 0.01, "Lossless compression should not visually alter pages (diff: \(String(format: "%.2f%%", diff * 100)))")
@@ -128,7 +125,7 @@ struct VisualRegressionTests {
             try? FileManager.default.removeItem(at: output)
         }
 
-        guard let before = renderPage(from: source) else { return }
+        let before = try #require(renderPage(from: source))
 
         let editor = PDFMetadataEditor()
         try await editor.write(
@@ -136,10 +133,7 @@ struct VisualRegressionTests {
             source: source, destination: output
         )
 
-        guard let after = renderPage(from: output) else {
-            Issue.record("Cannot render output page")
-            return
-        }
+        let after = try #require(renderPage(from: output))
 
         let diff = pixelDifference(before: before.data, after: after.data, width: before.width, height: before.height)
         #expect(diff < 0.01, "Metadata write should not visually alter pages (diff: \(String(format: "%.2f%%", diff * 100)))")
@@ -150,7 +144,7 @@ struct VisualRegressionTests {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "visual_rotate.pdf")
         defer { TestPDFGenerator.cleanup(source) }
 
-        guard let before = renderPage(from: source) else { return }
+        let before = try #require(renderPage(from: source))
 
         var current = source
         var temps: [URL] = []
@@ -163,10 +157,7 @@ struct VisualRegressionTests {
         }
         defer { temps.forEach { try? FileManager.default.removeItem(at: $0) } }
 
-        guard let after = renderPage(from: current) else {
-            Issue.record("Cannot render 4× rotated page")
-            return
-        }
+        let after = try #require(renderPage(from: current))
 
         let diff = pixelDifference(before: before.data, after: after.data, width: before.width, height: before.height)
         #expect(diff < 0.01, "4×90° rotation should visually match original (diff: \(String(format: "%.2f%%", diff * 100)))")
@@ -181,7 +172,7 @@ struct VisualRegressionTests {
             try? FileManager.default.removeItem(at: output)
         }
 
-        guard let before = renderPage(from: source) else { return }
+        let before = try #require(renderPage(from: source))
 
         let adjuster = PDFColorAdjuster()
         try await adjuster.adjust(
@@ -190,10 +181,7 @@ struct VisualRegressionTests {
             pages: nil, progress: { _ in }
         )
 
-        guard let after = renderPage(from: output) else {
-            Issue.record("Cannot render identity output")
-            return
-        }
+        let after = try #require(renderPage(from: output))
 
         let diff = pixelDifference(before: before.data, after: after.data, width: before.width, height: before.height)
         #expect(diff < 0.01, "Identity color adjustment should not visually alter pages (diff: \(String(format: "%.2f%%", diff * 100)))")
