@@ -84,3 +84,5 @@ landing → singleFile → compressing / splitting / rotating / editingMetadata 
 ## App bundle
 
 `make app` creates `.build/PDFwringer.app` with a proper `Info.plist`, sandbox entitlements, hardened runtime, and an ad-hoc signature. `make release` forces an optimized ad-hoc bundle without requiring credentials. `make sign` replaces that signature with a timestamped Developer ID signature. `make notarize` submits and staples the standalone app, while `make dmg` packages the signed app with an Applications symlink, signs the disk image, and notarizes/staples the final DMG. `SIGN_IDENTITY` and `NOTARY_PROFILE` can be overridden on the command line or through the environment.
+
+Signed-release targets require a clean `Makefile` and `PDFwringer/` tree plus an exact `v<version>` tag matching `CFBundleShortVersionString` in `PDFwringer/Info.plist`. Bump the version, commit the release inputs, and tag that commit before running `make sign`, `make notarize`, or `make dmg`.

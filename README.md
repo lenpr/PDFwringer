@@ -111,6 +111,7 @@ Used in Split / Extract, Rotate, and Crop operations:
 
 - macOS 26.0+ (Tahoe)
 - Apple Silicon (arm64)
+- Xcode 26 with its command-line tools selected
 
 ### Build & Run
 
@@ -173,6 +174,12 @@ Prerequisites:
 - A "Developer ID Application" certificate installed in your keychain
 - A notarytool keychain profile (set up once via `xcrun notarytool store-credentials`)
 - Pass `SIGN_IDENTITY` and `NOTARY_PROFILE` on the command line or in the environment when the defaults do not match your team
+
+Before running a signed-release target, bump `CFBundleShortVersionString` in
+`PDFwringer/Info.plist`, commit the release inputs, and tag that exact commit
+`v<version>`. `make sign`, `make notarize`, and `make dmg` refuse a dirty
+`Makefile` or `PDFwringer/` tree and refuse a commit without the matching exact
+version tag.
 
 The app is sandboxed with `com.apple.security.files.user-selected.read-write` entitlement — no additional entitlements are needed for hardened runtime unless accessing protected resources.
 
