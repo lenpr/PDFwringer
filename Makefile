@@ -7,15 +7,16 @@ VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
 ifeq ($(VERSION),)
     VERSION := 0.0.0
 endif
-SIGN_IDENTITY := Developer ID Application: Lukas N.P. Egger (7DGU3C2XRL)
+SIGN_IDENTITY ?= Developer ID Application: Lukas N.P. Egger (7DGU3C2XRL)
 ENTITLEMENTS := PDFwringer/PDFwringer.entitlements
-NOTARY_PROFILE := notarytool-profile
+NOTARY_PROFILE ?= notarytool-profile
 SOURCES := $(shell find PDFwringer -name '*.swift' | LC_ALL=C sort)
 TEST_SOURCES := $(shell find PDFwringerTests -name '*.swift' | LC_ALL=C sort)
 TESTABLE_SOURCES := $(shell find PDFwringer/Services PDFwringer/Models PDFwringer/Utilities PDFwringer/ViewModels -name '*.swift' | LC_ALL=C sort)
 BUILD_DIR := .build
 APP_NAME := PDFwringer
 APP_BUNDLE := $(BUILD_DIR)/$(APP_NAME).app
+DMG := $(BUILD_DIR)/$(APP_NAME).dmg
 TEST_NAME := PDFwringerTests
 APP_SOURCE_LIST := $(BUILD_DIR)/app-sources.list
 TEST_SOURCE_LIST := $(BUILD_DIR)/test-sources.list
@@ -79,31 +80,32 @@ $(APP_BUNDLE): Makefile $(BUILD_DIR)/$(APP_NAME) $(ENTITLEMENTS) PDFwringer/Reso
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:LSItemContentTypes array" $(APP_BUNDLE)/Contents/Info.plist
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:LSItemContentTypes:0 string com.adobe.pdf" $(APP_BUNDLE)/Contents/Info.plist
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:LSHandlerRank string Alternate" $(APP_BUNDLE)/Contents/Info.plist
-	@xattr -cr $(APP_BUNDLE) 2>/dev/null || true
-	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(APP_BUNDLE) 2>/dev/null \
-		&& echo "Built $(APP_BUNDLE) (ad-hoc signed with sandbox entitlements)" \
-		|| (codesign --force --sign - $(APP_BUNDLE) 2>/dev/null; echo "Built $(APP_BUNDLE) (WARNING: sandbox entitlements not applied — use 'make sign' for sandboxed builds)")
+	@xattr -cr $(APP_BUNDLE)
+	@codesign --force --options runtime --sign - \
+		--entitlements $(ENTITLEMENTS) $(APP_BUNDLE)
+	@codesign --verify --deep --strict $(APP_BUNDLE)
+	@echo "Built $(APP_BUNDLE) (sandboxed, hardened runtime, ad-hoc signed)"
 
-sign: app
-	@rm -rf /tmp/PDFwringer_build
-	@mkdir -p /tmp/PDFwringer_build
-	@cp -R $(APP_BUNDLE) /tmp/PDFwringer_build/$(APP_NAME).app
-	@xattr -cr /tmp/PDFwringer_build/$(APP_NAME).app
-	@codesign --force --options runtime --sign "$(SIGN_IDENTITY)" \
-		--entitlements $(ENTITLEMENTS) /tmp/PDFwringer_build/$(APP_NAME).app
-	@rm -rf $(APP_BUNDLE)
-	@cp -R /tmp/PDFwringer_build/$(APP_NAME).app $(APP_BUNDLE)
-	@rm -rf /tmp/PDFwringer_build
+release:
+	@$(MAKE) -B SWIFT_FLAGS='$(SWIFT_FLAGS) $(RELEASE_FLAGS)' app
+	@echo "Release build ready at $(APP_BUNDLE)"
+
+sign: release
+	@xattr -cr $(APP_BUNDLE)
+	@codesign --force --options runtime --timestamp --sign "$(SIGN_IDENTITY)" \
+		--entitlements $(ENTITLEMENTS) $(APP_BUNDLE)
+	@codesign --verify --deep --strict --verbose=2 $(APP_BUNDLE)
 	@echo "Signed $(APP_BUNDLE) with Developer ID"
 
 notarize: sign
-	@echo "Creating zip for notarization..."
-	@ditto -c -k --keepParent $(APP_BUNDLE) $(BUILD_DIR)/$(APP_NAME).zip
-	@echo "Submitting to Apple for notarization..."
-	@xcrun notarytool submit $(BUILD_DIR)/$(APP_NAME).zip \
-		--keychain-profile "$(NOTARY_PROFILE)" --wait
-	@xcrun stapler staple $(APP_BUNDLE)
-	@rm -f $(BUILD_DIR)/$(APP_NAME).zip
+	@set -e; \
+	notary_work=$$(mktemp -d -t PDFwringer-notary); \
+	trap 'rm -rf "$$notary_work"' EXIT; \
+	archive="$$notary_work/$(APP_NAME).zip"; \
+	ditto -c -k --keepParent $(APP_BUNDLE) "$$archive"; \
+	xcrun notarytool submit "$$archive" --keychain-profile "$(NOTARY_PROFILE)" --wait; \
+	xcrun stapler staple $(APP_BUNDLE); \
+	xcrun stapler validate $(APP_BUNDLE)
 	@echo "Notarized and stapled $(APP_BUNDLE)"
 
 test: verify-fixtures $(BUILD_DIR)/$(TEST_NAME)
@@ -144,34 +146,29 @@ $(BUILD_DIR)/$(TEST_NAME): Makefile $(TEST_SOURCE_LIST) $(TESTABLE_SOURCES) $(TE
 		-o $@ \
 		$(TESTABLE_SOURCES) $(TEST_SOURCES)
 
-release: SWIFT_FLAGS += $(RELEASE_FLAGS)
-release: clean build app sign
-	@echo "Release build ready at $(APP_BUNDLE)"
-
-dmg: release
-	@rm -rf $(BUILD_DIR)/dmg_staging $(BUILD_DIR)/$(APP_NAME).dmg
-	@mkdir -p $(BUILD_DIR)/dmg_staging
-	@cp -R $(APP_BUNDLE) $(BUILD_DIR)/dmg_staging/
-	@ln -s /Applications $(BUILD_DIR)/dmg_staging/Applications
-	@hdiutil create -volname "$(APP_NAME)" -srcfolder $(BUILD_DIR)/dmg_staging \
-		-ov -format UDRW $(BUILD_DIR)/$(APP_NAME)_rw.dmg >/dev/null
-	@hdiutil attach $(BUILD_DIR)/$(APP_NAME)_rw.dmg >/dev/null
-	@osascript scripts/dmg_layout.applescript
-	@sync && sleep 1
-	@chflags nohidden /Volumes/$(APP_NAME)/$(APP_NAME).app
-	@xattr -d com.apple.FinderInfo /Volumes/$(APP_NAME)/$(APP_NAME).app 2>/dev/null || true
-	@hdiutil detach /Volumes/$(APP_NAME) >/dev/null
-	@hdiutil convert $(BUILD_DIR)/$(APP_NAME)_rw.dmg -format UDZO \
-		-o $(BUILD_DIR)/$(APP_NAME).dmg >/dev/null
-	@rm -rf $(BUILD_DIR)/dmg_staging $(BUILD_DIR)/$(APP_NAME)_rw.dmg
-	@echo "Submitting DMG for notarization..."
-	@xcrun notarytool submit $(BUILD_DIR)/$(APP_NAME).dmg \
-		--keychain-profile "$(NOTARY_PROFILE)" --wait
-	@xcrun stapler staple $(BUILD_DIR)/$(APP_NAME).dmg
-	@echo "Built and notarized $(BUILD_DIR)/$(APP_NAME).dmg"
+dmg: sign
+	@set -e; \
+	dmg_work=$$(mktemp -d -t PDFwringer-dmg); \
+	trap 'rm -rf "$$dmg_work"' EXIT; \
+	payload="$$dmg_work/payload"; \
+	temporary_dmg="$$dmg_work/$(APP_NAME).dmg"; \
+	rm -f "$(DMG)"; \
+	mkdir "$$payload"; \
+	cp -R $(APP_BUNDLE) "$$payload/"; \
+	ln -s /Applications "$$payload/Applications"; \
+	hdiutil create -volname "$(APP_NAME)" -srcfolder "$$payload" \
+		-format UDZO "$$temporary_dmg" >/dev/null; \
+	codesign --force --timestamp --sign "$(SIGN_IDENTITY)" "$$temporary_dmg"; \
+	codesign --verify --strict --verbose=2 "$$temporary_dmg"; \
+	xcrun notarytool submit "$$temporary_dmg" --keychain-profile "$(NOTARY_PROFILE)" --wait; \
+	xcrun stapler staple "$$temporary_dmg"; \
+	xcrun stapler validate "$$temporary_dmg"; \
+	hdiutil verify "$$temporary_dmg"; \
+	mv "$$temporary_dmg" $(DMG)
+	@echo "Built signed and notarized $(DMG)"
 
 clean:
 	rm -rf $(BUILD_DIR)
 
-run: build
-	$(BUILD_DIR)/$(APP_NAME)
+run: app
+	open -n "$(APP_BUNDLE)"

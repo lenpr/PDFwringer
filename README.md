@@ -122,8 +122,8 @@ Used in Split / Extract, Rotate, and Crop operations:
 # Command line — from zero to running in seconds
 make app       # produces .build/PDFwringer.app (ad-hoc codesigned)
 make release   # optimized build (-O) + app bundle
-make dmg       # app + drag-to-install disk image (.build/PDFwringer.dmg)
-make run       # build + launch immediately
+make dmg       # signed + notarized drag-to-install disk image
+make run       # build + launch the sandboxed app bundle
 
 # Or open PDFwringer.xcodeproj in Xcode (Cmd+B)
 ```
@@ -144,10 +144,9 @@ make sign      # builds + codesigns with Developer ID + sandbox entitlements
 cp -R .build/PDFwringer.app ~/Applications/
 ```
 
-> **Note:** `make app` produces a development build without sandbox entitlements.
-> Do not distribute or install `make app` output for regular use — it processes
-> untrusted PDFs without macOS App Sandbox containment. Use `make sign` or
-> `make dmg` for builds intended for installation.
+`make app` and `make release` are sandboxed, hardened-runtime development builds
+with ad-hoc signatures. Use `make sign`, `make notarize`, or `make dmg` when the
+artifact needs a trusted Developer ID signature or notarization.
 
 ### Test
 
@@ -170,14 +169,14 @@ The Makefile includes targets for signing and notarizing with a Developer ID cer
 
 ```bash
 make sign       # build + sign with hardened runtime (Developer ID)
-make notarize   # sign + submit to Apple + staple notarization ticket
-make dmg        # full pipeline: release build + signed DMG + notarize
+make notarize   # sign + submit the standalone app + staple its ticket
+make dmg        # release + sign app and DMG + notarize/staple the DMG
 ```
 
 Prerequisites:
 - A "Developer ID Application" certificate installed in your keychain
 - A notarytool keychain profile (set up once via `xcrun notarytool store-credentials`)
-- Update `SIGN_IDENTITY` and `NOTARY_PROFILE` in the Makefile for your team
+- Pass `SIGN_IDENTITY` and `NOTARY_PROFILE` on the command line or in the environment when the defaults do not match your team
 
 The app is sandboxed with `com.apple.security.files.user-selected.read-write` entitlement — no additional entitlements are needed for hardened runtime unless accessing protected resources.
 

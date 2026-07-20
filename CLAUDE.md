@@ -4,12 +4,12 @@
 
 ```bash
 make build      # swiftc → .build/PDFwringer (arm64, macOS 26)
-make app        # build + .app bundle at .build/PDFwringer.app (ad-hoc codesigned)
+make app        # sandboxed/hardened .app bundle (ad-hoc codesigned)
 make release    # optimized build (-O -whole-module-optimization) + app bundle
 make sign       # release + codesign with Developer ID (hardened runtime)
 make notarize   # sign + submit to Apple notary service + staple ticket
-make dmg        # release + notarized .dmg with drag-to-install layout
-make run        # build + launch (bare executable, needs Terminal)
+make dmg        # signed app + signed/notarized drag-to-install .dmg
+make run        # build + launch the sandboxed app bundle
 make clean      # rm -rf .build
 ```
 
@@ -83,4 +83,4 @@ landing → singleFile / multiFile → compressing / splitting / rotating / edit
 
 ## App bundle
 
-`make app` creates `.build/PDFwringer.app` with proper `Info.plist` (bundle ID, icon reference, activation) and ad-hoc codesigning. `make release` adds `-O -whole-module-optimization` for distribution builds. `make sign` codesigns with a Developer ID certificate and hardened runtime (copies to `/tmp` first to avoid iCloud Drive xattr issues). `make notarize` submits to Apple's notary service and staples the ticket. `make dmg` wraps the app in a notarized disk image with an Applications symlink and Finder layout (icon view, app on left, Applications on right) for drag-to-install UX. The `init()` in `PDFwringerApp` also sets `.regular` activation policy so the app works correctly when launched as a bare executable via `make run`.
+`make app` creates `.build/PDFwringer.app` with a proper `Info.plist`, sandbox entitlements, hardened runtime, and an ad-hoc signature. `make release` forces an optimized ad-hoc bundle without requiring credentials. `make sign` replaces that signature with a timestamped Developer ID signature. `make notarize` submits and staples the standalone app, while `make dmg` packages the signed app with an Applications symlink, signs the disk image, and notarizes/staples the final DMG. `SIGN_IDENTITY` and `NOTARY_PROFILE` can be overridden on the command line or through the environment.

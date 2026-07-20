@@ -10,11 +10,6 @@ struct PDFwringerApp: App {
     @State private var appVM = AppViewModel()
     @AppStorage("appearance") private var appearance: AppAppearance = .system
 
-    init() {
-        NSApplication.shared.setActivationPolicy(.regular)
-        NSApplication.shared.activate()
-    }
-
     var body: some Scene {
         WindowGroup {
             ContentView(appVM: appVM)
