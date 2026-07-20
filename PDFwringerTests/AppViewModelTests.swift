@@ -73,7 +73,7 @@ struct AppViewModelTests {
         }
     }
 
-    @Test("loadMultipleFiles filters non-PDF URLs")
+    @Test("loadMultipleFiles routes one valid PDF to single-file state")
     func loadMultipleFilesFiltersNonPDF() async throws {
         let pdf = TestPDFGenerator.makeRenderedPDF(pageCount: 2, filename: "valid.pdf")
         let txt = URL.temporaryDirectory.appending(component: "readme.txt")
@@ -87,11 +87,53 @@ struct AppViewModelTests {
         vm.loadMultipleFiles([pdf, txt])
         try await waitForStateChange(vm)
 
-        if case .merging(let items) = vm.state {
-            #expect(items.count == 1)
+        if case .singleFile(let loadedURL, let document) = vm.state {
+            #expect(loadedURL == pdf)
+            #expect(document.pageCount == 2)
         } else {
-            Issue.record("Expected merging state")
+            Issue.record("Expected singleFile state")
         }
+    }
+
+    @Test("newer single-file intake cannot be overwritten by older parsing")
+    func newerSingleFileWins() async {
+        let old1 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "old-1.pdf")
+        let old2 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "old-2.pdf")
+        let newer = TestPDFGenerator.makeRenderedPDF(pageCount: 2, filename: "newer.pdf")
+        defer {
+            TestPDFGenerator.cleanup(old1)
+            TestPDFGenerator.cleanup(old2)
+            TestPDFGenerator.cleanup(newer)
+        }
+
+        let vm = AppViewModel()
+        let staleIntake = vm.loadMultipleFiles([old1, old2])
+        vm.loadSingleFile(newer)
+        await staleIntake.value
+
+        guard case .singleFile(let loadedURL, let document) = vm.state else {
+            Issue.record("Expected newer singleFile state")
+            return
+        }
+        #expect(loadedURL == newer)
+        #expect(document.pageCount == 2)
+    }
+
+    @Test("startOver invalidates pending file intake")
+    func startOverInvalidatesPendingIntake() async {
+        let url1 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "pending-1.pdf")
+        let url2 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "pending-2.pdf")
+        defer {
+            TestPDFGenerator.cleanup(url1)
+            TestPDFGenerator.cleanup(url2)
+        }
+
+        let vm = AppViewModel()
+        let staleIntake = vm.loadMultipleFiles([url1, url2])
+        vm.startOver()
+        await staleIntake.value
+
+        #expect(vm.isLanding)
     }
 
     // MARK: - handleDrop routing
@@ -530,5 +572,6 @@ struct AppViewModelTests {
 
         #expect(vm.passwordText == "")
         #expect(vm.wrongPasswordAttempt == false)
+        #expect(!vm.showPasswordPrompt)
     }
 }

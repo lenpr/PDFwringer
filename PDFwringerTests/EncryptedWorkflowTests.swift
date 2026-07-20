@@ -54,6 +54,42 @@ struct EncryptedWorkflowTests {
         #expect(actionDocument === document)
     }
 
+    @Test("Loading a newer document clears a stale password prompt")
+    func newerDocumentClearsPasswordPrompt() throws {
+        let locked = try makeEncryptedPDF(pageCount: 1, filename: "stale-prompt.pdf")
+        let newer = TestPDFGenerator.makeRenderedPDF(pageCount: 2, filename: "newer-document.pdf")
+        defer {
+            TestPDFGenerator.cleanup(locked)
+            TestPDFGenerator.cleanup(newer)
+        }
+
+        let viewModel = AppViewModel()
+        viewModel.loadSingleFile(locked)
+        #expect(viewModel.showPasswordPrompt)
+        viewModel.passwordText = "stale password"
+        viewModel.wrongPasswordAttempt = true
+
+        viewModel.loadSingleFile(newer)
+
+        #expect(!viewModel.showPasswordPrompt)
+        #expect(viewModel.passwordText.isEmpty)
+        #expect(!viewModel.wrongPasswordAttempt)
+        guard case .singleFile(let loadedURL, let document) = viewModel.state else {
+            Issue.record("Expected the newer single-file state")
+            return
+        }
+        #expect(loadedURL == newer)
+        #expect(document.pageCount == 2)
+
+        viewModel.passwordText = Self.password
+        viewModel.unlockDocument()
+        guard case .singleFile(let retainedURL, _) = viewModel.state else {
+            Issue.record("Expected the newer document to remain selected")
+            return
+        }
+        #expect(retainedURL == newer)
+    }
+
     @Test("Metadata can replace encryption with a new password")
     func metadataReencryptsUnlockedDocument() async throws {
         let source = try makeEncryptedPDF(pageCount: 2, filename: "metadata-reencrypt.pdf")

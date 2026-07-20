@@ -57,13 +57,13 @@ landing → singleFile → compressing / splitting / rotating / editingMetadata 
 ## Key conventions
 
 - **Concurrency**: Most service methods are `async throws` with cooperative cancellation (`Task.checkCancellation()`). Progress reported via `(Double) -> Void` closure (range 0.0–1.0). `PDFMetadataEditor.write()` is `async throws` with optional progress (needed for flatten which rasterizes pages). `PDFCompressor.compressFirstPage` is `nonisolated` for background estimation.
-- **Cancellation**: All ViewModels store an `operationTask: Task<Void, Never>?` and expose a `cancel()` method. Views show a Cancel button alongside progress indicators. Services check `Task.checkCancellation()` per page iteration, so cancellation takes effect within one page.
+- **Cancellation**: Operation ViewModels store an `operationTask: Task<Void, Never>?` and expose a `cancel()` method. `AppViewModel` owns one background file-intake task and invalidates it whenever newer input or navigation supersedes it. Views show a Cancel button alongside progress indicators. Services check `Task.checkCancellation()` per page iteration, so cancellation takes effect within one page.
 - **Source/dest guard**: All services that take both source and destination URLs guard against `source == destination` at the top, throwing `PDFwringerError.sourceEqualsDestination`.
 - **Sandbox**: App is sandboxed with `com.apple.security.files.user-selected.read-write`. File access uses `NSSavePanel`/`NSOpenPanel` — never raw path construction.
 - **PDF reading**: `PDFCompressor.openPDF(at:)` reads file data into memory first (works around CGPDFDocument sandbox restrictions). Other services use `PDFDocument(url:)`.
 - **Temp files**: Operations write to `URL.temporaryDirectory` then atomically replace the destination via `FileManager.replaceItemAt(_:withItemAt:)`.
 - **State management**: ViewModels use `@Observable` (Observation framework). Views own their VM via `@State`.
-- **Drop handling**: `DropReceiverView` wraps `DropNSView` (NSView subclass) for reliable drag-and-drop in sandbox. Returns `nil` from `hitTest` so SwiftUI buttons underneath remain clickable.
+- **Drop handling**: `DropReceiverView` wraps `DropNSView` (NSView subclass) for reliable drag-and-drop in sandbox. Returns `nil` from `hitTest` so SwiftUI buttons underneath remain clickable. Multi-file intake validates PDFs off MainActor, then routes zero/one/many readable files to error/single-file/merge state respectively.
 - **File items**: `PDFFileItem.from(url:)` / `.from(urls:)` is the single factory for creating items from URLs (filters PDFs, reads page count). Struct is `Sendable`.
 - **Formatting**: `Formatting.fileSize(_:)` is the shared byte-formatting utility. `Formatting.triggerShake(_:)` provides the shared invalid-input shake animation.
 - **Atomic writes**: `AtomicFileWriter` (in `PDFwringerError.swift`) writes to a temp file in a dedicated subdirectory (`URL.temporaryDirectory/PDFwringer/`), then uses `FileManager.replaceItemAt` for safe destination replacement. Cleans up on failure. All services use this consistently.

@@ -23,7 +23,9 @@ enum AppState {
 /// Orchestrates top-level navigation and file loading. Owned by the App scene, shared with ContentView.
 @MainActor @Observable
 class AppViewModel {
-    var state: AppState = .landing
+    var state: AppState = .landing {
+        didSet { cancelPendingIntake() }
+    }
     var currentPage: Int = 0
     var currentFileSize: Int64 = 0
     var navigationDirection: Edge = .trailing
@@ -43,6 +45,8 @@ class AppViewModel {
     var passwordText = ""
     var wrongPasswordAttempt = false
     private var pendingLockedURL: URL?
+    private var fileIntakeTask: Task<Void, Never>?
+    private var fileIntakeID: UUID?
 
     var windowTitle: String {
         switch state {
@@ -117,6 +121,7 @@ class AppViewModel {
 
         // If only images were dropped, offer to convert them
         if pdfURLs.isEmpty && !imageURLs.isEmpty {
+            cancelPendingIntake()
             convertImagesToPDF(imageURLs)
             return
         }
@@ -131,6 +136,7 @@ class AppViewModel {
     }
 
     func loadSingleFile(_ url: URL) {
+        cancelPendingIntake()
         guard let doc = PDFDocument(url: url) else {
             Log.app.warning("Cannot open file: \(url.lastPathComponent, privacy: .private)")
             errorMessage = "Cannot open '\(url.lastPathComponent)'. The file may be corrupted or not a valid PDF."
@@ -159,7 +165,7 @@ class AppViewModel {
         }
         guard let url = pendingLockedURL,
               let doc = PDFDocument(url: url) else {
-            pendingLockedURL = nil
+            cancelPendingIntake()
             return
         }
         if doc.unlock(withPassword: passwordText) {
@@ -169,10 +175,10 @@ class AppViewModel {
             BookmarkManager.saveBookmark(for: url)
             refreshRecentDocuments()
             hasUnsavedChanges = false
-            state = .singleFile(url, doc)
             pendingLockedURL = nil
             wrongPasswordAttempt = false
             showPasswordPrompt = false
+            state = .singleFile(url, doc)
         } else {
             passwordText = ""
             wrongPasswordAttempt = true
@@ -181,26 +187,29 @@ class AppViewModel {
     }
 
     func cancelPassword() {
-        pendingLockedURL = nil
-        passwordText = ""
-        wrongPasswordAttempt = false
+        cancelPendingIntake()
     }
 
-    func loadMultipleFiles(_ urls: [URL]) {
-        // Parse PDFs off the main actor to avoid UI freeze with many/large files
-        Task {
-            let items = await Task.detached(priority: .userInitiated) {
-                PDFFileItem.from(urls: urls)
-            }.value
-            guard !items.isEmpty else { return }
-            for item in items {
-                NSDocumentController.shared.noteNewRecentDocumentURL(item.url)
-                BookmarkManager.saveBookmark(for: item.url)
+    @discardableResult
+    func loadMultipleFiles(_ urls: [URL]) -> Task<Void, Never> {
+        cancelPendingIntake()
+        let requestID = UUID()
+        fileIntakeID = requestID
+
+        let task = Task.detached(priority: .userInitiated) { [weak self] in
+            var items: [PDFFileItem] = []
+            items.reserveCapacity(urls.count)
+            for url in urls {
+                guard !Task.isCancelled else { return }
+                if let item = PDFFileItem.from(url: url) {
+                    items.append(item)
+                }
             }
-            refreshRecentDocuments()
-            hasUnsavedChanges = false
-            state = .merging(items)
+            guard !Task.isCancelled else { return }
+            await self?.completeFileIntake(items, requestID: requestID)
         }
+        fileIntakeTask = task
+        return task
     }
 
     func selectCompress() {
@@ -285,6 +294,38 @@ class AppViewModel {
         navigationDirection = .trailing
         showStartOverConfirm = false
         hasUnsavedChanges = false
+    }
+
+    private func completeFileIntake(_ items: [PDFFileItem], requestID: UUID) {
+        guard fileIntakeID == requestID else { return }
+        fileIntakeTask = nil
+        fileIntakeID = nil
+
+        switch items.count {
+        case 0:
+            errorMessage = PDFwringerError.cannotOpenDocument.localizedDescription
+            showErrorAlert = true
+        case 1:
+            loadSingleFile(items[0].url)
+        default:
+            for item in items {
+                NSDocumentController.shared.noteNewRecentDocumentURL(item.url)
+                BookmarkManager.saveBookmark(for: item.url)
+            }
+            refreshRecentDocuments()
+            hasUnsavedChanges = false
+            state = .merging(items)
+        }
+    }
+
+    private func cancelPendingIntake() {
+        fileIntakeTask?.cancel()
+        fileIntakeTask = nil
+        fileIntakeID = nil
+        pendingLockedURL = nil
+        showPasswordPrompt = false
+        passwordText = ""
+        wrongPasswordAttempt = false
     }
 
     private func makeWorkingCopy(of document: PDFDocument) -> PDFDocument? {

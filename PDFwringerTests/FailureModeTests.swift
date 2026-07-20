@@ -208,8 +208,8 @@ struct FailureModeTests {
 
     // MARK: - Drag-and-drop edge cases
 
-    @Test("handleDrop with all invalid files shows error")
-    func handleDropAllInvalid() {
+    @Test("Multiple invalid PDFs finish with an error and no workflow")
+    func multipleInvalidFiles() async {
         let corrupt1 = URL.temporaryDirectory.appending(component: UUID().uuidString + "_bad1.pdf")
         let corrupt2 = URL.temporaryDirectory.appending(component: UUID().uuidString + "_bad2.pdf")
         try! Data("garbage".utf8).write(to: corrupt1)
@@ -220,9 +220,11 @@ struct FailureModeTests {
         }
 
         let vm = AppViewModel()
-        vm.handleDrop([corrupt1, corrupt2])
+        let intake = vm.loadMultipleFiles([corrupt1, corrupt2])
+        await intake.value
 
-        // PDFFileItem.from(urls:) filters non-loadable PDFs, so no workflow opens.
+        #expect(vm.showErrorAlert)
+        #expect(vm.errorMessage == PDFwringerError.cannotOpenDocument.localizedDescription)
         #expect(vm.isLanding)
     }
 
@@ -260,11 +262,12 @@ struct FailureModeTests {
             } else { break }
         }
 
-        // The valid document remains in the merge session after corrupt input is filtered.
-        if case .merging(let items) = vm.state {
-            #expect(items.count == 1)
+        // Routing happens after validation, so the one readable PDF opens normally.
+        if case .singleFile(let loadedURL, let document) = vm.state {
+            #expect(loadedURL == valid)
+            #expect(document.pageCount == 2)
         } else {
-            Issue.record("Expected merging state, got \(vm.state)")
+            Issue.record("Expected singleFile state, got \(vm.state)")
         }
     }
 
