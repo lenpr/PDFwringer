@@ -20,7 +20,7 @@ struct PDFPageReorderer {
               Set(pageOrder) == Set(0..<pageCount) else {
             throw PDFwringerError.invalidPageOrder
         }
-        try PDFPermissionPolicy.require(.assembleDocument, for: document)
+        try PDFPermissionPolicy.require(.copyContent, .assembleDocument, for: document)
         try Task.checkCancellation()
 
         let output = PDFDocument()

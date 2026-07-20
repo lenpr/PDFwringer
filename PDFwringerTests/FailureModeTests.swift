@@ -249,6 +249,72 @@ struct FailureModeTests {
         }
     }
 
+    @Test("Unrestricted derivatives require content-copy permission")
+    func unrestrictedDerivativesRequireCopyPermission() async throws {
+        let assemblyOnlySource = TestPDFGenerator.makePermissionRestrictedPDF(
+            permissions: PDFAccessPermissions.allowsDocumentAssembly.rawValue,
+            filename: "assembly-only.pdf"
+        )
+        let changeOnlySource = TestPDFGenerator.makePermissionRestrictedPDF(
+            permissions: PDFAccessPermissions.allowsDocumentChanges.rawValue,
+            filename: "change-only.pdf"
+        )
+        let outputDirectory = TestPDFGenerator.makeTempDirectory()
+        defer {
+            TestPDFGenerator.cleanup(assemblyOnlySource)
+            TestPDFGenerator.cleanup(changeOnlySource)
+            TestPDFGenerator.cleanup(outputDirectory)
+        }
+
+        let assemblyOnlyDocument = try #require(PDFDocument(url: assemblyOnlySource))
+        #expect(assemblyOnlyDocument.allowsDocumentAssembly)
+        #expect(!assemblyOnlyDocument.allowsCopying)
+
+        await expectPermissionsDenied {
+            _ = try await PDFSplitter().split(
+                document: assemblyOnlyDocument,
+                source: assemblyOnlySource,
+                mode: .keepPages([0]),
+                destination: outputDirectory.appending(component: "split.pdf"),
+                progress: { _ in }
+            )
+        }
+        await expectPermissionsDenied {
+            _ = try await PDFConcatenator().concatenate(
+                sources: [assemblyOnlySource],
+                destination: outputDirectory.appending(component: "merged.pdf"),
+                progress: { _ in }
+            )
+        }
+        await expectPermissionsDenied {
+            try await PDFPageReorderer().reorder(
+                document: assemblyOnlyDocument,
+                source: assemblyOnlySource,
+                destination: outputDirectory.appending(component: "reordered.pdf"),
+                pageOrder: [0],
+                progress: { _ in }
+            )
+        }
+
+        let changeOnlyDocument = try #require(PDFDocument(url: changeOnlySource))
+        #expect(changeOnlyDocument.allowsDocumentChanges)
+        #expect(!changeOnlyDocument.allowsCopying)
+        await expectPermissionsDenied {
+            try await PDFMetadataEditor().write(
+                metadata: .empty,
+                document: changeOnlyDocument,
+                source: changeOnlySource,
+                destination: outputDirectory.appending(component: "unprotected.pdf"),
+                removeProtection: true
+            )
+        }
+
+        #expect(try FileManager.default.contentsOfDirectory(
+            at: outputDirectory,
+            includingPropertiesForKeys: nil
+        ).isEmpty)
+    }
+
     // MARK: - Corrupt/invalid files in merge
 
     @Test("Concatenator rejects a corrupt selected file without publishing")

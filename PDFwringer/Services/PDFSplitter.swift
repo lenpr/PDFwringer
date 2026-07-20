@@ -60,7 +60,7 @@ struct PDFSplitter {
 
         let pageCount = document.pageCount
         guard pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
-        try PDFPermissionPolicy.require(.assembleDocument, for: document)
+        try PDFPermissionPolicy.require(.copyContent, .assembleDocument, for: document)
 
         let start = ContinuousClock.now
         Log.split.info("Starting split: \(pageCount) pages")

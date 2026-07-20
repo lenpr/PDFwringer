@@ -102,7 +102,7 @@ struct PDFMetadataEditor {
 
         if document.isLocked { throw PDFwringerError.documentIsLocked }
         guard document.pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
-        if flattenAnnotations {
+        if flattenAnnotations || removeProtection {
             try PDFPermissionPolicy.require(.copyContent, .changeDocument, for: document)
         } else {
             try PDFPermissionPolicy.require(.changeDocument, for: document)
