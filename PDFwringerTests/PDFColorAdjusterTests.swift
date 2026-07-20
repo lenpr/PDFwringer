@@ -383,44 +383,6 @@ struct PDFColorAdjusterTests {
         #expect(try Data(contentsOf: output) == originalDestination)
     }
 
-    // MARK: - Cancellation
-
-    @Test("Cancellation stops processing without leaving temp files")
-    func cancellationCleansUp() async throws {
-        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 20)
-        let output = TestPDFGenerator.makeTempDirectory().appending(component: "cancelled.pdf")
-        defer {
-            TestPDFGenerator.cleanup(source)
-            TestPDFGenerator.cleanup(output)
-        }
-
-        let adjuster = PDFColorAdjuster()
-        let task = Task {
-            try await adjuster.adjust(
-                source: source,
-                destination: output,
-                settings: .init(brightness: 0.5, contrast: 1.5, saturation: 0.5),
-                pages: nil,
-                progress: { p in
-                    if p > 0.1 { Task.detached { /* trigger cancel externally */ } }
-                }
-            )
-        }
-
-        try await Task.sleep(for: .milliseconds(50))
-        task.cancel()
-
-        do {
-            _ = try await task.value
-        } catch is CancellationError {
-            // Expected
-        } catch {
-            // Also acceptable — may throw other errors during cleanup
-        }
-
-        #expect(!FileManager.default.fileExists(atPath: output.path(percentEncoded: false)))
-    }
-
     // MARK: - Progress
 
     @Test("Reports progress monotonically reaching 1.0")

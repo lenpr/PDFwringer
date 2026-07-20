@@ -172,13 +172,15 @@ enum PDFAssertions {
     /// Asserts that a source file was not modified by an operation.
     static func assertSourceUnmodified(
         url: URL,
-        originalSize: Int64,
+        originalData: Data,
         operation: String,
         sourceLocation: SourceLocation = #_sourceLocation
     ) {
-        let currentSize = (try? FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false))[.size] as? Int64) ?? -1
-        #expect(currentSize == originalSize,
-                "Source file was modified by \(operation): expected \(originalSize) bytes, got \(currentSize)",
-                sourceLocation: sourceLocation)
+        let currentData = try? Data(contentsOf: url)
+        #expect(
+            currentData == originalData,
+            "Source file contents were modified by \(operation)",
+            sourceLocation: sourceLocation
+        )
     }
 }

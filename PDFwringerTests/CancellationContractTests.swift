@@ -48,80 +48,69 @@ struct CancellationContractTests {
             try? FileManager.default.removeItem(at: output)
         }
 
-        let sourceSize = (try? FileManager.default.attributesOfItem(atPath: source.path(percentEncoded: false))[.size] as? Int64) ?? 0
+        let sourceData = try Data(contentsOf: source)
 
         let compressor = PDFCompressor()
-        var gotProgress = false
-
-        let task = Task {
-            try await compressor.compress(
+        var operationTask: Task<Void, Error>?
+        operationTask = Task { @MainActor in
+            _ = try await compressor.compress(
                 source: source, destination: output,
                 level: .medium, quality: .good, grayscale: false, stripMetadata: false,
                 progress: { p in
-                    if p > 0 { gotProgress = true }
+                    if p > 0 { operationTask?.cancel() }
                 }
             )
         }
+        let task = try #require(operationTask)
 
-        // Wait for first progress then cancel
-        while !gotProgress && !task.isCancelled {
-            await Task.yield()
-        }
-        task.cancel()
-
-        do {
-            _ = try await task.value
-        } catch is CancellationError {
-            // Expected
-        } catch {
-            // Other errors also acceptable (cancellation may manifest as different errors)
+        await #expect(throws: CancellationError.self) {
+            try await task.value
         }
 
-        // Source must be untouched
-        PDFAssertions.assertSourceUnmodified(url: source, originalSize: sourceSize, operation: "compress cancel")
-
-        // No partial output should exist (atomic write means either full or absent)
-        // Note: if cancellation happened after atomic write, output may exist and be valid
+        PDFAssertions.assertSourceUnmodified(
+            url: source,
+            originalData: sourceData,
+            operation: "compress cancel"
+        )
+        #expect(!FileManager.default.fileExists(atPath: output.path(percentEncoded: false)))
     }
 
     @Test("PDFSplitter cancellation cleans up")
     func splitterCancellation() async throws {
         let source = makeLargeSource()
-        let outputDir = TestPDFGenerator.makeTempDirectory()
+        let outputDirectory = TestPDFGenerator.makeTempDirectory()
+        let output = outputDirectory.appending(component: "cancelled.pdf")
         defer {
             TestPDFGenerator.cleanup(source)
-            TestPDFGenerator.cleanup(outputDir)
+            TestPDFGenerator.cleanup(outputDirectory)
         }
 
-        let sourceSize = (try? FileManager.default.attributesOfItem(atPath: source.path(percentEncoded: false))[.size] as? Int64) ?? 0
+        let sourceData = try Data(contentsOf: source)
 
         let splitter = PDFSplitter()
-        var gotProgress = false
-
-        let task = Task {
-            try await splitter.split(
-                source: source, mode: .splitEveryN(1),
-                destination: outputDir,
+        var operationTask: Task<Void, Error>?
+        operationTask = Task { @MainActor in
+            _ = try await splitter.split(
+                source: source,
+                mode: .keepPages(Array(0..<50)),
+                destination: output,
                 progress: { p in
-                    if p > 0 { gotProgress = true }
+                    if p > 0 { operationTask?.cancel() }
                 }
             )
         }
+        let task = try #require(operationTask)
 
-        while !gotProgress && !task.isCancelled {
-            await Task.yield()
-        }
-        task.cancel()
-
-        do {
-            _ = try await task.value
-        } catch is CancellationError {
-            // Expected
-        } catch {
-            // Acceptable
+        await #expect(throws: CancellationError.self) {
+            try await task.value
         }
 
-        PDFAssertions.assertSourceUnmodified(url: source, originalSize: sourceSize, operation: "split cancel")
+        PDFAssertions.assertSourceUnmodified(
+            url: source,
+            originalData: sourceData,
+            operation: "split cancel"
+        )
+        #expect(!FileManager.default.fileExists(atPath: output.path(percentEncoded: false)))
     }
 
     @Test("PDFConcatenator cancellation cleans up")
@@ -136,30 +125,22 @@ struct CancellationContractTests {
         }
 
         let concatenator = PDFConcatenator()
-        var gotProgress = false
-
-        let task = Task {
-            try await concatenator.concatenate(
+        var operationTask: Task<Void, Error>?
+        operationTask = Task { @MainActor in
+            _ = try await concatenator.concatenate(
                 sources: [source1, source2],
                 destination: output,
                 progress: { p in
-                    if p > 0 { gotProgress = true }
+                    if p > 0 { operationTask?.cancel() }
                 }
             )
         }
+        let task = try #require(operationTask)
 
-        while !gotProgress && !task.isCancelled {
-            await Task.yield()
+        await #expect(throws: CancellationError.self) {
+            try await task.value
         }
-        task.cancel()
-
-        do {
-            _ = try await task.value
-        } catch is CancellationError {
-            // Expected
-        } catch {
-            // Acceptable
-        }
+        #expect(!FileManager.default.fileExists(atPath: output.path(percentEncoded: false)))
     }
 
     @Test("PDFMetadataEditor flatten cancellation cleans up")
@@ -171,35 +152,31 @@ struct CancellationContractTests {
             try? FileManager.default.removeItem(at: output)
         }
 
-        let sourceSize = (try? FileManager.default.attributesOfItem(atPath: source.path(percentEncoded: false))[.size] as? Int64) ?? 0
+        let sourceData = try Data(contentsOf: source)
 
         let editor = PDFMetadataEditor()
-        var gotProgress = false
-
-        let task = Task {
+        var operationTask: Task<Void, Error>?
+        operationTask = Task { @MainActor in
             try await editor.write(
                 metadata: .empty, source: source, destination: output,
                 flattenAnnotations: true,
                 progress: { p in
-                    if p > 0 { gotProgress = true }
+                    if p > 0 { operationTask?.cancel() }
                 }
             )
         }
+        let task = try #require(operationTask)
 
-        while !gotProgress && !task.isCancelled {
-            await Task.yield()
-        }
-        task.cancel()
-
-        do {
+        await #expect(throws: CancellationError.self) {
             try await task.value
-        } catch is CancellationError {
-            // Expected
-        } catch {
-            // Acceptable
         }
 
-        PDFAssertions.assertSourceUnmodified(url: source, originalSize: sourceSize, operation: "flatten cancel")
+        PDFAssertions.assertSourceUnmodified(
+            url: source,
+            originalData: sourceData,
+            operation: "flatten cancel"
+        )
+        #expect(!FileManager.default.fileExists(atPath: output.path(percentEncoded: false)))
     }
 
     @Test("PDFColorAdjuster cancellation cleans up and source untouched")
@@ -211,67 +188,32 @@ struct CancellationContractTests {
             try? FileManager.default.removeItem(at: output)
         }
 
-        let sourceSize = (try? FileManager.default.attributesOfItem(atPath: source.path(percentEncoded: false))[.size] as? Int64) ?? 0
+        let sourceData = try Data(contentsOf: source)
 
         let adjuster = PDFColorAdjuster()
-        var gotProgress = false
-
-        let task = Task {
+        var operationTask: Task<Void, Error>?
+        operationTask = Task { @MainActor in
             try await adjuster.adjust(
                 source: source, destination: output,
                 settings: .init(brightness: 0.2, contrast: 1.3, saturation: 0.8),
                 pages: nil,
                 progress: { p in
-                    if p > 0 { gotProgress = true }
+                    if p > 0 { operationTask?.cancel() }
                 }
             )
         }
+        let task = try #require(operationTask)
 
-        while !gotProgress && !task.isCancelled {
-            await Task.yield()
-        }
-        task.cancel()
-
-        do {
-            _ = try await task.value
-        } catch is CancellationError {
-            // Expected
-        } catch {
-            // Acceptable
+        await #expect(throws: CancellationError.self) {
+            try await task.value
         }
 
-        PDFAssertions.assertSourceUnmodified(url: source, originalSize: sourceSize, operation: "color adjust cancel")
-    }
-
-    @Test("Cancelled operation does not leave new temp files permanently")
-    func noTempFileLeakOnCancel() async throws {
-        let source = makeLargeSource()
-        let output = URL.temporaryDirectory.appending(component: "cancel_leak_\(UUID()).pdf")
-        defer {
-            TestPDFGenerator.cleanup(source)
-            try? FileManager.default.removeItem(at: output)
-        }
-
-        // Just verify the operation can be cancelled without crashing
-        // Temp file tracking is unreliable in parallel test execution
-        let compressor = PDFCompressor()
-        var gotProgress = false
-
-        let task = Task {
-            try await compressor.compress(
-                source: source, destination: output,
-                level: .high, quality: .best, grayscale: false, stripMetadata: false,
-                progress: { p in if p > 0 { gotProgress = true } }
-            )
-        }
-
-        while !gotProgress && !task.isCancelled { await Task.yield() }
-        task.cancel()
-        do { _ = try await task.value } catch {}
-
-        // Key assertion: source is untouched, no crash occurred
-        let sourceExists = FileManager.default.fileExists(atPath: source.path(percentEncoded: false))
-        #expect(sourceExists, "Source must survive cancellation")
+        PDFAssertions.assertSourceUnmodified(
+            url: source,
+            originalData: sourceData,
+            operation: "color adjust cancel"
+        )
+        #expect(!FileManager.default.fileExists(atPath: output.path(percentEncoded: false)))
     }
 
     @Test("Cancellation at final progress prevents publishing raster outputs")

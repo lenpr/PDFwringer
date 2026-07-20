@@ -403,16 +403,18 @@ struct FixtureColorAdjustTests {
 @MainActor
 struct FixtureMetadataTests {
 
-    @Test("Read metadata does not crash", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Read metadata stays within field limits", arguments: FixtureDiscovery.openableFixtures)
     func readMetadata(fixture: FixtureDiscovery.Fixture) {
-        let editor = PDFMetadataEditor()
-        let metadata = editor.read(from: fixture.url)
-        // Just verify it doesn't crash — metadata may be empty
-        _ = metadata.title
-        _ = metadata.author
-        _ = metadata.subject
-        _ = metadata.keywords
-        _ = metadata.creator
+        let metadata = PDFMetadataEditor().read(from: fixture.url)
+        let fields = [
+            metadata.title,
+            metadata.author,
+            metadata.subject,
+            metadata.keywords,
+            metadata.creator,
+        ]
+
+        #expect(fields.allSatisfy { $0.count <= 10_000 }, "Metadata was not bounded: \(fixture)")
     }
 
     @Test("Write metadata produces valid output", arguments: FixtureDiscovery.openableFixtures)
@@ -485,9 +487,13 @@ struct FixtureErrorTests {
                 progress: { _ in }
             )
             Issue.record("Should have thrown for locked PDF: \(fixture)")
+        } catch let error as PDFwringerError {
+            guard case .documentIsLocked = error else {
+                Issue.record("Expected documentIsLocked, got \(error): \(fixture)")
+                return
+            }
         } catch {
-            // Expected — locked PDFs should throw
-            #expect(error is PDFwringerError, "Should throw PDFwringerError: \(fixture)")
+            Issue.record("Unexpected error \(error): \(fixture)")
         }
     }
 
@@ -504,8 +510,13 @@ struct FixtureErrorTests {
                 progress: { _ in }
             )
             Issue.record("Should have thrown for corrupt PDF: \(fixture)")
+        } catch let error as PDFwringerError {
+            guard case .cannotOpenDocument = error else {
+                Issue.record("Expected cannotOpenDocument, got \(error): \(fixture)")
+                return
+            }
         } catch {
-            #expect(error is PDFwringerError, "Should throw PDFwringerError: \(fixture)")
+            Issue.record("Unexpected error \(error): \(fixture)")
         }
     }
 }

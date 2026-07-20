@@ -14,7 +14,7 @@ struct AtomicWriteSafetyTests {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2, filename: "safe_missing_dir.pdf")
         defer { TestPDFGenerator.cleanup(source) }
 
-        let sourceSize = (try? FileManager.default.attributesOfItem(atPath: source.path(percentEncoded: false))[.size] as? Int64) ?? 0
+        let sourceData = try Data(contentsOf: source)
         let badDest = URL.temporaryDirectory.appending(component: "nonexistent_dir_\(UUID())/output.pdf")
 
         let compressor = PDFCompressor()
@@ -25,11 +25,20 @@ struct AtomicWriteSafetyTests {
                 progress: { _ in }
             )
             Issue.record("Should have thrown for missing destination directory")
+        } catch let error as PDFwringerError {
+            guard case .cannotWriteOutput = error else {
+                Issue.record("Expected cannotWriteOutput, got \(error)")
+                return
+            }
         } catch {
-            // Expected failure
+            Issue.record("Unexpected error: \(error)")
         }
 
-        PDFAssertions.assertSourceUnmodified(url: source, originalSize: sourceSize, operation: "missing dest dir")
+        PDFAssertions.assertSourceUnmodified(
+            url: source,
+            originalData: sourceData,
+            operation: "missing dest dir"
+        )
     }
 
     @Test("Destination is a directory does not corrupt source")
@@ -41,7 +50,7 @@ struct AtomicWriteSafetyTests {
             TestPDFGenerator.cleanup(destDir)
         }
 
-        let sourceSize = (try? FileManager.default.attributesOfItem(atPath: source.path(percentEncoded: false))[.size] as? Int64) ?? 0
+        let sourceData = try Data(contentsOf: source)
 
         let rotator = PDFRotator()
         do {
@@ -60,7 +69,11 @@ struct AtomicWriteSafetyTests {
         }
 
         #expect(FileManager.default.fileExists(atPath: destDir.path(percentEncoded: false)))
-        PDFAssertions.assertSourceUnmodified(url: source, originalSize: sourceSize, operation: "dir as dest")
+        PDFAssertions.assertSourceUnmodified(
+            url: source,
+            originalData: sourceData,
+            operation: "dir as dest"
+        )
     }
 
     @Test("Existing destination file is safely overwritten")
@@ -100,8 +113,14 @@ struct AtomicWriteSafetyTests {
                 level: .lossless, quality: .good, grayscale: false, stripMetadata: false,
                 progress: { _ in }
             )
+            Issue.record("Expected sourceEqualsDestination")
+        } catch let error as PDFwringerError {
+            guard case .sourceEqualsDestination = error else {
+                Issue.record("Expected sourceEqualsDestination, got \(error)")
+                return
+            }
         } catch {
-            // Expected
+            Issue.record("Unexpected error: \(error)")
         }
 
         // Source should still be openable

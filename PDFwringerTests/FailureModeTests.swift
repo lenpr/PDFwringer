@@ -159,12 +159,17 @@ struct FailureModeTests {
         do {
             try await editor.write(metadata: .empty, source: source, destination: unwritable)
             Issue.record("Expected error")
+        } catch let error as PDFwringerError {
+            guard case .cannotWriteOutput = error else {
+                Issue.record("Expected cannotWriteOutput, got \(error)")
+                return
+            }
         } catch {
-            // Expected
+            Issue.record("Unexpected error: \(error)")
         }
     }
 
-    @Test("Splitter with all out-of-range pages produces minimal output or fails")
+    @Test("Splitter rejects an entirely out-of-range page selection")
     func splitterOutOfRange() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 3)
         let output = TestPDFGenerator.makeTempDirectory().appending(component: "out.pdf")
@@ -173,21 +178,25 @@ struct FailureModeTests {
             TestPDFGenerator.cleanup(output)
         }
 
-        let splitter = PDFSplitter()
         do {
-            let results = try await splitter.split(
+            _ = try await PDFSplitter().split(
                 source: source,
                 mode: .keepPages([10, 20, 30]),
                 destination: output,
                 progress: { _ in }
             )
-            // PDFKit always writes at least 1 page; verify no requested pages made it
-            if let doc = PDFDocument(url: results[0]) {
-                #expect(doc.pageCount <= 1)
+            Issue.record("Expected invalidPageRange")
+        } catch let error as PDFwringerError {
+            guard case .invalidPageRange(let detail) = error else {
+                Issue.record("Expected invalidPageRange, got \(error)")
+                return
             }
+            #expect(detail == "no valid pages in range")
         } catch {
-            // Throwing is acceptable
+            Issue.record("Unexpected error: \(error)")
         }
+
+        #expect(!FileManager.default.fileExists(atPath: output.path(percentEncoded: false)))
     }
 
     // MARK: - AppViewModel error state
