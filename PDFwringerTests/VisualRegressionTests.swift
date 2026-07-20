@@ -43,6 +43,36 @@ struct VisualRegressionTests {
         return (pixelData, width, height)
     }
 
+    /// Renders through PDFKit so annotation appearances are included.
+    private func renderPDFKitPage(
+        _ page: PDFPage,
+        dpi: CGFloat = 72
+    ) -> (data: [UInt8], width: Int, height: Int)? {
+        let cropBox = page.bounds(for: .cropBox)
+        let scale = dpi / 72
+        let displaySize = PDFRasterizer.rotatedDisplaySize(cropBox.size, rotation: page.rotation)
+        let width = max(1, Int(displaySize.width * scale))
+        let height = max(1, Int(displaySize.height * scale))
+        let bytesPerRow = width * 4
+        var pixelData = [UInt8](repeating: 255, count: bytesPerRow * height)
+
+        guard let context = CGContext(
+            data: &pixelData,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+
+        context.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        context.scaleBy(x: scale, y: scale)
+        page.draw(with: .cropBox, to: context)
+        return (pixelData, width, height)
+    }
+
     /// Computes fraction of pixels that differ significantly (0.0 = identical, 1.0 = completely different).
     private func pixelDifference(before: [UInt8], after: [UInt8], width: Int, height: Int) -> Double {
         guard before.count == after.count, !before.isEmpty else { return 1.0 }
@@ -167,5 +197,74 @@ struct VisualRegressionTests {
 
         let diff = pixelDifference(before: before.data, after: after.data, width: before.width, height: before.height)
         #expect(diff < 0.01, "Identity color adjustment should not visually alter pages (diff: \(String(format: "%.2f%%", diff * 100)))")
+    }
+
+    @Test("Flattening burns annotation appearance into page pixels")
+    func flattenPreservesAnnotationAppearance() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "visual_flatten.pdf")
+        let output = URL.temporaryDirectory.appending(component: "visual_flatten_out_\(UUID()).pdf")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            try? FileManager.default.removeItem(at: output)
+        }
+
+        let sourceDocument = try #require(PDFDocument(url: source))
+        let sourcePage = try #require(sourceDocument.page(at: 0))
+        let baseline = try #require(renderPDFKitPage(sourcePage))
+
+        let annotation = PDFAnnotation(
+            bounds: CGRect(x: 150, y: 260, width: 240, height: 240),
+            forType: .square,
+            withProperties: nil
+        )
+        annotation.color = .red
+        annotation.interiorColor = .red
+        let border = PDFBorder()
+        border.lineWidth = 4
+        annotation.border = border
+        sourcePage.addAnnotation(annotation)
+        #expect(sourceDocument.write(to: source))
+
+        let annotatedDocument = try #require(PDFDocument(url: source))
+        let annotatedPage = try #require(annotatedDocument.page(at: 0))
+        let annotated = try #require(renderPDFKitPage(annotatedPage))
+        let annotationDifference = pixelDifference(
+            before: baseline.data,
+            after: annotated.data,
+            width: baseline.width,
+            height: baseline.height
+        )
+        #expect(annotationDifference > 0.01, "Test annotation did not visibly render")
+
+        try await PDFMetadataEditor().write(
+            metadata: .empty,
+            source: source,
+            destination: output,
+            flattenAnnotations: true,
+            progress: { _ in }
+        )
+
+        let flattenedDocument = try #require(PDFDocument(url: output))
+        let flattenedPage = try #require(flattenedDocument.page(at: 0))
+        #expect(flattenedPage.annotations.isEmpty)
+        let flattened = try #require(renderPDFKitPage(flattenedPage))
+
+        let flattenedBaselineDifference = pixelDifference(
+            before: baseline.data,
+            after: flattened.data,
+            width: baseline.width,
+            height: baseline.height
+        )
+        let flattenedAppearanceDifference = pixelDifference(
+            before: annotated.data,
+            after: flattened.data,
+            width: annotated.width,
+            height: annotated.height
+        )
+        #expect(flattenedBaselineDifference > 0.01, "Flattening deleted the annotation appearance")
+        #expect(
+            flattenedAppearanceDifference < 0.03,
+            "Flattened appearance diverged from annotated source by \(String(format: "%.2f%%", flattenedAppearanceDifference * 100))"
+        )
     }
 }
