@@ -180,4 +180,39 @@ struct PDFConcatenatorTests {
         let result = PDFDocument(url: output)
         #expect(result?.pageCount == 10)
     }
+
+    @Test("A later source failure preserves the existing destination")
+    func laterSourceFailurePreservesDestination() async throws {
+        let first = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "first.pdf")
+        let second = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "second.pdf")
+        let output = TestPDFGenerator.makeTempDirectory().appending(component: "merged.pdf")
+        let originalDestination = Data("existing destination".utf8)
+        try originalDestination.write(to: output)
+        defer {
+            TestPDFGenerator.cleanup(first)
+            TestPDFGenerator.cleanup(second)
+            TestPDFGenerator.cleanup(output)
+        }
+
+        var replacementError: Error?
+        var replacedSecondSource = false
+        await #expect(throws: PDFwringerError.self) {
+            try await PDFConcatenator().concatenate(
+                sources: [first, second],
+                destination: output,
+                progress: { value in
+                    guard value >= 0.5, !replacedSecondSource else { return }
+                    replacedSecondSource = true
+                    do {
+                        try Data("not a PDF".utf8).write(to: second, options: .atomic)
+                    } catch {
+                        replacementError = error
+                    }
+                }
+            )
+        }
+
+        #expect(replacementError == nil)
+        #expect(try Data(contentsOf: output) == originalDestination)
+    }
 }

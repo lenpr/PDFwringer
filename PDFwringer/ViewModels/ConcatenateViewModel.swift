@@ -31,18 +31,14 @@ class ConcatenateViewModel {
             defer { operationTask = nil }
             do {
                 let urls = files.map(\.url)
-                let result = try await concatenator.concatenate(
+                _ = try await concatenator.concatenate(
                     sources: urls,
                     destination: destination,
                     progress: { [weak self] p in self?.progress = p }
                 )
 
                 let totalPages = files.reduce(0) { $0 + $1.pageCount }
-                if result.skippedFiles.isEmpty {
-                    resultMessage = "Done! Merged \(files.count) files (\(totalPages) pages)."
-                } else {
-                    resultMessage = "Merged with warnings: could not open \(result.skippedFiles.joined(separator: ", "))."
-                }
+                resultMessage = "Done! Merged \(files.count) files (\(totalPages) pages)."
                 isError = false
                 lastOutputURL = destination
             } catch is CancellationError {

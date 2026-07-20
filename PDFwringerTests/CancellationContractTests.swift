@@ -301,6 +301,15 @@ struct CancellationContractTests {
                 progress: reportProgress
             )
         }
+
+        let merged = directory.appending(component: "merged.pdf")
+        await expectCancellationAtFinalProgress(output: merged) { reportProgress in
+            _ = try await PDFConcatenator().concatenate(
+                sources: [source],
+                destination: merged,
+                progress: reportProgress
+            )
+        }
     }
 
     @Test("Pre-cancelled lossless compression does not publish output")

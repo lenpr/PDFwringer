@@ -3,17 +3,17 @@ import Foundation
 import PDFKit
 
 /// Merges multiple PDF files into a single document, preserving page content and order.
-/// Processes sources sequentially to limit memory usage with large files.
+/// Each source is opened once and processed sequentially to limit memory and avoid
+/// validation/use races.
 @MainActor
 struct PDFConcatenator {
 
     struct Result {
-        var outputPageCount: Int
-        var skippedFiles: [String]
+        let outputPageCount: Int
     }
 
     /// Concatenates PDFs from `sources` (in order) into a single file at `destination`.
-    /// Returns a result indicating any files that could not be opened.
+    /// The operation fails without publishing if any selected source or page is unreadable.
     @discardableResult
     func concatenate(
         sources: [URL],
@@ -29,46 +29,31 @@ struct PDFConcatenator {
         let start = ContinuousClock.now
         Log.merge.info("Starting merge: \(sources.count) files")
 
-        // Validate all source files are readable before starting
-        for url in sources {
-            guard FileManager.default.isReadableFile(atPath: url.path(percentEncoded: false)) else {
-                throw PDFwringerError.fileNotReadable(url.lastPathComponent)
-            }
-        }
-
-        // Pass 1: validate all sources and count pages (release docs immediately)
-        var totalPages = 0
-        var pageCounts: [Int] = []
-        var skippedFiles: [String] = []
-        for url in sources {
-            guard let doc = PDFDocument(url: url) else {
-                skippedFiles.append(url.lastPathComponent)
-                pageCounts.append(0)
-                continue
-            }
-            if doc.isLocked { throw PDFwringerError.documentIsLocked }
-            pageCounts.append(doc.pageCount)
-            totalPages += doc.pageCount
-        }
-        guard totalPages > 0 else { throw PDFwringerError.emptyFileList }
-
-        // Pass 2: build output one source at a time to limit memory
         let output = PDFDocument()
         var insertIndex = 0
 
-        for (idx, url) in sources.enumerated() {
-            guard pageCounts[idx] > 0, let sourceDoc = PDFDocument(url: url) else { continue }
+        for (sourceIndex, url) in sources.enumerated() {
+            try Task.checkCancellation()
+            guard FileManager.default.isReadableFile(atPath: url.path(percentEncoded: false)) else {
+                throw PDFwringerError.fileNotReadable(url.lastPathComponent)
+            }
+            guard let sourceDocument = PDFDocument(url: url), sourceDocument.pageCount > 0 else {
+                throw PDFwringerError.cannotOpenDocument
+            }
+            if sourceDocument.isLocked { throw PDFwringerError.documentIsLocked }
 
-            for pageIdx in 0..<pageCounts[idx] {
+            for pageIndex in 0..<sourceDocument.pageCount {
                 try Task.checkCancellation()
-
-                autoreleasepool {
-                    guard let page = sourceDoc.page(at: pageIdx) else { return }
-                    output.insert(page, at: insertIndex)
-                    insertIndex += 1
+                guard let page = sourceDocument.page(at: pageIndex) else {
+                    throw PDFwringerError.cannotOpenDocument
                 }
+                output.insert(page, at: insertIndex)
+                insertIndex += 1
 
-                progress(Double(insertIndex) / Double(totalPages))
+                let completedSourceFraction = Double(pageIndex + 1) / Double(sourceDocument.pageCount)
+                progress(
+                    (Double(sourceIndex) + completedSourceFraction) / Double(sources.count)
+                )
 
                 if insertIndex % 10 == 0 {
                     await Task.yield()
@@ -76,16 +61,24 @@ struct PDFConcatenator {
             }
         }
 
+        guard insertIndex > 0, output.pageCount == insertIndex else {
+            throw PDFwringerError.cannotWriteOutput
+        }
+        try Task.checkCancellation()
         try AtomicFileWriter.write(to: destination) { tempURL in
-            output.write(to: tempURL)
+            guard output.write(to: tempURL),
+                  let verificationDocument = PDFDocument(url: tempURL),
+                  verificationDocument.pageCount == insertIndex else {
+                return false
+            }
+            return (0..<insertIndex).allSatisfy {
+                verificationDocument.page(at: $0) != nil
+            }
         }
 
         let elapsed = ContinuousClock.now - start
-        if !skippedFiles.isEmpty {
-            Log.merge.warning("Merge complete with \(skippedFiles.count) skipped file(s)")
-        }
         Log.merge.info("Merge complete: \(insertIndex) pages, duration=\(elapsed)")
 
-        return Result(outputPageCount: insertIndex, skippedFiles: skippedFiles)
+        return Result(outputPageCount: insertIndex)
     }
 }

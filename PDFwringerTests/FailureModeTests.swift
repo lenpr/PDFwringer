@@ -93,7 +93,7 @@ struct FailureModeTests {
 
     // MARK: - Corrupt/invalid files in merge
 
-    @Test("Concatenator reports corrupt file in skippedFiles")
+    @Test("Concatenator rejects a corrupt selected file without publishing")
     func concatenatorCorruptFile() async throws {
         let valid = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
         let corrupt = URL.temporaryDirectory.appending(component: UUID().uuidString + "_corrupt.pdf")
@@ -106,18 +106,17 @@ struct FailureModeTests {
         }
 
         let concatenator = PDFConcatenator()
-        let result = try await concatenator.concatenate(
-            sources: [valid, corrupt],
-            destination: output,
-            progress: { _ in }
-        )
-
-        #expect(result.skippedFiles.count == 1)
-        #expect(result.skippedFiles[0].contains("corrupt"))
-        #expect(result.outputPageCount == 2)
+        await #expect(throws: PDFwringerError.self) {
+            try await concatenator.concatenate(
+                sources: [valid, corrupt],
+                destination: output,
+                progress: { _ in }
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: output.path(percentEncoded: false)))
     }
 
-    @Test("Concatenator with all corrupt files throws emptyFileList")
+    @Test("Concatenator with all corrupt files throws cannotOpenDocument")
     func concatenatorAllCorrupt() async throws {
         let corrupt1 = URL.temporaryDirectory.appending(component: UUID().uuidString + "_bad1.pdf")
         let corrupt2 = URL.temporaryDirectory.appending(component: UUID().uuidString + "_bad2.pdf")
@@ -139,8 +138,8 @@ struct FailureModeTests {
             )
             Issue.record("Expected error")
         } catch let error as PDFwringerError {
-            if case .emptyFileList = error { } else {
-                Issue.record("Expected emptyFileList, got \(error)")
+            if case .cannotOpenDocument = error { } else {
+                Issue.record("Expected cannotOpenDocument, got \(error)")
             }
         } catch {
             Issue.record("Unexpected error: \(error)")

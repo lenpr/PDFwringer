@@ -346,8 +346,6 @@ struct FixtureReprocessTests {
 
         #expect(result.outputPageCount == fixture.pageCount,
                 "Merged split parts should have original page count: \(fixture)")
-        #expect(result.skippedFiles.isEmpty,
-                "No split parts should be skipped during merge: \(fixture)")
     }
 }
 

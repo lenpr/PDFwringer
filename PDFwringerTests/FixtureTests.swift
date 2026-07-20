@@ -234,13 +234,12 @@ struct FixtureMergeTests {
         defer { try? FileManager.default.removeItem(at: output) }
 
         let concatenator = PDFConcatenator()
-        let result = try await concatenator.concatenate(
+        _ = try await concatenator.concatenate(
             sources: [fixture.url, fixture.url],
             destination: output,
             progress: { _ in }
         )
 
-        #expect(result.skippedFiles.isEmpty, "No files should be skipped: \(fixture)")
         let (valid, pages) = FixtureDiscovery.validateOutput(at: output, expectedPages: fixture.pageCount * 2)
         #expect(valid, "Merged output should be valid with 2x pages: \(fixture)")
         _ = pages
@@ -259,7 +258,7 @@ struct FixtureMergeTests {
         defer { try? FileManager.default.removeItem(at: output) }
 
         let concatenator = PDFConcatenator()
-        let result = try await concatenator.concatenate(
+        _ = try await concatenator.concatenate(
             sources: subset.map(\.url),
             destination: output,
             progress: { _ in }
@@ -267,7 +266,7 @@ struct FixtureMergeTests {
 
         let (valid, pages) = FixtureDiscovery.validateOutput(at: output)
         #expect(valid, "Merged-all output should be valid")
-        #expect(pages == totalExpectedPages - (result.skippedFiles.count > 0 ? 0 : 0),
+        #expect(pages == totalExpectedPages,
                 "Merged pages should sum to \(totalExpectedPages), got \(pages)")
     }
 }
