@@ -162,8 +162,11 @@ struct PDFwringerApp: App {
 /// Handles files opened via Finder (double-click, Open With, drag to Dock icon).
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
-    var onOpenURLs: (([URL]) -> Void)?
+    var onOpenURLs: (([URL]) -> Void)? {
+        didSet { deliverPendingOpenURLs() }
+    }
     var hasUnsavedChanges: (() -> Bool)?
+    private var pendingOpenURLs: [URL] = []
 
     private static let crashLogDirectory: URL = {
         let dir = FileManager.default.homeDirectoryForCurrentUser
@@ -179,7 +182,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        onOpenURLs?(urls)
+        guard let onOpenURLs else {
+            pendingOpenURLs.append(contentsOf: urls)
+            return
+        }
+        onOpenURLs(urls)
+    }
+
+    private func deliverPendingOpenURLs() {
+        guard let onOpenURLs, !pendingOpenURLs.isEmpty else { return }
+        let urls = pendingOpenURLs
+        pendingOpenURLs.removeAll()
+        onOpenURLs(urls)
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
