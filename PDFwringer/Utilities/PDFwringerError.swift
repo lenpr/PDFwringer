@@ -91,10 +91,11 @@ enum Formatting {
 /// Writes content to a temporary file then atomically replaces the destination.
 /// Cleans up the temp file on failure.
 enum AtomicFileWriter {
-    // Releases before destination-volume staging wrote UUID-named PDFs here.
+    // Releases before destination-volume staging wrote UUID-named PDFs and images here.
     // Keep this migration cleanup for one release, then remove it and the launch calls.
     private static let legacyTempDirectory = URL.temporaryDirectory
         .appending(component: "PDFwringer")
+    private static let legacyTempExtensions: Set<String> = ["pdf", "jpg", "jpeg", "png"]
 
     static func write(to destination: URL, using block: (URL) throws -> Bool) throws {
         let stagedFile = try StagedFile(destination: destination)
@@ -205,7 +206,10 @@ enum AtomicFileWriter {
 
         var removed = 0
         for file in contents {
-            guard file.pathExtension.lowercased() == "pdf",
+            let fileExtension = file.pathExtension.lowercased()
+            let stem = file.deletingPathExtension().lastPathComponent
+            guard legacyTempExtensions.contains(fileExtension),
+                  UUID(uuidString: stem) != nil,
                   let values = try? file.resourceValues(forKeys: resourceKeys),
                   values.isRegularFile == true,
                   let modified = values.contentModificationDate,
