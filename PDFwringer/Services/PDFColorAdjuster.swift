@@ -119,43 +119,51 @@ struct PDFColorAdjuster {
         for i in 0..<pageCount {
             try Task.checkCancellation()
 
-            let outputPage = try autoreleasepool { () throws -> PDFPage in
-                guard let page = document.page(at: i) else {
+            guard let page = document.page(at: i) else {
+                throw PDFwringerError.cannotWriteOutput
+            }
+
+            let outputPage: PDFPage
+            if targetPages.contains(i) {
+                guard let pageData = page.dataRepresentation else {
                     throw PDFwringerError.cannotWriteOutput
                 }
-
-                guard targetPages.contains(i) else {
-                    guard let copiedPage = page.copy() as? PDFPage else {
+                let encodedPage = try await PDFPageWorker.run(pageData: pageData) { isolatedPage in
+                    guard let (rendered, displaySize) = PDFCompressor.renderPage(
+                        isolatedPage,
+                        dpi: dpi,
+                        grayscale: false
+                    ), let adjusted = Self.adjustImage(rendered, settings: settings),
+                       let jpegData = PDFCompressor.jpegEncode(image: adjusted, quality: quality)
+                    else {
                         throw PDFwringerError.cannotWriteOutput
                     }
-                    return copiedPage
+                    return PDFPageWorker.EncodedPage(data: jpegData, displaySize: displaySize)
                 }
 
-                guard let (rendered, displaySize) = PDFCompressor.renderPage(
-                    page,
-                    dpi: dpi,
-                    grayscale: false
-                ), let adjusted = Self.adjustImage(rendered, settings: settings),
-                   let jpegData = PDFCompressor.jpegEncode(image: adjusted, quality: quality),
-                   let image = NSImage(data: jpegData)
-                else {
+                outputPage = try autoreleasepool {
+                    guard let image = NSImage(data: encodedPage.data) else {
+                        throw PDFwringerError.cannotWriteOutput
+                    }
+                    image.size = encodedPage.displaySize
+                    guard let rasterizedPage = PDFPage(image: image) else {
+                        throw PDFwringerError.cannotWriteOutput
+                    }
+
+                    let outputBounds = CGRect(origin: .zero, size: encodedPage.displaySize)
+                    rasterizedPage.setBounds(outputBounds, for: .mediaBox)
+                    rasterizedPage.setBounds(outputBounds, for: .cropBox)
+                    return rasterizedPage
+                }
+            } else {
+                guard let copiedPage = page.copy() as? PDFPage else {
                     throw PDFwringerError.cannotWriteOutput
                 }
-
-                image.size = displaySize
-                guard let rasterizedPage = PDFPage(image: image) else {
-                    throw PDFwringerError.cannotWriteOutput
-                }
-
-                let outputBounds = CGRect(origin: .zero, size: displaySize)
-                rasterizedPage.setBounds(outputBounds, for: .mediaBox)
-                rasterizedPage.setBounds(outputBounds, for: .cropBox)
-                return rasterizedPage
+                outputPage = copiedPage
             }
             outputDocument.insert(outputPage, at: outputDocument.pageCount)
 
             progress(Double(i + 1) / Double(pageCount))
-            await Task.yield()
         }
 
         try Task.checkCancellation()

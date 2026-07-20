@@ -235,18 +235,32 @@ struct PDFCompressor {
             for i in 0..<pageCount {
                 try Task.checkCancellation()
 
-                try autoreleasepool {
+                let pageData = try autoreleasepool { () throws -> Data in
                     guard let page = document.page(at: i) else {
                         throw PDFwringerError.cannotOpenDocument
                     }
-                    guard let (rendered, displaySize) = Self.renderPage(page, dpi: dpi, grayscale: grayscale) else {
+                    guard let data = page.dataRepresentation else {
+                        throw PDFwringerError.cannotOpenDocument
+                    }
+                    return data
+                }
+
+                let encodedPage = try await PDFPageWorker.run(pageData: pageData) { page in
+                    guard let (rendered, displaySize) = Self.renderPage(
+                        page,
+                        dpi: dpi,
+                        grayscale: grayscale
+                    ) else {
                         throw PDFwringerError.cannotCreateOutput
                     }
                     guard let jpegData = Self.jpegEncode(image: rendered, quality: quality) else {
                         throw PDFwringerError.cannotWriteOutput
                     }
+                    return PDFPageWorker.EncodedPage(data: jpegData, displaySize: displaySize)
+                }
 
-                    guard let provider = CGDataProvider(data: jpegData as CFData),
+                try autoreleasepool {
+                    guard let provider = CGDataProvider(data: encodedPage.data as CFData),
                           let jpegImage = CGImage(
                               jpegDataProviderSource: provider,
                               decode: nil,
@@ -257,14 +271,13 @@ struct PDFCompressor {
                         throw PDFwringerError.cannotWriteOutput
                     }
 
-                    var outBox = CGRect(origin: .zero, size: displaySize)
+                    var outBox = CGRect(origin: .zero, size: encodedPage.displaySize)
                     outputCtx.beginPage(mediaBox: &outBox)
                     outputCtx.draw(jpegImage, in: outBox)
                     outputCtx.endPage()
                 }
 
                 progress(Double(i + 1) / Double(pageCount))
-                await Task.yield()
             }
 
             try Task.checkCancellation()
@@ -377,7 +390,7 @@ struct PDFCompressor {
 
     /// Renders a page from an already-open PDFKit document. This is the document-
     /// authoritative path used after a caller has unlocked a protected PDF.
-    static func renderPage(_ page: PDFPage, dpi: CGFloat, grayscale: Bool) -> (image: CGImage, displaySize: CGSize)? {
+    nonisolated static func renderPage(_ page: PDFPage, dpi: CGFloat, grayscale: Bool) -> (image: CGImage, displaySize: CGSize)? {
         let cropBox = page.bounds(for: .cropBox)
         let rotation = page.rotation
         let angle = ((rotation % 360) + 360) % 360

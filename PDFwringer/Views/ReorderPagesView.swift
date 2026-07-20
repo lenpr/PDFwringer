@@ -13,6 +13,7 @@ struct ReorderPagesView: View {
     @State private var lastOutputURL: URL?
     @State private var isDropTargeted = false
     @State private var isSaving = false
+    @State private var thumbnailCache = ThumbnailCache()
 
     var body: some View {
         HStack(spacing: 0) {
@@ -25,15 +26,23 @@ struct ReorderPagesView: View {
 
                 List {
                     ForEach(Array(pageOrder.enumerated()), id: \.element) { position, pageIdx in
+                        let _ = thumbnailCache.generation
                         HStack(spacing: 12) {
-                            if let page = document.page(at: pageIdx) {
-                                let thumb = page.thumbnail(of: CGSize(width: 50, height: 70), for: .cropBox)
+                            if let thumb = thumbnailCache.thumbnail(
+                                for: pageIdx,
+                                document: document,
+                                size: CGSize(width: 100, height: 140)
+                            ) {
                                 Image(nsImage: thumb)
                                     .resizable()
                                     .aspectRatio(contentMode: .fit)
                                     .frame(width: 50, height: 70)
                                     .clipShape(RoundedRectangle(cornerRadius: 3))
                                     .shadow(color: .black.opacity(0.1), radius: 1, y: 1)
+                            } else {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .frame(width: 50, height: 70)
                             }
 
                             VStack(alignment: .leading, spacing: 2) {

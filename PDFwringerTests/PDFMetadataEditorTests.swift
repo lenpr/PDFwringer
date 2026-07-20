@@ -216,6 +216,34 @@ struct PDFMetadataEditorTests {
         #expect(readBack.title == "Flattened")
     }
 
+    @Test("Annotation flattening suspends MainActor before reporting page progress")
+    func flattenKeepsMainActorResponsive() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "responsive_flatten.pdf")
+        let output = TestPDFGenerator.makeTempDirectory().appending(component: "responsive_flatten_out.pdf")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(output)
+        }
+
+        var mainActorHeartbeat = false
+        var heartbeatAtFirstProgress: Bool?
+        Task { @MainActor in mainActorHeartbeat = true }
+
+        try await editor.write(
+            metadata: .empty,
+            source: source,
+            destination: output,
+            flattenAnnotations: true,
+            progress: { _ in
+                if heartbeatAtFirstProgress == nil {
+                    heartbeatAtFirstProgress = mainActorHeartbeat
+                }
+            }
+        )
+
+        #expect(heartbeatAtFirstProgress == true)
+    }
+
     @Test("Flatten writes encrypted output with metadata in one pass")
     func flattenWithPassword() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2)

@@ -193,7 +193,7 @@ MVVM with a stateless service layer. Navigation is a state machine driven by `Ap
 ```
 PDFwringer/
 ├── Models/          Value types (CompressionLevel, JPEGQuality, PDFFileItem, PaperSize)
-├── Services/        Stateless PDF ops (Compressor, Concatenator, Splitter, Rotator, Cropper, ColorAdjuster, MetadataEditor, PageRangeParser)
+├── Services/        Stateless PDF ops plus the isolated per-page raster worker
 ├── ViewModels/      @Observable classes (AppViewModel, CompressViewModel, ConcatenateViewModel, SplitViewModel)
 ├── Views/           SwiftUI views, shared components (OptionsHeaderView, PageSelectionView, PDFPreviewView, CropPreviewPanel)
 ├── Utilities/       Error types, file dialogs, formatting helpers, Color.coral
@@ -206,7 +206,7 @@ PDFwringer/
 - **NSView drop overlay** — SwiftUI's `onDrop` is unreliable in sandboxed apps; `DropReceiverView` wraps an NSView that passes clicks through via `hitTest → nil`
 - **Background size estimation** — compression options probe the first page at each setting to give instant size feedback
 - **Atomic writes** — all operations write to a temp file, then `FileManager.replaceItemAt` to the destination
-- **Strict concurrency** — full Swift 6 `SWIFT_STRICT_CONCURRENCY = complete`, all code `@MainActor`
+- **Strict concurrency** — full Swift 6 `SWIFT_STRICT_CONCURRENCY = complete`; UI state and authoritative `PDFDocument` access stay on `MainActor`, while isolated page snapshots render and encode on detached workers
 
 ---
 

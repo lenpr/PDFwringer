@@ -12,7 +12,7 @@ struct PDFImageExporter {
     /// Maximum number of image files that can be exported in one operation.
     private static let maxOutputFiles = 5_000
 
-    enum ImageFormat: String, CaseIterable, Identifiable {
+    enum ImageFormat: String, CaseIterable, Identifiable, Sendable {
         case jpeg
         case png
 
@@ -40,7 +40,7 @@ struct PDFImageExporter {
         }
     }
 
-    struct Options {
+    struct Options: Sendable {
         var format: ImageFormat = .jpeg
         var dpi: CGFloat = 150
         var quality: CGFloat = 0.85 // JPEG only
@@ -168,23 +168,29 @@ struct PDFImageExporter {
             try Task.checkCancellation()
 
             guard let page = document.page(at: pageIndex),
-                  let (rendered, _) = PDFCompressor.renderPage(
-                    page,
-                    dpi: options.dpi,
-                    grayscale: false
-                  ) else {
+                  let pageData = page.dataRepresentation else {
                 throw PDFwringerError.cannotWriteOutput
             }
 
-            let data: Data?
-            switch options.format {
-            case .jpeg:
-                data = PDFCompressor.jpegEncode(image: rendered, quality: options.quality)
-            case .png:
-                data = pngEncode(image: rendered)
-            }
+            let imageData = try await PDFPageWorker.run(pageData: pageData) { isolatedPage in
+                guard let (rendered, _) = PDFCompressor.renderPage(
+                    isolatedPage,
+                    dpi: options.dpi,
+                    grayscale: false
+                ) else {
+                    throw PDFwringerError.cannotWriteOutput
+                }
 
-            guard let imageData = data else { throw PDFwringerError.cannotWriteOutput }
+                let data: Data?
+                switch options.format {
+                case .jpeg:
+                    data = PDFCompressor.jpegEncode(image: rendered, quality: options.quality)
+                case .png:
+                    data = Self.pngEncode(image: rendered)
+                }
+                guard let data else { throw PDFwringerError.cannotWriteOutput }
+                return data
+            }
 
             let stagedURL = stagingDirectory.appending(
                 component: "\(UUID().uuidString).\(options.format.fileExtension)"
@@ -193,7 +199,6 @@ struct PDFImageExporter {
             stagedOutputs.append((pageIndex, stagedURL))
 
             progress(Double(i + 1) / Double(indicesToExport.count))
-            await Task.yield()
         }
 
         try Task.checkCancellation()
@@ -321,7 +326,7 @@ struct PDFImageExporter {
         }
     }
 
-    private func pngEncode(image: CGImage) -> Data? {
+    nonisolated private static func pngEncode(image: CGImage) -> Data? {
         let data = NSMutableData()
         guard let dest = CGImageDestinationCreateWithData(
             data, UTType.png.identifier as CFString, 1, nil

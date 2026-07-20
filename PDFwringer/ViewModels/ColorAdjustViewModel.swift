@@ -1,14 +1,6 @@
 import AppKit
 import PDFKit
 
-private struct PreviewPage: @unchecked Sendable {
-    let page: CGPDFPage
-}
-
-private struct PreviewImage: @unchecked Sendable {
-    let image: CGImage
-}
-
 /// Drives color adjustment: preview rendering, preset application, and save operations.
 @MainActor @Observable
 class ColorAdjustViewModel {
@@ -67,9 +59,8 @@ class ColorAdjustViewModel {
         let gen = previewGeneration
         let currentSettings = settings
 
-        // Get CGPDFPage ref on MainActor (PDFKit thread safety)
-        guard let pageRef = document.page(at: pendingPreviewPage)?.pageRef else { return }
-        let previewPage = PreviewPage(page: pageRef)
+        // Snapshot on MainActor; the worker reconstructs its own one-page document.
+        guard let pageData = document.page(at: pendingPreviewPage)?.dataRepresentation else { return }
 
         isRendering = true
 
@@ -78,24 +69,36 @@ class ColorAdjustViewModel {
             try? await Task.sleep(for: .milliseconds(100))
             guard !Task.isCancelled else { return }
 
-            let preview = await Task.detached(priority: .userInitiated) {
-                guard let (rendered, _) = PDFCompressor.renderPage(
-                    previewPage.page,
-                    dpi: 150,
-                    grayscale: false
-                ) else { return nil as PreviewImage? }
-
-                let adjusted = PDFColorAdjuster.adjustImage(rendered, settings: currentSettings) ?? rendered
-                return PreviewImage(image: adjusted)
-            }.value
             guard !Task.isCancelled else { return }
-            guard let preview else { return }
 
-            guard let self, self.previewGeneration == gen else { return }
-            self.previewImage = NSImage(
-                cgImage: preview.image,
-                size: NSSize(width: preview.image.width, height: preview.image.height)
-            )
+            do {
+                let previewData = try await PDFPageWorker.run(pageData: pageData) { page in
+                    guard let (rendered, _) = PDFCompressor.renderPage(
+                        page,
+                        dpi: 150,
+                        grayscale: false
+                    ) else {
+                        throw PDFwringerError.cannotCreateOutput
+                    }
+
+                    let adjusted = PDFColorAdjuster.adjustImage(
+                        rendered,
+                        settings: currentSettings
+                    ) ?? rendered
+                    guard let data = PDFCompressor.jpegEncode(image: adjusted, quality: 0.9) else {
+                        throw PDFwringerError.cannotCreateOutput
+                    }
+                    return data
+                }
+                try Task.checkCancellation()
+
+                guard let self,
+                      self.previewGeneration == gen,
+                      let preview = NSImage(data: previewData) else { return }
+                self.previewImage = preview
+            } catch {
+                // Preview generation is best-effort; a subsequent change retries it.
+            }
         }
     }
 

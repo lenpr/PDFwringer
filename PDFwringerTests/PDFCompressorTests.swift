@@ -116,6 +116,67 @@ struct PDFCompressorTests {
         #expect(result?.pageCount == 2)
     }
 
+    @Test("Rasterization suspends MainActor before reporting page progress")
+    func rasterizationKeepsMainActorResponsive() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "responsive.pdf")
+        let output = TestPDFGenerator.makeTempDirectory().appending(component: "responsive_out.pdf")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(output)
+        }
+
+        var mainActorHeartbeat = false
+        var heartbeatAtFirstProgress: Bool?
+        Task { @MainActor in
+            mainActorHeartbeat = true
+        }
+
+        try await PDFCompressor().compress(
+            source: source,
+            destination: output,
+            level: .medium,
+            quality: .good,
+            grayscale: false,
+            stripMetadata: false,
+            progress: { _ in
+                if heartbeatAtFirstProgress == nil {
+                    heartbeatAtFirstProgress = mainActorHeartbeat
+                }
+            }
+        )
+
+        #expect(heartbeatAtFirstProgress == true)
+    }
+
+    @Test("Page worker propagates cancellation to detached rendering")
+    func pageWorkerPropagatesCancellation() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "worker_cancel.pdf")
+        defer { TestPDFGenerator.cleanup(source) }
+
+        let document = try #require(PDFDocument(url: source))
+        let page = try #require(document.page(at: 0))
+        let pageData = try #require(page.dataRepresentation)
+        let (started, signalStarted) = AsyncStream<Void>.makeStream()
+
+        let operation = Task {
+            try await PDFPageWorker.run(pageData: pageData) { _ in
+                signalStarted.yield()
+                for _ in 0..<10_000_000 {
+                    try Task.checkCancellation()
+                }
+            }
+        }
+
+        var iterator = started.makeAsyncIterator()
+        _ = await iterator.next()
+        operation.cancel()
+
+        await #expect(throws: CancellationError.self) {
+            try await operation.value
+        }
+        signalStarted.finish()
+    }
+
     @Test("Rasterize with grayscale produces valid output")
     func rasterizeGrayscale() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2, filename: "gray.pdf")

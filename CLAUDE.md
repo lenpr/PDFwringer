@@ -32,11 +32,11 @@ Test suites cover: `PageRangeParser`, `PDFConcatenator`, `PDFSplitter`, `PDFComp
 
 ## Architecture
 
-MVVM with a service layer. All code is `@MainActor`.
+MVVM with a service layer. UI state and authoritative `PDFDocument` ownership are `@MainActor`; CPU-heavy per-page rendering uses isolated worker documents.
 
 ```
 Models/       → Value types: CompressionLevel, JPEGQuality, PDFFileItem, PaperSize, ColorPreset
-Services/     → Stateless PDF operations: PDFCompressor, PDFConcatenator, PDFSplitter, PDFRotator, PDFCropper, PDFColorAdjuster, PDFMetadataEditor, PDFImageExporter, PDFImageConverter, PageRangeParser
+Services/     → Stateless PDF operations plus PDFPageWorker for isolated per-page rendering
 ViewModels/   → @Observable classes: AppViewModel, CompressViewModel, ConcatenateViewModel, SplitViewModel, ColorAdjustViewModel
 Views/        → SwiftUI views + shared components: OptionsHeaderView, PageSelectionView, PDFPreviewView, CropPreviewPanel, PageThumbnailStripView, DropReceiverView, ResultMessageView, ActionCardView, ColorAdjustOptionsView
 Utilities/    → PDFwringerError, FileDialogHelper, BookmarkManager, Formatting, AtomicFileWriter, Log, Color.coral (all in PDFwringerError.swift except BookmarkManager)
@@ -56,7 +56,7 @@ landing → singleFile → compressing / splitting / rotating / editingMetadata 
 
 ## Key conventions
 
-- **Concurrency**: Most service methods are `async throws` with cooperative cancellation (`Task.checkCancellation()`). Progress reported via `(Double) -> Void` closure (range 0.0–1.0). `PDFMetadataEditor.write()` is `async throws` with optional progress (needed for flatten which rasterizes pages). `PDFCompressor.compressFirstPage` is `nonisolated` for background estimation.
+- **Concurrency**: Most service methods are `async throws` with cooperative cancellation (`Task.checkCancellation()`). Progress is reported via a `(Double) -> Void` closure (range 0.0–1.0). Raster workflows snapshot a page to `Data` on `MainActor`; `PDFPageWorker` reconstructs a private one-page document and renders/encodes it in a detached task, so PDFKit reference types never cross actor boundaries. `PDFCompressor.compressFirstPage` is `nonisolated` for background estimation.
 - **Cancellation**: Operation ViewModels store an `operationTask: Task<Void, Never>?` and expose a `cancel()` method. `AppViewModel` owns one background file-intake task and invalidates it whenever newer input or navigation supersedes it. Views show a Cancel button alongside progress indicators. Services check `Task.checkCancellation()` per page iteration, so cancellation takes effect within one page.
 - **Source/dest guard**: All services that take both source and destination URLs guard against `source == destination` at the top, throwing `PDFwringerError.sourceEqualsDestination`.
 - **Sandbox**: App is sandboxed with `com.apple.security.files.user-selected.read-write`. File access uses `NSSavePanel`/`NSOpenPanel` — never raw path construction.
@@ -68,7 +68,7 @@ landing → singleFile → compressing / splitting / rotating / editingMetadata 
 - **Formatting**: `Formatting.fileSize(_:)` is the shared byte-formatting utility. `Formatting.triggerShake(_:)` provides the shared invalid-input shake animation.
 - **Atomic writes**: `AtomicFileWriter` (in `PDFwringerError.swift`) writes to a temp file in a dedicated subdirectory (`URL.temporaryDirectory/PDFwringer/`), then uses `FileManager.replaceItemAt` for safe destination replacement. Cleans up on failure. All services use this consistently.
 - **Logging**: `Log` enum (in `PDFwringerError.swift`) provides structured `os.Logger` instances per category (compress, merge, split, rotate, metadata).
-- **Thumbnails**: `ThumbnailCache` is `@MainActor @Observable` with a generation counter for SwiftUI refresh. PDF access stays on MainActor; only bitmap rendering is detached.
+- **Thumbnails**: `ThumbnailCache` is `@MainActor @Observable` with a generation counter for SwiftUI refresh. It snapshots the authoritative page on `MainActor`, renders a worker-local page off actor, and constructs the cached `NSImage` back on `MainActor`.
 
 ## Compression dual-engine
 
@@ -78,7 +78,7 @@ landing → singleFile → compressing / splitting / rotating / editingMetadata 
 
 ## Annotation flattening
 
-`PDFMetadataEditor` supports flattening annotations via the `flattenAnnotations` parameter. When enabled, each page is rasterized at 300 DPI (JPEG quality 0.92) using `page.draw(with:to:)` which renders annotation appearances into the bitmap. The result is a visually identical PDF where annotations are burned into the page content and are no longer editable. Text selectability is lost. The operation is async with progress reporting and cancellation support.
+`PDFMetadataEditor` supports flattening annotations via the `flattenAnnotations` parameter. When enabled, each page is snapshotted and rasterized at 300 DPI (JPEG quality 0.92) on an isolated worker using `page.draw(with:to:)`, which renders annotation appearances into the bitmap. The result is a visually identical PDF where annotations are burned into the page content and are no longer editable. Text selectability is lost. The operation is async with progress reporting and cancellation support.
 
 ## App bundle
 

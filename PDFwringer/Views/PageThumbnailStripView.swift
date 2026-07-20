@@ -172,13 +172,23 @@ final class ThumbnailCache {
         }
         let thumbSize = size
 
-        // Render on MainActor to avoid PDFKit thread-safety issues.
-        // PDFPage/PDFDocument are not safe to use from detached tasks.
-        Task {
-            await Task.yield() // Let SwiftUI finish layout before rendering
-            let img = page.thumbnail(of: thumbSize, for: .cropBox)
-            self.cache.setObject(img, forKey: key)
+        guard let pageData = page.dataRepresentation else {
+            pending.remove(index)
+            return nil
+        }
+
+        Task { [weak self] in
+            let imageData = try? await PDFPageWorker.run(pageData: pageData) { isolatedPage in
+                let image = isolatedPage.thumbnail(of: thumbSize, for: .cropBox)
+                guard let data = image.tiffRepresentation else {
+                    throw PDFwringerError.cannotCreateOutput
+                }
+                return data
+            }
+            guard let self else { return }
             self.pending.remove(index)
+            guard let imageData, let image = NSImage(data: imageData) else { return }
+            self.cache.setObject(image, forKey: key)
             self.generation += 1
         }
 

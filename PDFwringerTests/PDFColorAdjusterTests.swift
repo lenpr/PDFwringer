@@ -60,6 +60,35 @@ struct PDFColorAdjusterTests {
         #expect(doc?.pageCount == 4)
     }
 
+    @Test("Color adjustment suspends MainActor before reporting page progress")
+    func colorAdjustmentKeepsMainActorResponsive() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "responsive_color.pdf")
+        let output = TestPDFGenerator.makeTempDirectory().appending(component: "responsive_color_out.pdf")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(output)
+        }
+
+        var mainActorHeartbeat = false
+        var heartbeatAtFirstProgress: Bool?
+        Task { @MainActor in mainActorHeartbeat = true }
+
+        try await PDFColorAdjuster().adjust(
+            source: source,
+            destination: output,
+            settings: .init(brightness: 0.1),
+            pages: nil,
+            dpi: 72,
+            progress: { _ in
+                if heartbeatAtFirstProgress == nil {
+                    heartbeatAtFirstProgress = mainActorHeartbeat
+                }
+            }
+        )
+
+        #expect(heartbeatAtFirstProgress == true)
+    }
+
     @Test("Specific page range only processes target pages")
     func specificPageRange() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 5)

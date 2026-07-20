@@ -51,6 +51,34 @@ struct PDFImageExporterTests {
         }
     }
 
+    @Test("Image export suspends MainActor before reporting page progress")
+    func exportKeepsMainActorResponsive() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "responsive_export.pdf")
+        let outputDir = TestPDFGenerator.makeTempDirectory()
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(outputDir)
+        }
+
+        var mainActorHeartbeat = false
+        var heartbeatAtFirstProgress: Bool?
+        Task { @MainActor in mainActorHeartbeat = true }
+
+        _ = try await PDFImageExporter().exportPages(
+            source: source,
+            outputDirectory: outputDir,
+            options: .init(format: .jpeg, dpi: 72, quality: 0.8),
+            pageIndices: nil,
+            progress: { _ in
+                if heartbeatAtFirstProgress == nil {
+                    heartbeatAtFirstProgress = mainActorHeartbeat
+                }
+            }
+        )
+
+        #expect(heartbeatAtFirstProgress == true)
+    }
+
     @Test("Exports selected pages as PNG")
     func exportsSelectedPNG() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 5, filename: "export_png.pdf")

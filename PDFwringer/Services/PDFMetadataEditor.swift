@@ -257,75 +257,30 @@ struct PDFMetadataEditor {
             for i in 0..<pageCount {
                 try Task.checkCancellation()
 
-                try autoreleasepool {
+                let pageData = try autoreleasepool { () throws -> Data in
                     guard let page = doc.page(at: i) else {
                         throw PDFwringerError.cannotWriteOutput
                     }
-                    let bounds = page.bounds(for: .cropBox)
-                    let rotation = page.rotation
-                    let angle = ((rotation % 360) + 360) % 360
-
-                    let displaySize: CGSize
-                    if angle == 90 || angle == 270 {
-                        displaySize = CGSize(width: bounds.height, height: bounds.width)
-                    } else {
-                        displaySize = bounds.size
+                    guard let data = page.dataRepresentation else {
+                        throw PDFwringerError.cannotWriteOutput
                     }
+                    return data
+                }
 
-                    let scale = dpi / 72.0
-                    let rawPixelWidth = displaySize.width * scale
-                    let rawPixelHeight = displaySize.height * scale
-                    let rawMaxLong = 16.5 * dpi
-                    let rawMaxShort = 11.7 * dpi
-                    guard displaySize.width.isFinite, displaySize.height.isFinite,
-                          displaySize.width > 0, displaySize.height > 0,
-                          rawPixelWidth.isFinite, rawPixelHeight.isFinite,
-                          rawPixelWidth < CGFloat(Int.max), rawPixelHeight < CGFloat(Int.max),
-                          rawMaxLong.isFinite, rawMaxShort.isFinite,
-                          rawMaxLong > 0, rawMaxShort > 0,
-                          rawMaxLong < CGFloat(Int.max), rawMaxShort < CGFloat(Int.max)
+                let encodedPage = try await PDFPageWorker.run(pageData: pageData) { page in
+                    guard let (rendered, displaySize) = PDFCompressor.renderPage(
+                        page,
+                        dpi: dpi,
+                        grayscale: false
+                    ), let jpegData = PDFCompressor.jpegEncode(image: rendered, quality: quality)
                     else {
                         throw PDFwringerError.cannotWriteOutput
                     }
+                    return PDFPageWorker.EncodedPage(data: jpegData, displaySize: displaySize)
+                }
 
-                    var pixelW = max(1, Int(displaySize.width * scale))
-                    var pixelH = max(1, Int(displaySize.height * scale))
-
-                    let maxLong = Int(16.5 * dpi)
-                    let maxShort = Int(11.7 * dpi)
-                    let longSide = max(pixelW, pixelH)
-                    let shortSide = min(pixelW, pixelH)
-                    var effectiveScale = scale
-                    if longSide > maxLong || shortSide > maxShort {
-                        let downscale = min(Double(maxLong) / Double(longSide), Double(maxShort) / Double(shortSide))
-                        pixelW = max(1, Int(Double(pixelW) * downscale))
-                        pixelH = max(1, Int(Double(pixelH) * downscale))
-                        effectiveScale = scale * downscale
-                    }
-
-                    guard let bitmap = CGContext(
-                        data: nil, width: pixelW, height: pixelH,
-                        bitsPerComponent: 8, bytesPerRow: 0,
-                        space: CGColorSpaceCreateDeviceRGB(),
-                        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-                    ) else {
-                        throw PDFwringerError.cannotWriteOutput
-                    }
-
-                    bitmap.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
-                    bitmap.fill(CGRect(x: 0, y: 0, width: pixelW, height: pixelH))
-
-                    bitmap.scaleBy(x: effectiveScale, y: effectiveScale)
-                    page.transform(bitmap, for: .cropBox)
-                    page.draw(with: .cropBox, to: bitmap)
-
-                    guard let rendered = bitmap.makeImage(),
-                          let jpegData = PDFCompressor.jpegEncode(image: rendered, quality: quality)
-                    else {
-                        throw PDFwringerError.cannotWriteOutput
-                    }
-
-                    guard let provider = CGDataProvider(data: jpegData as CFData),
+                try autoreleasepool {
+                    guard let provider = CGDataProvider(data: encodedPage.data as CFData),
                           let jpegImage = CGImage(
                               jpegDataProviderSource: provider,
                               decode: nil,
@@ -336,14 +291,13 @@ struct PDFMetadataEditor {
                         throw PDFwringerError.cannotWriteOutput
                     }
 
-                    var outBox = CGRect(origin: .zero, size: displaySize)
+                    var outBox = CGRect(origin: .zero, size: encodedPage.displaySize)
                     outputCtx.beginPage(mediaBox: &outBox)
                     outputCtx.draw(jpegImage, in: outBox)
                     outputCtx.endPage()
                 }
 
                 progress?(Double(i + 1) / Double(pageCount))
-                await Task.yield()
             }
 
             try Task.checkCancellation()
