@@ -209,6 +209,16 @@ struct SourceEqualsDestinationTests {
                 progress: { _ in }
             )
         }
+        await expectSourceEqualsDestination {
+            let document = try #require(PDFDocument(url: source))
+            try await PDFPageReorderer().reorder(
+                document: document,
+                source: source,
+                destination: destination,
+                pageOrder: [1, 0],
+                progress: { _ in }
+            )
+        }
 
         let document = try #require(PDFDocument(url: source))
         let saveResult = DocumentSaver.save(document: document, source: source, to: destination)

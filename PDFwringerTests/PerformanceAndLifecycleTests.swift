@@ -203,6 +203,28 @@ struct ViewModelLifecycleTests {
         #expect(vm.canConcatenate == true)
     }
 
+    @Test("ReorderPagesViewModel only saves changed valid orders")
+    func reorderStateFlow() throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 3, filename: "vm-reorder.pdf")
+        defer { TestPDFGenerator.cleanup(source) }
+        let document = try #require(PDFDocument(url: source))
+        let vm = ReorderPagesViewModel()
+
+        vm.setDocument(document)
+        #expect(vm.pageOrder == [0, 1, 2])
+        #expect(!vm.canSave)
+
+        vm.pageOrder.reverse()
+        #expect(vm.canSave)
+
+        vm.pageOrder = [0, 0, 2]
+        #expect(!vm.canSave)
+
+        vm.reset()
+        #expect(vm.pageOrder == [0, 1, 2])
+        #expect(!vm.canSave)
+    }
+
     @Test("ColorAdjustViewModel preview cancellation on rapid changes")
     func colorAdjustPreviewCancellation() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "vm_preview.pdf")

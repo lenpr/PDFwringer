@@ -7,13 +7,9 @@ struct ReorderPagesView: View {
     let onBack: () -> Void
     let onFilesDropped: ([URL]) -> Void
 
-    @State private var pageOrder: [Int] = []
-    @State private var resultMessage: String?
-    @State private var isError = false
-    @State private var lastOutputURL: URL?
     @State private var isDropTargeted = false
-    @State private var isSaving = false
     @State private var thumbnailCache = ThumbnailCache()
+    @State private var vm = ReorderPagesViewModel()
 
     var body: some View {
         HStack(spacing: 0) {
@@ -25,7 +21,7 @@ struct ReorderPagesView: View {
                     .padding(.top, 12)
 
                 List {
-                    ForEach(Array(pageOrder.enumerated()), id: \.element) { position, pageIdx in
+                    ForEach(Array(vm.pageOrder.enumerated()), id: \.element) { position, pageIdx in
                         let _ = thumbnailCache.generation
                         HStack(spacing: 12) {
                             if let thumb = thumbnailCache.thumbnail(
@@ -64,8 +60,9 @@ struct ReorderPagesView: View {
                         .padding(.vertical, 4)
                     }
                     .onMove { from, to in
-                        pageOrder.move(fromOffsets: from, toOffset: to)
+                        vm.pageOrder.move(fromOffsets: from, toOffset: to)
                     }
+                    .moveDisabled(vm.isSaving)
                 }
                 .listStyle(.inset(alternatesRowBackgrounds: true))
             }
@@ -100,37 +97,47 @@ struct ReorderPagesView: View {
                 // Quick actions
                 HStack(spacing: 8) {
                     Button(String(localized: "Reverse")) {
-                        withAnimation { pageOrder.reverse() }
+                        withAnimation { vm.pageOrder.reverse() }
                     }
                     .controlSize(.small)
+                    .disabled(vm.isSaving)
 
                     Button(String(localized: "Reset")) {
-                        withAnimation { pageOrder = Array(0..<document.pageCount) }
+                        withAnimation { vm.reset() }
                     }
                     .controlSize(.small)
+                    .disabled(vm.isSaving)
                 }
 
                 Spacer()
 
                 HStack {
                     Spacer()
-                    Button(String(localized: "Save")) { save() }
-                        .keyboardShortcut("s")
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .disabled(isSaving || pageOrder == Array(0..<document.pageCount))
+                    Button(String(localized: "Save")) {
+                        Task { await vm.save(source: url, document: document) }
+                    }
+                    .keyboardShortcut("s")
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(!vm.canSave)
                 }
 
-                if isSaving {
-                    ProgressView()
-                        .progressViewStyle(.linear)
+                if vm.isSaving {
+                    HStack(spacing: 8) {
+                        ProgressView(value: vm.progress)
+                            .progressViewStyle(.linear)
+                        Button(String(localized: "Cancel")) { vm.cancel() }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                    }
                 }
 
-                if let msg = resultMessage {
+                if let msg = vm.resultMessage {
                     ResultMessageView(
                         message: msg,
-                        isError: isError,
-                        outputURL: lastOutputURL
+                        isError: vm.isError,
+                        outputURL: vm.lastOutputURL
                     )
                 }
             }
@@ -139,60 +146,8 @@ struct ReorderPagesView: View {
             .tint(.coral)
         }
         .onAppear {
-            pageOrder = Array(0..<document.pageCount)
+            vm.setDocument(document)
         }
-    }
-
-    private func save() {
-        do {
-            try PDFPermissionPolicy.require(.assembleDocument, for: document)
-        } catch {
-            resultMessage = error.localizedDescription
-            isError = true
-            lastOutputURL = nil
-            return
-        }
-
-        let suggestedName = url.deletingPathExtension().lastPathComponent + "_reordered.pdf"
-        guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
-
-        isSaving = true
-        resultMessage = nil
-        isError = false
-
-        Task {
-            defer { isSaving = false }
-
-            do {
-                let output = PDFDocument()
-                for pageIdx in pageOrder {
-                    guard let page = document.page(at: pageIdx),
-                          let copiedPage = page.copy() as? PDFPage else {
-                        throw PDFwringerError.cannotOpenDocument
-                    }
-                    output.insert(copiedPage, at: output.pageCount)
-                }
-
-                let saveResult = DocumentSaver.save(
-                    document: output,
-                    source: url,
-                    to: destination
-                )
-                guard !saveResult.isError else {
-                    resultMessage = saveResult.message
-                    isError = true
-                    lastOutputURL = nil
-                    return
-                }
-                resultMessage = document.isEncrypted
-                    ? String(localized: "Saved. Password protection was removed.")
-                    : String(localized: "Saved.")
-                isError = false
-                lastOutputURL = destination
-            } catch {
-                resultMessage = error.localizedDescription
-                isError = true
-            }
-        }
+        .onDisappear { vm.cancel() }
     }
 }

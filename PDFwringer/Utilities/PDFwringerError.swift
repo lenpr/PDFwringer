@@ -10,6 +10,7 @@ enum PDFwringerError: LocalizedError {
     case cannotCreateOutput
     case cannotWriteOutput
     case invalidPageRange(String)
+    case invalidPageOrder
     case noSourceFile
     case emptyFileList
     case accessDenied
@@ -27,6 +28,7 @@ enum PDFwringerError: LocalizedError {
         case .cannotCreateOutput: String(localized: "Cannot create the output file.")
         case .cannotWriteOutput: String(localized: "Failed to write the output file.")
         case .invalidPageRange(let range): String(localized: "Invalid page range: '\(range)'")
+        case .invalidPageOrder: String(localized: "The page order is incomplete or invalid.")
         case .noSourceFile: String(localized: "No source file selected.")
         case .emptyFileList: String(localized: "No files to process.")
         case .accessDenied: String(localized: "Cannot access the file. Try selecting it again.")

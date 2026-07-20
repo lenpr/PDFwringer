@@ -323,6 +323,28 @@ struct CancellationContractTests {
         }
     }
 
+    @Test("Page reordering cancellation prevents publication")
+    func pageReorderingCancellation() async throws {
+        let source = makeLargeSource()
+        let directory = TestPDFGenerator.makeTempDirectory()
+        let output = directory.appending(component: "cancelled-reorder.pdf")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(directory)
+        }
+        let document = try #require(PDFDocument(url: source))
+
+        await expectCancellationAtFinalProgress(output: output) { reportProgress in
+            try await PDFPageReorderer().reorder(
+                document: document,
+                source: source,
+                destination: output,
+                pageOrder: Array((0..<document.pageCount).reversed()),
+                progress: reportProgress
+            )
+        }
+    }
+
     @Test("Pre-cancelled lossless compression does not publish output")
     func preCancelledLosslessCompression() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "lossless_cancel.pdf")
