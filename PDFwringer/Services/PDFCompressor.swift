@@ -1,8 +1,6 @@
 import CoreGraphics
 import Foundation
-import ImageIO
 import PDFKit
-import UniformTypeIdentifiers
 
 /// Handles PDF compression via two strategies: lossless optimization (re-serialize with metadata stripped)
 /// or lossy rasterization (render pages as JPEG at a target DPI).
@@ -12,8 +10,6 @@ struct PDFCompressor {
     struct Result {
         var outputSize: Int64
     }
-
-    nonisolated private static let sRGBColorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
 
     /// Compresses a PDF from `source` to `destination` using the selected strategy.
     @discardableResult
@@ -103,7 +99,7 @@ struct PDFCompressor {
         ), let sourceSize = attributes[.size] as? Int64 else {
             throw PDFwringerError.fileNotReadable(source.lastPathComponent)
         }
-        guard let document = Self.openPDF(at: source),
+        guard let document = PDFRasterizer.openDocument(at: source),
               document.numberOfPages > 0,
               let firstPage = document.page(at: 1) else {
             throw PDFwringerError.cannotOpenDocument
@@ -125,7 +121,7 @@ struct PDFCompressor {
         for level in CompressionLevel.allCases where level.isRasterize {
             for grayscale in [false, true] {
                 try Task.checkCancellation()
-                guard let (rendered, _) = Self.renderPage(
+                guard let (rendered, _) = PDFRasterizer.render(
                     firstPage,
                     dpi: level.dpi,
                     grayscale: grayscale
@@ -133,7 +129,10 @@ struct PDFCompressor {
 
                 for quality in JPEGQuality.allCases {
                     try Task.checkCancellation()
-                    guard let jpegData = Self.jpegEncode(image: rendered, quality: quality.value),
+                    guard let jpegData = PDFRasterizer.jpegData(
+                        for: rendered,
+                        quality: quality.value
+                    ),
                           let estimate = Self.extrapolatedSize(
                             firstPageSize: Int64(jpegData.count),
                             pageCount: pageCount
@@ -296,35 +295,24 @@ struct PDFCompressor {
                     }
 
                     let encodedPage = try await PDFPageWorker.run(pageData: pageData) { page in
-                        guard let (rendered, displaySize) = Self.renderPage(
+                        guard let (rendered, displaySize) = PDFRasterizer.render(
                             page,
                             dpi: dpi,
                             grayscale: grayscale
                         ) else {
                             throw PDFwringerError.cannotCreateOutput
                         }
-                        guard let jpegData = Self.jpegEncode(image: rendered, quality: quality) else {
+                        guard let jpegData = PDFRasterizer.jpegData(
+                            for: rendered,
+                            quality: quality
+                        ) else {
                             throw PDFwringerError.cannotWriteOutput
                         }
-                        return PDFPageWorker.EncodedPage(data: jpegData, displaySize: displaySize)
+                        return PDFRasterizer.JPEGPage(data: jpegData, displaySize: displaySize)
                     }
 
                     try autoreleasepool {
-                        guard let provider = CGDataProvider(data: encodedPage.data as CFData),
-                              let jpegImage = CGImage(
-                                  jpegDataProviderSource: provider,
-                                  decode: nil,
-                                  shouldInterpolate: true,
-                                  intent: .defaultIntent
-                              )
-                        else {
-                            throw PDFwringerError.cannotWriteOutput
-                        }
-
-                        var outBox = CGRect(origin: .zero, size: encodedPage.displaySize)
-                        outputCtx.beginPage(mediaBox: &outBox)
-                        outputCtx.draw(jpegImage, in: outBox)
-                        outputCtx.endPage()
+                        try PDFRasterizer.append(encodedPage, to: outputCtx)
                     }
 
                     progress(Double(i + 1) / Double(pageCount))
@@ -346,199 +334,6 @@ struct PDFCompressor {
     }
 
     // MARK: - Helpers
-
-    /// Maximum file size allowed for in-memory PDF loading (500 MB).
-    /// Prevents memory exhaustion from PDF bombs or extremely large scans.
-    nonisolated private static let maxFileSize: Int = 500_000_000
-
-    /// Opens a PDF by reading data into memory first — works reliably in sandbox
-    /// where CGPDFDocument(url) may fail due to access restrictions.
-    /// Rejects files larger than `maxFileSize` to prevent memory exhaustion.
-    nonisolated static func openPDF(at url: URL) -> CGPDFDocument? {
-        guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false)),
-              let fileSize = attrs[.size] as? Int,
-              fileSize <= maxFileSize else { return nil }
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        guard let provider = CGDataProvider(data: data as CFData) else { return nil }
-        return CGPDFDocument(provider)
-    }
-
-    /// Swaps width/height for 90° or 270° rotated pages so rendering uses the correct dimensions.
-    nonisolated private static func displaySize(for size: CGSize, rotation: Int32) -> CGSize {
-        let angle = ((rotation % 360) + 360) % 360
-        if angle == 90 || angle == 270 {
-            return CGSize(width: size.height, height: size.width)
-        }
-        return size
-    }
-
-    /// Renders a PDF page to a CGImage at the given DPI, optionally in grayscale.
-    /// For oversized pages (common in scanned PDFs where point dimensions match scanner
-    /// pixels rather than physical page size), caps the output to A3 dimensions to avoid
-    /// producing absurdly large bitmaps that defeat the purpose of compression.
-    nonisolated static func renderPage(_ page: CGPDFPage, dpi: CGFloat, grayscale: Bool) -> (image: CGImage, displaySize: CGSize)? {
-        let cropBox = page.getBoxRect(.cropBox)
-        let rotation = page.rotationAngle
-        let displaySize = Self.displaySize(for: cropBox.size, rotation: rotation)
-
-        guard Self.canRender(displaySize: displaySize, dpi: dpi) else { return nil }
-
-        let scale = dpi / 72.0
-        var pixelW = max(1, Int(displaySize.width * scale))
-        var pixelH = max(1, Int(displaySize.height * scale))
-
-        // Cap output pixels: the target DPI should produce pixels as if the page were
-        // at most A3 size (11.7 x 16.5 inches). Pages larger than this in points are
-        // typically scanned PDFs with raw pixel dimensions as page size.
-        let maxLong = Int(16.5 * dpi)
-        let maxShort = Int(11.7 * dpi)
-        let longSide = max(pixelW, pixelH)
-        let shortSide = min(pixelW, pixelH)
-        var effectiveScale = scale
-        if longSide > maxLong || shortSide > maxShort {
-            let downscale = min(Double(maxLong) / Double(longSide), Double(maxShort) / Double(shortSide))
-            pixelW = max(1, Int(Double(pixelW) * downscale))
-            pixelH = max(1, Int(Double(pixelH) * downscale))
-            effectiveScale = scale * downscale
-        }
-
-        let colorSpace: CGColorSpace
-        let bitmapInfo: UInt32
-        if grayscale {
-            colorSpace = CGColorSpaceCreateDeviceGray()
-            bitmapInfo = CGImageAlphaInfo.none.rawValue
-        } else {
-            colorSpace = sRGBColorSpace
-            bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
-        }
-
-        guard let bitmap = CGContext(
-            data: nil, width: pixelW, height: pixelH,
-            bitsPerComponent: 8, bytesPerRow: 0,
-            space: colorSpace, bitmapInfo: bitmapInfo
-        ) else { return nil }
-
-        if grayscale {
-            bitmap.setFillColor(gray: 1.0, alpha: 1.0)
-        } else {
-            bitmap.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
-        }
-        bitmap.fill(CGRect(x: 0, y: 0, width: pixelW, height: pixelH))
-
-        bitmap.scaleBy(x: effectiveScale, y: effectiveScale)
-        let drawRect = CGRect(origin: .zero, size: displaySize)
-        let transform = page.getDrawingTransform(.cropBox, rect: drawRect, rotate: 0, preserveAspectRatio: true)
-        bitmap.concatenate(transform)
-        bitmap.drawPDFPage(page)
-
-        guard let rendered = bitmap.makeImage() else { return nil }
-        return (rendered, displaySize)
-    }
-
-    /// Renders a page from an already-open PDFKit document. This is the document-
-    /// authoritative path used after a caller has unlocked a protected PDF.
-    nonisolated static func renderPage(_ page: PDFPage, dpi: CGFloat, grayscale: Bool) -> (image: CGImage, displaySize: CGSize)? {
-        let cropBox = page.bounds(for: .cropBox)
-        let rotation = page.rotation
-        let angle = ((rotation % 360) + 360) % 360
-        let displaySize: CGSize
-        if angle == 90 || angle == 270 {
-            displaySize = CGSize(width: cropBox.height, height: cropBox.width)
-        } else {
-            displaySize = cropBox.size
-        }
-
-        guard Self.canRender(displaySize: displaySize, dpi: dpi) else { return nil }
-
-        let scale = dpi / 72.0
-        var pixelW = max(1, Int(displaySize.width * scale))
-        var pixelH = max(1, Int(displaySize.height * scale))
-
-        let maxLong = Int(16.5 * dpi)
-        let maxShort = Int(11.7 * dpi)
-        let longSide = max(pixelW, pixelH)
-        let shortSide = min(pixelW, pixelH)
-        var effectiveScale = scale
-        if longSide > maxLong || shortSide > maxShort {
-            let downscale = min(Double(maxLong) / Double(longSide), Double(maxShort) / Double(shortSide))
-            pixelW = max(1, Int(Double(pixelW) * downscale))
-            pixelH = max(1, Int(Double(pixelH) * downscale))
-            effectiveScale = scale * downscale
-        }
-
-        let colorSpace: CGColorSpace
-        let bitmapInfo: UInt32
-        if grayscale {
-            colorSpace = CGColorSpaceCreateDeviceGray()
-            bitmapInfo = CGImageAlphaInfo.none.rawValue
-        } else {
-            colorSpace = sRGBColorSpace
-            bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
-        }
-
-        guard let bitmap = CGContext(
-            data: nil, width: pixelW, height: pixelH,
-            bitsPerComponent: 8, bytesPerRow: 0,
-            space: colorSpace, bitmapInfo: bitmapInfo
-        ) else { return nil }
-
-        if grayscale {
-            bitmap.setFillColor(gray: 1.0, alpha: 1.0)
-        } else {
-            bitmap.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
-        }
-        bitmap.fill(CGRect(x: 0, y: 0, width: pixelW, height: pixelH))
-
-        bitmap.scaleBy(x: effectiveScale, y: effectiveScale)
-        page.transform(bitmap, for: .cropBox)
-        page.draw(with: .cropBox, to: bitmap)
-
-        guard let rendered = bitmap.makeImage() else { return nil }
-        return (rendered, displaySize)
-    }
-
-    nonisolated static func jpegEncode(image: CGImage, quality: CGFloat) -> Data? {
-        let data = NSMutableData()
-        guard let dest = CGImageDestinationCreateWithData(
-            data,
-            UTType.jpeg.identifier as CFString,
-            1,
-            nil
-        ) else { return nil }
-
-        let options: [CFString: Any] = [
-            kCGImageDestinationLossyCompressionQuality: quality
-        ]
-        CGImageDestinationAddImage(dest, image, options as CFDictionary)
-
-        guard CGImageDestinationFinalize(dest) else { return nil }
-        return data as Data
-    }
-
-    nonisolated private static func canRender(displaySize: CGSize, dpi: CGFloat) -> Bool {
-        guard displaySize.width.isFinite,
-              displaySize.height.isFinite,
-              displaySize.width > 0,
-              displaySize.height > 0,
-              dpi.isFinite,
-              dpi > 0 else { return false }
-
-        let scale = dpi / 72.0
-        let pixelWidth = displaySize.width * scale
-        let pixelHeight = displaySize.height * scale
-        let maxLongPixels = 16.5 * dpi
-        let maxShortPixels = 11.7 * dpi
-        return pixelWidth.isFinite
-            && pixelHeight.isFinite
-            && pixelWidth < CGFloat(Int.max)
-            && pixelHeight < CGFloat(Int.max)
-            && maxLongPixels.isFinite
-            && maxShortPixels.isFinite
-            && maxLongPixels > 0
-            && maxShortPixels > 0
-            && maxLongPixels < CGFloat(Int.max)
-            && maxShortPixels < CGFloat(Int.max)
-    }
 
     private static func validateOutput(
         data: Data,

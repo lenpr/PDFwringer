@@ -313,7 +313,7 @@ struct PDFCompressorTests {
     func invalidPageGeometryFailsRendering() {
         let page = InvalidBoundsPDFPage()
 
-        let result = PDFCompressor.renderPage(page, dpi: 150, grayscale: false)
+        let result = PDFRasterizer.render(page, dpi: 150, grayscale: false)
 
         #expect(result == nil)
     }
@@ -322,7 +322,7 @@ struct PDFCompressorTests {
     func integerBoundaryPageGeometryFailsRendering() {
         let page = BoundaryBoundsPDFPage()
 
-        let result = PDFCompressor.renderPage(page, dpi: 72, grayscale: false)
+        let result = PDFRasterizer.render(page, dpi: 72, grayscale: false)
 
         #expect(result == nil)
     }
@@ -334,11 +334,11 @@ struct PDFCompressorTests {
         let source = TestPDFGenerator.makeOversizedPDF(pageCount: 1, width: 3024, height: 4032)
         defer { TestPDFGenerator.cleanup(source) }
 
-        let doc = PDFCompressor.openPDF(at: source)!
+        let doc = PDFRasterizer.openDocument(at: source)!
         let page = doc.page(at: 1)!
 
         let dpi: CGFloat = 150
-        let result = PDFCompressor.renderPage(page, dpi: dpi, grayscale: false)
+        let result = PDFRasterizer.render(page, dpi: dpi, grayscale: false)
 
         #expect(result != nil)
         let image = result!.image
@@ -356,11 +356,11 @@ struct PDFCompressorTests {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "normal.pdf")
         defer { TestPDFGenerator.cleanup(source) }
 
-        let doc = PDFCompressor.openPDF(at: source)!
+        let doc = PDFRasterizer.openDocument(at: source)!
         let page = doc.page(at: 1)!
 
         let dpi: CGFloat = 150
-        let result = PDFCompressor.renderPage(page, dpi: dpi, grayscale: false)
+        let result = PDFRasterizer.render(page, dpi: dpi, grayscale: false)
 
         #expect(result != nil)
         let image = result!.image

@@ -1,9 +1,7 @@
 import CoreGraphics
 import Darwin
 import Foundation
-import ImageIO
 import PDFKit
-import UniformTypeIdentifiers
 
 /// Exports PDF pages as image files (JPEG or PNG).
 @MainActor
@@ -22,13 +20,6 @@ struct PDFImageExporter {
             switch self {
             case .jpeg: "JPEG"
             case .png: "PNG"
-            }
-        }
-
-        var utType: UTType {
-            switch self {
-            case .jpeg: .jpeg
-            case .png: .png
             }
         }
 
@@ -173,7 +164,7 @@ struct PDFImageExporter {
             }
 
             let imageData = try await PDFPageWorker.run(pageData: pageData) { isolatedPage in
-                guard let (rendered, _) = PDFCompressor.renderPage(
+                guard let (rendered, _) = PDFRasterizer.render(
                     isolatedPage,
                     dpi: options.dpi,
                     grayscale: false
@@ -184,9 +175,9 @@ struct PDFImageExporter {
                 let data: Data?
                 switch options.format {
                 case .jpeg:
-                    data = PDFCompressor.jpegEncode(image: rendered, quality: options.quality)
+                    data = PDFRasterizer.jpegData(for: rendered, quality: options.quality)
                 case .png:
-                    data = Self.pngEncode(image: rendered)
+                    data = PDFRasterizer.pngData(for: rendered)
                 }
                 guard let data else { throw PDFwringerError.cannotWriteOutput }
                 return data
@@ -324,15 +315,5 @@ struct PDFImageExporter {
                 )
             }
         }
-    }
-
-    nonisolated private static func pngEncode(image: CGImage) -> Data? {
-        let data = NSMutableData()
-        guard let dest = CGImageDestinationCreateWithData(
-            data, UTType.png.identifier as CFString, 1, nil
-        ) else { return nil }
-        CGImageDestinationAddImage(dest, image, nil)
-        guard CGImageDestinationFinalize(dest) else { return nil }
-        return data as Data
     }
 }

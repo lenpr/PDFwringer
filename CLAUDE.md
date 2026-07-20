@@ -36,7 +36,7 @@ MVVM with a service layer. UI state and authoritative `PDFDocument` ownership ar
 
 ```
 Models/       → Value types: CompressionLevel, JPEGQuality, PDFFileItem, PaperSize, ColorPreset
-Services/     → Stateless PDF operations plus PDFPageWorker for isolated per-page rendering
+Services/     → Stateless PDF operations plus PDFPageWorker isolation and shared PDFRasterizer primitives
 ViewModels/   → @Observable classes: AppViewModel, CompressViewModel, ConcatenateViewModel, SplitViewModel, ColorAdjustViewModel
 Views/        → SwiftUI views + shared components: OptionsHeaderView, PageSelectionView, PDFPreviewView, CropPreviewPanel, PageThumbnailStripView, DropReceiverView, ResultMessageView, ActionCardView, ColorAdjustOptionsView
 Utilities/    → PDFwringerError, FileDialogHelper, BookmarkManager, Formatting, AtomicFileWriter, Log, Color.coral (all in PDFwringerError.swift except BookmarkManager)
@@ -60,8 +60,8 @@ landing → singleFile → compressing / splitting / rotating / editingMetadata 
 - **Cancellation**: Operation ViewModels store an `operationTask: Task<Void, Never>?` and expose a `cancel()` method. `AppViewModel` owns one background file-intake task and invalidates it whenever newer input or navigation supersedes it. Views show a Cancel button alongside progress indicators. Services check `Task.checkCancellation()` per page iteration, so cancellation takes effect within one page.
 - **Source/dest guard**: All services that take both source and destination URLs guard against `source == destination` at the top, throwing `PDFwringerError.sourceEqualsDestination`.
 - **Sandbox**: App is sandboxed with `com.apple.security.files.user-selected.read-write`. File access uses `NSSavePanel`/`NSOpenPanel` — never raw path construction. Open Recent stores security-scoped bookmark data without a separate plaintext path and balances access for the lifetime of the active document.
-- **PDF reading**: `PDFCompressor.openPDF(at:)` reads file data into memory first (works around CGPDFDocument sandbox restrictions). Other services use `PDFDocument(url:)`.
-- **Temp files**: Operations write to `URL.temporaryDirectory` then atomically replace the destination via `FileManager.replaceItemAt(_:withItemAt:)`.
+- **PDF reading**: `PDFRasterizer.openDocument(at:)` reads file data into memory first (works around CGPDFDocument sandbox restrictions). Other services use `PDFDocument(url:)`.
+- **Temp files**: `AtomicFileWriter` stages single-file outputs in an item-replacement directory on the destination volume, then atomically moves or replaces the destination.
 - **State management**: ViewModels use `@Observable` (Observation framework). Views own their VM via `@State`.
 - **Drop handling**: `DropReceiverView` wraps `DropNSView` (NSView subclass) for reliable drag-and-drop in sandbox. Returns `nil` from `hitTest` so SwiftUI buttons underneath remain clickable. Multi-file intake validates PDFs off MainActor, then routes zero/one/many readable files to error/single-file/merge state respectively.
 - **File items**: `PDFFileItem.from(url:)` / `.from(urls:)` is the single factory for creating items from URLs (filters PDFs, reads page count). Struct is `Sendable`.

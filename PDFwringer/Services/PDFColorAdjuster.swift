@@ -129,16 +129,16 @@ struct PDFColorAdjuster {
                     throw PDFwringerError.cannotWriteOutput
                 }
                 let encodedPage = try await PDFPageWorker.run(pageData: pageData) { isolatedPage in
-                    guard let (rendered, displaySize) = PDFCompressor.renderPage(
+                    guard let (rendered, displaySize) = PDFRasterizer.render(
                         isolatedPage,
                         dpi: dpi,
                         grayscale: false
                     ), let adjusted = Self.adjustImage(rendered, settings: settings),
-                       let jpegData = PDFCompressor.jpegEncode(image: adjusted, quality: quality)
+                       let jpegData = PDFRasterizer.jpegData(for: adjusted, quality: quality)
                     else {
                         throw PDFwringerError.cannotWriteOutput
                     }
-                    return PDFPageWorker.EncodedPage(data: jpegData, displaySize: displaySize)
+                    return PDFRasterizer.JPEGPage(data: jpegData, displaySize: displaySize)
                 }
 
                 outputPage = try autoreleasepool {

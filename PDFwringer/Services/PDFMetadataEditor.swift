@@ -1,6 +1,5 @@
 import Foundation
 import PDFKit
-import UniformTypeIdentifiers
 
 /// Reads and writes PDF document metadata (title, author, subject, keywords, creator).
 @MainActor
@@ -268,33 +267,19 @@ struct PDFMetadataEditor {
                 }
 
                 let encodedPage = try await PDFPageWorker.run(pageData: pageData) { page in
-                    guard let (rendered, displaySize) = PDFCompressor.renderPage(
+                    guard let (rendered, displaySize) = PDFRasterizer.render(
                         page,
                         dpi: dpi,
                         grayscale: false
-                    ), let jpegData = PDFCompressor.jpegEncode(image: rendered, quality: quality)
+                    ), let jpegData = PDFRasterizer.jpegData(for: rendered, quality: quality)
                     else {
                         throw PDFwringerError.cannotWriteOutput
                     }
-                    return PDFPageWorker.EncodedPage(data: jpegData, displaySize: displaySize)
+                    return PDFRasterizer.JPEGPage(data: jpegData, displaySize: displaySize)
                 }
 
                 try autoreleasepool {
-                    guard let provider = CGDataProvider(data: encodedPage.data as CFData),
-                          let jpegImage = CGImage(
-                              jpegDataProviderSource: provider,
-                              decode: nil,
-                              shouldInterpolate: true,
-                              intent: .defaultIntent
-                          )
-                    else {
-                        throw PDFwringerError.cannotWriteOutput
-                    }
-
-                    var outBox = CGRect(origin: .zero, size: encodedPage.displaySize)
-                    outputCtx.beginPage(mediaBox: &outBox)
-                    outputCtx.draw(jpegImage, in: outBox)
-                    outputCtx.endPage()
+                    try PDFRasterizer.append(encodedPage, to: outputCtx)
                 }
 
                 progress?(Double(i + 1) / Double(pageCount))

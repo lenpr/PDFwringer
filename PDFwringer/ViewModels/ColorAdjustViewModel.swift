@@ -73,7 +73,7 @@ class ColorAdjustViewModel {
 
             do {
                 let previewData = try await PDFPageWorker.run(pageData: pageData) { page in
-                    guard let (rendered, _) = PDFCompressor.renderPage(
+                    guard let (rendered, _) = PDFRasterizer.render(
                         page,
                         dpi: 150,
                         grayscale: false
@@ -85,7 +85,7 @@ class ColorAdjustViewModel {
                         rendered,
                         settings: currentSettings
                     ) ?? rendered
-                    guard let data = PDFCompressor.jpegEncode(image: adjusted, quality: 0.9) else {
+                    guard let data = PDFRasterizer.jpegData(for: adjusted, quality: 0.9) else {
                         throw PDFwringerError.cannotCreateOutput
                     }
                     return data

@@ -5,11 +5,6 @@ import PDFKit
 /// Callers snapshot the authoritative PDFPage on MainActor and only Data crosses
 /// into the detached task; PDFKit reference types never cross actor boundaries.
 enum PDFPageWorker {
-    struct EncodedPage: Sendable {
-        let data: Data
-        let displaySize: CGSize
-    }
-
     static func run<Output: Sendable>(
         pageData: Data,
         operation: @escaping @Sendable (PDFPage) throws -> Output

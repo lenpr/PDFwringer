@@ -189,9 +189,9 @@ struct PDFColorAdjusterTests {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
         defer { TestPDFGenerator.cleanup(source) }
 
-        guard let doc = PDFCompressor.openPDF(at: source),
+        guard let doc = PDFRasterizer.openDocument(at: source),
               let page = doc.page(at: 1),
-              let (image, _) = PDFCompressor.renderPage(page, dpi: 72, grayscale: false)
+              let (image, _) = PDFRasterizer.render(page, dpi: 72, grayscale: false)
         else {
             Issue.record("Could not render test page")
             return
@@ -206,9 +206,9 @@ struct PDFColorAdjusterTests {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
         defer { TestPDFGenerator.cleanup(source) }
 
-        guard let doc = PDFCompressor.openPDF(at: source),
+        guard let doc = PDFRasterizer.openDocument(at: source),
               let page = doc.page(at: 1),
-              let (image, _) = PDFCompressor.renderPage(page, dpi: 72, grayscale: false)
+              let (image, _) = PDFRasterizer.render(page, dpi: 72, grayscale: false)
         else {
             Issue.record("Could not render test page")
             return
@@ -225,9 +225,9 @@ struct PDFColorAdjusterTests {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
         defer { TestPDFGenerator.cleanup(source) }
 
-        guard let doc = PDFCompressor.openPDF(at: source),
+        guard let doc = PDFRasterizer.openDocument(at: source),
               let page = doc.page(at: 1),
-              let (image, _) = PDFCompressor.renderPage(page, dpi: 72, grayscale: false)
+              let (image, _) = PDFRasterizer.render(page, dpi: 72, grayscale: false)
         else {
             Issue.record("Could not render test page")
             return

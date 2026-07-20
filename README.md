@@ -189,7 +189,7 @@ MVVM with a stateless service layer. Navigation is a state machine driven by `Ap
 ```
 PDFwringer/
 ├── Models/          Value types (CompressionLevel, JPEGQuality, PDFFileItem, PaperSize)
-├── Services/        Stateless PDF ops plus the isolated per-page raster worker
+├── Services/        Stateless PDF ops plus isolated workers and shared raster primitives
 ├── ViewModels/      @Observable classes (AppViewModel, CompressViewModel, ConcatenateViewModel, SplitViewModel)
 ├── Views/           SwiftUI views, shared components (OptionsHeaderView, PageSelectionView, PDFPreviewView, CropPreviewPanel)
 ├── Utilities/       Error types, file dialogs, formatting helpers, Color.coral
