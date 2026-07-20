@@ -22,7 +22,7 @@ struct AppViewModelTests {
     @Test("Starts in landing state")
     func initialState() {
         let vm = AppViewModel()
-        #expect(vm.state == .landing)
+        #expect(vm.isLanding)
         #expect(vm.windowTitle == "PDFwringer")
     }
 
@@ -48,10 +48,10 @@ struct AppViewModelTests {
     func loadInvalidFile() {
         let vm = AppViewModel()
         vm.loadSingleFile(URL.temporaryDirectory.appending(component: "nonexistent.pdf"))
-        #expect(vm.state == .landing)
+        #expect(vm.isLanding)
     }
 
-    @Test("loadMultipleFiles transitions to multiFile state")
+    @Test("loadMultipleFiles transitions directly to merging state")
     func loadMultipleFiles() async throws {
         let url1 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "a.pdf")
         let url2 = TestPDFGenerator.makeRenderedPDF(pageCount: 3, filename: "b.pdf")
@@ -64,12 +64,12 @@ struct AppViewModelTests {
         vm.loadMultipleFiles([url1, url2])
         try await waitForStateChange(vm)
 
-        if case .multiFile(let items) = vm.state {
+        if case .merging(let items) = vm.state {
             #expect(items.count == 2)
             #expect(items[0].pageCount == 1)
             #expect(items[1].pageCount == 3)
         } else {
-            Issue.record("Expected multiFile state")
+            Issue.record("Expected merging state")
         }
     }
 
@@ -87,15 +87,10 @@ struct AppViewModelTests {
         vm.loadMultipleFiles([pdf, txt])
         try await waitForStateChange(vm)
 
-        if case .multiFile(let items) = vm.state {
+        if case .merging(let items) = vm.state {
             #expect(items.count == 1)
         } else {
-            // Single valid PDF → singleFile via handleDrop, but loadMultipleFiles goes directly to multiFile
-            if case .singleFile = vm.state {
-                // Also acceptable
-            } else {
-                Issue.record("Expected multiFile or singleFile state")
-            }
+            Issue.record("Expected merging state")
         }
     }
 
@@ -116,7 +111,7 @@ struct AppViewModelTests {
         }
     }
 
-    @Test("handleDrop with multiple PDFs goes to multiFile")
+    @Test("handleDrop with multiple PDFs goes directly to merging")
     func handleDropMultiple() async throws {
         let url1 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "x.pdf")
         let url2 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "y.pdf")
@@ -129,10 +124,10 @@ struct AppViewModelTests {
         vm.handleDrop([url1, url2])
         try await waitForStateChange(vm)
 
-        if case .multiFile(let items) = vm.state {
+        if case .merging(let items) = vm.state {
             #expect(items.count == 2)
         } else {
-            Issue.record("Expected multiFile state")
+            Issue.record("Expected merging state")
         }
     }
 
@@ -144,7 +139,7 @@ struct AppViewModelTests {
         defer { TestPDFGenerator.cleanup(txt) }
 
         vm.handleDrop([txt])
-        #expect(vm.state == .landing)
+        #expect(vm.isLanding)
     }
 
     // MARK: - State transitions
@@ -181,27 +176,6 @@ struct AppViewModelTests {
         }
     }
 
-    @Test("selectMerge from multiFile goes to merging")
-    func selectMerge() async throws {
-        let url1 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "m1.pdf")
-        let url2 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "m2.pdf")
-        defer {
-            TestPDFGenerator.cleanup(url1)
-            TestPDFGenerator.cleanup(url2)
-        }
-
-        let vm = AppViewModel()
-        vm.loadMultipleFiles([url1, url2])
-        try await waitForStateChange(vm)
-        vm.selectMerge()
-
-        if case .merging(let items) = vm.state {
-            #expect(items.count == 2)
-        } else {
-            Issue.record("Expected merging state")
-        }
-    }
-
     @Test("goBack from compressing returns to singleFile")
     func goBackFromCompress() {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "gb.pdf")
@@ -219,7 +193,7 @@ struct AppViewModelTests {
         }
     }
 
-    @Test("goBack from merging returns to multiFile")
+    @Test("goBack from merging returns to landing")
     func goBackFromMerge() async throws {
         let url1 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "g1.pdf")
         let url2 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "g2.pdf")
@@ -231,17 +205,12 @@ struct AppViewModelTests {
         let vm = AppViewModel()
         vm.loadMultipleFiles([url1, url2])
         try await waitForStateChange(vm)
-        vm.selectMerge()
         vm.goBack()
 
-        if case .multiFile(let items) = vm.state {
-            #expect(items.count == 2)
-        } else {
-            Issue.record("Expected multiFile state")
-        }
+        #expect(vm.isLanding)
     }
 
-    @Test("startOver returns to landing from any state")
+    @Test("startOver clears workflow navigation and confirmation state")
     func startOver() {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "so.pdf")
         defer { TestPDFGenerator.cleanup(url) }
@@ -249,8 +218,92 @@ struct AppViewModelTests {
         let vm = AppViewModel()
         vm.loadSingleFile(url)
         vm.selectCompress()
+        vm.currentPage = 4
+        vm.currentFileSize = 123
+        vm.navigationDirection = .leading
+        vm.hasUnsavedChanges = true
+        vm.confirmStartOver()
+        #expect(vm.showStartOverConfirm)
+
         vm.startOver()
-        #expect(vm.state == .landing)
+
+        #expect(vm.isLanding)
+        #expect(vm.currentPage == 0)
+        #expect(vm.currentFileSize == 0)
+        #expect(vm.navigationDirection == .trailing)
+        #expect(!vm.hasUnsavedChanges)
+        #expect(!vm.showStartOverConfirm)
+    }
+
+    @Test("goBack is a true no-op outside child workflows")
+    func unsupportedGoBackIsNoOp() {
+        let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "no-op.pdf")
+        defer { TestPDFGenerator.cleanup(url) }
+
+        let vm = AppViewModel()
+        vm.navigationDirection = .trailing
+        vm.hasUnsavedChanges = true
+        vm.goBack()
+        #expect(vm.isLanding)
+        #expect(vm.navigationDirection == .trailing)
+        #expect(vm.hasUnsavedChanges)
+
+        vm.loadSingleFile(url)
+        vm.navigationDirection = .trailing
+        vm.hasUnsavedChanges = true
+        vm.goBack()
+        guard case .singleFile(let selectedURL, _) = vm.state else {
+            Issue.record("Expected singleFile state")
+            return
+        }
+        #expect(selectedURL == url)
+        #expect(vm.navigationDirection == .trailing)
+        #expect(vm.hasUnsavedChanges)
+    }
+
+    @Test("export navigation enables page commands and Back")
+    func exportNavigation() {
+        let url = TestPDFGenerator.makeRenderedPDF(pageCount: 3, filename: "export.pdf")
+        defer { TestPDFGenerator.cleanup(url) }
+
+        let vm = AppViewModel()
+        vm.loadSingleFile(url)
+        vm.selectExportImages()
+
+        #expect(vm.canGoBack)
+        #expect(vm.currentPageCount == 3)
+        #expect(vm.hasDocument)
+        vm.goToLastPage()
+        #expect(vm.currentPage == 2)
+        vm.nextPage()
+        #expect(vm.currentPage == 2)
+        vm.goToFirstPage()
+        #expect(vm.currentPage == 0)
+
+        vm.goBack()
+        guard case .singleFile(let selectedURL, _) = vm.state else {
+            Issue.record("Expected singleFile state")
+            return
+        }
+        #expect(selectedURL == url)
+    }
+
+    @Test("reorder navigation enables Back")
+    func reorderNavigation() {
+        let url = TestPDFGenerator.makeRenderedPDF(pageCount: 2, filename: "reorder.pdf")
+        defer { TestPDFGenerator.cleanup(url) }
+
+        let vm = AppViewModel()
+        vm.loadSingleFile(url)
+        vm.selectReorderPages()
+        #expect(vm.canGoBack)
+
+        vm.goBack()
+        guard case .singleFile(let selectedURL, _) = vm.state else {
+            Issue.record("Expected singleFile state")
+            return
+        }
+        #expect(selectedURL == url)
     }
 
     // MARK: - Window title

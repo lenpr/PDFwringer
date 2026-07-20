@@ -71,23 +71,6 @@ struct ContentView: View {
                 )
                 .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
 
-            case .multiFile:
-                MultiFileView(
-                    files: multiFileBinding,
-                    onMerge: {
-                        withAnimation(.spring(duration: 0.3)) {
-                            appVM.selectMerge()
-                        }
-                    },
-                    onStartOver: {
-                        appVM.confirmStartOver()
-                    },
-                    onFilesDropped: { urls in
-                        addFilesToMultiFile(urls)
-                    }
-                )
-                .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
-
             case .compressing(let url, let doc):
                 CompressOptionsView(
                     url: url,
@@ -131,9 +114,6 @@ struct ContentView: View {
                         withAnimation(.spring(duration: 0.3)) {
                             appVM.goBack()
                         }
-                    },
-                    onFilesDropped: { urls in
-                        addFilesToMerge(urls)
                     }
                 )
                 .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
@@ -243,8 +223,7 @@ struct ContentView: View {
                         withAnimation(.spring(duration: 0.35)) {
                             appVM.handleDrop(urls)
                         }
-                    },
-                    currentPage: $appVM.currentPage
+                    }
                 )
                 .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
             }
@@ -257,7 +236,6 @@ struct ContentView: View {
                 .padding(.trailing, 8)
                 .padding(.bottom, 4)
         }
-        .animation(.spring(duration: 0.3), value: appVM.state)
         .alert(String(localized: "Password Required"), isPresented: $appVM.showPasswordPrompt) {
             SecureField(String(localized: "Password"), text: $appVM.passwordText)
             Button(String(localized: "Unlock")) { appVM.unlockDocument() }
@@ -303,24 +281,6 @@ struct ContentView: View {
 
     // MARK: - Bindings for mutable file lists
 
-    private var multiFileBinding: Binding<[PDFFileItem]> {
-        Binding(
-            get: {
-                if case .multiFile(let items) = appVM.state { return items }
-                return []
-            },
-            set: { newItems in
-                if newItems.isEmpty {
-                    appVM.startOver()
-                } else if newItems.count == 1 {
-                    appVM.loadSingleFile(newItems[0].url)
-                } else {
-                    appVM.state = .multiFile(newItems)
-                }
-            }
-        )
-    }
-
     private var mergeFileBinding: Binding<[PDFFileItem]> {
         Binding(
             get: {
@@ -337,15 +297,4 @@ struct ContentView: View {
         )
     }
 
-    private func addFilesToMultiFile(_ urls: [URL]) {
-        guard case .multiFile(var items) = appVM.state else { return }
-        items.append(contentsOf: PDFFileItem.from(urls: urls))
-        appVM.state = .multiFile(items)
-    }
-
-    private func addFilesToMerge(_ urls: [URL]) {
-        guard case .merging(var items) = appVM.state else { return }
-        items.append(contentsOf: PDFFileItem.from(urls: urls))
-        appVM.state = .merging(items)
-    }
 }

@@ -21,7 +21,7 @@ struct EncryptedWorkflowTests {
         let viewModel = AppViewModel()
         viewModel.loadSingleFile(source)
 
-        #expect(viewModel.state == .landing)
+        #expect(viewModel.isLanding)
         #expect(viewModel.showPasswordPrompt)
 
         viewModel.passwordText = Self.password

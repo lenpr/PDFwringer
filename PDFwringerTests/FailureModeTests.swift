@@ -203,7 +203,7 @@ struct FailureModeTests {
 
         #expect(vm.showErrorAlert == true)
         #expect(vm.errorMessage.contains("bad"))
-        #expect(vm.state == .landing)
+        #expect(vm.isLanding)
     }
 
     // MARK: - Drag-and-drop edge cases
@@ -222,10 +222,8 @@ struct FailureModeTests {
         let vm = AppViewModel()
         vm.handleDrop([corrupt1, corrupt2])
 
-        // Multiple corrupt files → multiFile state with empty items list filtered out,
-        // or single corrupt file → error alert
-        // Since PDFFileItem.from(urls:) filters out non-loadable PDFs, the result is empty
-        #expect(vm.state == .landing)
+        // PDFFileItem.from(urls:) filters non-loadable PDFs, so no workflow opens.
+        #expect(vm.isLanding)
     }
 
     @Test("handleDrop with zero-byte file ignores it")
@@ -238,7 +236,8 @@ struct FailureModeTests {
         vm.handleDrop([empty])
 
         // Zero-byte file can't be loaded as PDF → error
-        #expect(vm.showErrorAlert == true || vm.state == .landing)
+        #expect(vm.showErrorAlert)
+        #expect(vm.isLanding)
     }
 
     @Test("handleDrop with mix of valid and invalid drops valid only")
@@ -261,15 +260,11 @@ struct FailureModeTests {
             } else { break }
         }
 
-        // With 2 URLs, handleDrop calls loadMultipleFiles which uses PDFFileItem.from(urls:)
-        // which filters out the corrupt one — should result in multiFile with 1 item,
-        // or since only 1 valid, could be singleFile
-        if case .multiFile(let items) = vm.state {
+        // The valid document remains in the merge session after corrupt input is filtered.
+        if case .merging(let items) = vm.state {
             #expect(items.count == 1)
-        } else if case .singleFile = vm.state {
-            // Also acceptable — implementation may special-case single valid result
         } else {
-            Issue.record("Expected multiFile or singleFile state, got \(vm.state)")
+            Issue.record("Expected merging state, got \(vm.state)")
         }
     }
 
@@ -282,7 +277,7 @@ struct FailureModeTests {
         let vm = AppViewModel()
         vm.handleDrop([txt])
 
-        #expect(vm.state == .landing)
+        #expect(vm.isLanding)
     }
 
     @Test("PDFFileItem.from filters out non-loadable URLs")

@@ -127,14 +127,6 @@ struct PDFwringerApp: App {
 
                 Divider()
 
-                Button(String(localized: "Merge")) {
-                    appVM.selectMerge()
-                }
-                .keyboardShortcut("m", modifiers: [.command, .shift])
-                .disabled(!appVM.canSelectMerge)
-
-                Divider()
-
                 Button(String(localized: "Go Back")) {
                     appVM.goBack()
                 }
@@ -142,10 +134,10 @@ struct PDFwringerApp: App {
                 .disabled(!appVM.canGoBack)
 
                 Button(String(localized: "Start Over")) {
-                    appVM.startOver()
+                    appVM.confirmStartOver()
                 }
                 .keyboardShortcut(.delete, modifiers: [.command, .shift])
-                .disabled(appVM.state == .landing)
+                .disabled(appVM.isLanding)
             }
 
             // Help menu

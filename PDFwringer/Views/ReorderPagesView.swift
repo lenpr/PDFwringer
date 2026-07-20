@@ -6,7 +6,6 @@ struct ReorderPagesView: View {
     let document: PDFDocument
     let onBack: () -> Void
     let onFilesDropped: ([URL]) -> Void
-    @Binding var currentPage: Int
 
     @State private var pageOrder: [Int] = []
     @State private var resultMessage: String?

@@ -3,7 +3,6 @@ import SwiftUI
 struct MergeOptionsView: View {
     @Binding var files: [PDFFileItem]
     let onBack: () -> Void
-    let onFilesDropped: ([URL]) -> Void
 
     @State private var vm = ConcatenateViewModel()
     @State private var isDropTargeted = false

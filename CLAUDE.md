@@ -48,12 +48,11 @@ Resources/    → Asset catalog, AppIcon.icns
 `AppState` (in `AppViewModel.swift`) is the top-level state machine:
 
 ```
-landing → singleFile / multiFile → compressing / splitting / rotating / editingMetadata / cropping / adjustingColor / merging / exportingImages / reorderingPages → (back)
+landing → singleFile → compressing / splitting / rotating / editingMetadata / cropping / adjustingColor / exportingImages / reorderingPages → (back)
+        → merging → (back)
 ```
 
-`ContentView` switches on `AppState` to render the correct view. `AppViewModel` owns state transitions (handleDrop, goBack, startOver, selectCompress/Split/Merge/Rotate/Metadata/Crop/AdjustColor/ExportImages/ReorderPages).
-
-`AppState` has custom `Equatable` because `PDFDocument` doesn't conform — equality checks compare URLs/item IDs only.
+`ContentView` switches on `AppState` to render the correct view. `AppViewModel` owns state transitions (handleDrop, goBack, startOver, selectCompress/Split/Rotate/Metadata/Crop/AdjustColor/ExportImages/ReorderPages). Multiple PDFs open directly in the merge editor.
 
 ## Key conventions
 

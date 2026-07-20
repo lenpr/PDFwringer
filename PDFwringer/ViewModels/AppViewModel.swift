@@ -5,11 +5,10 @@ import PDFKit
 import SwiftUI
 
 /// Top-level navigation state machine. Each case represents a distinct screen in the app.
-/// Transitions: landing → singleFile/multiFile → action screen → (back).
-enum AppState: Equatable {
+/// Transitions: landing → singleFile → action screen → (back), or landing → merging → (back).
+enum AppState {
     case landing
     case singleFile(URL, PDFDocument)
-    case multiFile([PDFFileItem])
     case compressing(URL, PDFDocument)
     case splitting(URL, PDFDocument)
     case merging([PDFFileItem])
@@ -19,25 +18,6 @@ enum AppState: Equatable {
     case adjustingColor(URL, PDFDocument)
     case exportingImages(URL, PDFDocument)
     case reorderingPages(URL, PDFDocument)
-
-    // PDFDocument doesn't conform to Equatable; compare by URL/item identity only.
-    static func == (lhs: AppState, rhs: AppState) -> Bool {
-        switch (lhs, rhs) {
-        case (.landing, .landing): true
-        case (.singleFile(let a, _), .singleFile(let b, _)): a == b
-        case (.multiFile(let a), .multiFile(let b)): a.map(\.id) == b.map(\.id)
-        case (.compressing(let a, _), .compressing(let b, _)): a == b
-        case (.splitting(let a, _), .splitting(let b, _)): a == b
-        case (.merging(let a), .merging(let b)): a.map(\.id) == b.map(\.id)
-        case (.rotating(let a, _, _), .rotating(let b, _, _)): a == b
-        case (.editingMetadata(let a, _), .editingMetadata(let b, _)): a == b
-        case (.cropping(let a, _, _), .cropping(let b, _, _)): a == b
-        case (.adjustingColor(let a, _), .adjustingColor(let b, _)): a == b
-        case (.exportingImages(let a, _), .exportingImages(let b, _)): a == b
-        case (.reorderingPages(let a, _), .reorderingPages(let b, _)): a == b
-        default: false
-        }
-    }
 }
 
 /// Orchestrates top-level navigation and file loading. Owned by the App scene, shared with ContentView.
@@ -74,9 +54,14 @@ class AppViewModel {
             return "PDFwringer — \(url.lastPathComponent)"
         case .rotating(let url, _, _), .cropping(let url, _, _):
             return "PDFwringer — \(url.lastPathComponent)"
-        case .multiFile(let items), .merging(let items):
+        case .merging(let items):
             return "PDFwringer — \(items.count) files"
         }
+    }
+
+    var isLanding: Bool {
+        if case .landing = state { return true }
+        return false
     }
 
     var canSelectSingleFileAction: Bool {
@@ -84,14 +69,10 @@ class AppViewModel {
         return false
     }
 
-    var canSelectMerge: Bool {
-        if case .multiFile = state { return true }
-        return false
-    }
-
     var canGoBack: Bool {
         switch state {
-        case .compressing, .splitting, .rotating, .editingMetadata, .merging, .cropping, .adjustingColor:
+        case .compressing, .splitting, .rotating, .editingMetadata, .merging, .cropping,
+             .adjustingColor, .exportingImages, .reorderingPages:
             return true
         default:
             return false
@@ -101,7 +82,8 @@ class AppViewModel {
     var currentPageCount: Int {
         switch state {
         case .singleFile(_, let doc), .compressing(_, let doc), .splitting(_, let doc),
-             .editingMetadata(_, let doc), .adjustingColor(_, let doc):
+             .editingMetadata(_, let doc), .adjustingColor(_, let doc),
+             .exportingImages(_, let doc):
             return doc.pageCount
         case .rotating(_, _, let working), .cropping(_, _, let working):
             return working.pageCount
@@ -217,7 +199,7 @@ class AppViewModel {
             }
             refreshRecentDocuments()
             hasUnsavedChanges = false
-            state = .multiFile(items)
+            state = .merging(items)
         }
     }
 
@@ -231,12 +213,6 @@ class AppViewModel {
         guard case .singleFile(let url, let doc) = state else { return }
         navigationDirection = .trailing
         state = .splitting(url, doc)
-    }
-
-    func selectMerge() {
-        guard case .multiFile(let items) = state else { return }
-        navigationDirection = .trailing
-        state = .merging(items)
     }
 
     func selectRotate() {
@@ -278,21 +254,23 @@ class AppViewModel {
     }
 
     func goBack() {
-        navigationDirection = .leading
+        let destination: AppState
         switch state {
         case .rotating(let url, let sourceDocument, _),
              .cropping(let url, let sourceDocument, _):
-            state = .singleFile(url, sourceDocument)
+            destination = .singleFile(url, sourceDocument)
         case .compressing(let url, let doc), .splitting(let url, let doc),
              .editingMetadata(let url, let doc), .adjustingColor(let url, let doc),
              .exportingImages(let url, let doc),
              .reorderingPages(let url, let doc):
-            state = .singleFile(url, doc)
-        case .merging(let items):
-            state = .multiFile(items)
+            destination = .singleFile(url, doc)
+        case .merging:
+            destination = .landing
         default:
-            break
+            return
         }
+        navigationDirection = .leading
+        state = destination
         hasUnsavedChanges = false
     }
 
@@ -302,6 +280,10 @@ class AppViewModel {
 
     func startOver() {
         state = .landing
+        currentPage = 0
+        currentFileSize = 0
+        navigationDirection = .trailing
+        showStartOverConfirm = false
         hasUnsavedChanges = false
     }
 
