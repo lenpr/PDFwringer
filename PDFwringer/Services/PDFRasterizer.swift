@@ -17,8 +17,9 @@ enum PDFRasterizer {
         let height: Int
     }
 
-    /// Maximum file size allowed for in-memory Core Graphics PDF loading.
-    nonisolated private static let maxFileSize = 500_000_000
+    /// Exact first-page probes are optional; cap their eager file read so large
+    /// inputs keep the lightweight heuristic estimate instead of spiking memory.
+    nonisolated static let maximumInMemoryPDFBytes: Int64 = 100_000_000
     nonisolated private static let sRGBColorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
 
     /// Opens a PDF through an in-memory data provider, which works reliably for
@@ -26,8 +27,8 @@ enum PDFRasterizer {
     nonisolated static func openDocument(at url: URL) -> CGPDFDocument? {
         guard let attributes = try? FileManager.default.attributesOfItem(
             atPath: url.path(percentEncoded: false)
-        ), let fileSize = attributes[.size] as? Int,
-           fileSize <= maxFileSize,
+        ), let fileSize = attributes[.size] as? NSNumber,
+           fileSize.int64Value <= maximumInMemoryPDFBytes,
            let data = try? Data(contentsOf: url),
            let provider = CGDataProvider(data: data as CFData) else {
             return nil

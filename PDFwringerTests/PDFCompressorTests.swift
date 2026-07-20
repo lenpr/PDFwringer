@@ -467,6 +467,27 @@ struct PDFCompressorTests {
         #expect(total == perPage * 2)
     }
 
+    @Test("Exact size probing rejects oversized PDFs before an eager read")
+    func exactProbeRejectsOversizedFile() throws {
+        let source = URL.temporaryDirectory.appending(component: UUID().uuidString + "_oversized-probe.pdf")
+        defer { TestPDFGenerator.cleanup(source) }
+        #expect(FileManager.default.createFile(
+            atPath: source.path(percentEncoded: false),
+            contents: Data("%PDF-1.7\n".utf8)
+        ))
+
+        let handle = try FileHandle(forWritingTo: source)
+        try handle.truncate(atOffset: UInt64(PDFRasterizer.maximumInMemoryPDFBytes + 1))
+        try handle.close()
+
+        let attributes = try FileManager.default.attributesOfItem(
+            atPath: source.path(percentEncoded: false)
+        )
+        let fileSize = try #require(attributes[.size] as? NSNumber)
+        #expect(fileSize.int64Value > PDFRasterizer.maximumInMemoryPDFBytes)
+        #expect(PDFRasterizer.openDocument(at: source) == nil)
+    }
+
     @Test("PDFKit raster matches Core Graphics for rotated pages")
     func pdfKitRasterPreservesRotatedPage() throws {
         let source = TestPDFGenerator.makeCroppedRasterFixture(
