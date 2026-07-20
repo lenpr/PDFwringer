@@ -1,23 +1,26 @@
 SDK := $(shell xcrun --show-sdk-path)
 TARGET := arm64-apple-macosx26.0
-SWIFT_FLAGS := -target $(TARGET) -sdk $(SDK) -parse-as-library -framework SwiftUI -framework PDFKit -framework AppKit
+SWIFT_LANGUAGE_FLAGS := -swift-version 6 -strict-concurrency=complete
+SWIFT_FLAGS := -target $(TARGET) -sdk $(SDK) $(SWIFT_LANGUAGE_FLAGS) -parse-as-library -framework SwiftUI -framework PDFKit -framework AppKit
 RELEASE_FLAGS := -O -whole-module-optimization
-VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
+ifeq ($(VERSION),)
+    VERSION := 0.0.0
+endif
 SIGN_IDENTITY := Developer ID Application: Lukas N.P. Egger (7DGU3C2XRL)
 ENTITLEMENTS := PDFwringer/PDFwringer.entitlements
 NOTARY_PROFILE := notarytool-profile
-# Generate version file only when content changes
-$(shell NEW_VER='let appVersion = "$(VERSION)"'; \
-    if [ ! -f PDFwringer/GeneratedVersion.swift ] || [ "$$(cat PDFwringer/GeneratedVersion.swift)" != "$$NEW_VER" ]; then \
-        printf '%s' "$$NEW_VER" > PDFwringer/GeneratedVersion.swift; \
-    fi)
-SOURCES := $(shell find PDFwringer -name '*.swift')
-TEST_SOURCES := $(shell find PDFwringerTests -name '*.swift')
-TESTABLE_SOURCES := $(shell find PDFwringer/Services PDFwringer/Models PDFwringer/Utilities PDFwringer/ViewModels -name '*.swift')
+SOURCES := $(shell find PDFwringer -name '*.swift' | LC_ALL=C sort)
+TEST_SOURCES := $(shell find PDFwringerTests -name '*.swift' | LC_ALL=C sort)
+TESTABLE_SOURCES := $(shell find PDFwringer/Services PDFwringer/Models PDFwringer/Utilities PDFwringer/ViewModels -name '*.swift' | LC_ALL=C sort)
 BUILD_DIR := .build
 APP_NAME := PDFwringer
 APP_BUNDLE := $(BUILD_DIR)/$(APP_NAME).app
 TEST_NAME := PDFwringerTests
+APP_SOURCE_LIST := $(BUILD_DIR)/app-sources.list
+TEST_SOURCE_LIST := $(BUILD_DIR)/test-sources.list
+FAST_TEST_FILTER := AppViewModelTests|AtomicWriteSafetyTests|CancellationContractTests|CompressViewModelTests|ConcatenateViewModelTests|EncryptedWorkflowTests|EndToEndTests|FailureModeTests|PDFColorAdjusterTests|PDFCompressorTests|PDFConcatenatorTests|PDFCropperTests|PDFFileItemTests|PDFImageConverterTests|PDFImageExporterTests|PDFMetadataEditorTests|PDFRotatorTests|PDFSplitterTests|PageRangeParserTests|PageSelectionTests|PathEdgeCaseTests|SourceEqualsDestinationTests|SplitViewModelTests|UtilityTests|ViewModelLifecycleTests
+CORPUS_TEST_FILTER := DifferentialEquivalenceTests|Fixture.*Tests|PageGeometryTests|PerformanceBoundsTests|TextPreservationTests|VisualRegressionTests
 
 # Derive Testing framework paths from active toolchain
 SWIFT_LIB_DIR := $(shell dirname $$(dirname $$(xcrun --find swift)))/lib
@@ -31,17 +34,29 @@ ifeq ($(wildcard $(TESTING_FW_DIR)/Testing.framework),)
     TESTING_RPATH_DIR := /Library/Developer/CommandLineTools/Library/Developer/usr/lib
 endif
 
-.PHONY: build clean run test test-fast test-corpus app release dmg sign notarize
+.PHONY: build clean run test test-fast test-corpus app release dmg sign notarize FORCE
+
+FORCE:
+
+$(APP_SOURCE_LIST): FORCE
+	@mkdir -p $(BUILD_DIR)
+	@printf '%s\n' $(SOURCES) > $@.tmp
+	@if ! cmp -s $@.tmp $@; then mv $@.tmp $@; else rm $@.tmp; fi
+
+$(TEST_SOURCE_LIST): FORCE
+	@mkdir -p $(BUILD_DIR)
+	@printf '%s\n' $(TESTABLE_SOURCES) $(TEST_SOURCES) > $@.tmp
+	@if ! cmp -s $@.tmp $@; then mv $@.tmp $@; else rm $@.tmp; fi
 
 build: $(BUILD_DIR)/$(APP_NAME)
 
-$(BUILD_DIR)/$(APP_NAME): $(SOURCES)
+$(BUILD_DIR)/$(APP_NAME): Makefile $(APP_SOURCE_LIST) $(SOURCES)
 	@mkdir -p $(BUILD_DIR)
 	swiftc $(SWIFT_FLAGS) -o $@ $(SOURCES)
 
 app: $(APP_BUNDLE)
 
-$(APP_BUNDLE): $(BUILD_DIR)/$(APP_NAME)
+$(APP_BUNDLE): Makefile $(BUILD_DIR)/$(APP_NAME) $(ENTITLEMENTS) PDFwringer/Resources/AppIcon.icns
 	@rm -rf $(APP_BUNDLE)
 	@mkdir -p $(APP_BUNDLE)/Contents/MacOS
 	@mkdir -p $(APP_BUNDLE)/Contents/Resources
@@ -95,15 +110,15 @@ test: $(BUILD_DIR)/$(TEST_NAME)
 
 # Fast lane: unit + viewmodel + safety tests only (no fixtures, <5s)
 test-fast: $(BUILD_DIR)/$(TEST_NAME)
-	$(BUILD_DIR)/$(TEST_NAME) --filter "PageRangeParser|PDFCompressor|PDFSplitter|PDFConcatenator|PDFRotator|PDFCropper|PDFMetadataEditor|PDFColorAdjuster|PDFFileItem|Utilities|AppViewModel|CompressViewModel|SplitViewModel|ConcatenateViewModel|SourceEqualsDestination|Failure Modes|End-to-End|PDFImageExporter|PDFImageConverter"
+	$(BUILD_DIR)/$(TEST_NAME) --filter "$(FAST_TEST_FILTER)"
 
-# Corpus lane: all fixture-based tests (requires PDFs in Fixtures/)
+# Slow/corpus lane: fixture, invariant, visual, differential, and performance tests
 test-corpus: $(BUILD_DIR)/$(TEST_NAME)
-	$(BUILD_DIR)/$(TEST_NAME) --filter "Fixture|Invariant|Visual|Performance|Differential|Cancellation|Safety"
+	$(BUILD_DIR)/$(TEST_NAME) --filter "$(CORPUS_TEST_FILTER)"
 
-$(BUILD_DIR)/$(TEST_NAME): $(TESTABLE_SOURCES) $(TEST_SOURCES)
+$(BUILD_DIR)/$(TEST_NAME): Makefile $(TEST_SOURCE_LIST) $(TESTABLE_SOURCES) $(TEST_SOURCES)
 	@mkdir -p $(BUILD_DIR)
-	swiftc -target $(TARGET) -sdk $(SDK) -parse-as-library \
+	swiftc -target $(TARGET) -sdk $(SDK) $(SWIFT_LANGUAGE_FLAGS) -parse-as-library \
 		-framework PDFKit -framework AppKit -framework Foundation \
 		-F $(TESTING_FW_DIR) \
 		-framework Testing \

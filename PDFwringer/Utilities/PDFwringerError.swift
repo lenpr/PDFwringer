@@ -44,15 +44,9 @@ enum PDFwringerError: LocalizedError {
 
 /// Shared formatting utilities for the app.
 enum Formatting {
-    private static let fileSizeFormatter: ByteCountFormatter = {
-        let f = ByteCountFormatter()
-        f.countStyle = .file
-        return f
-    }()
-
     /// Formats a byte count as a human-readable file size string (e.g. "1.2 MB").
     static func fileSize(_ bytes: Int64) -> String {
-        fileSizeFormatter.string(fromByteCount: bytes)
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 
     /// Returns available disk space at the given URL's volume, or nil if unavailable.
@@ -98,6 +92,7 @@ enum AtomicFileWriter {
 
     /// Async counterpart for producers that must yield or cooperatively cancel while
     /// writing. The staging and commit guarantees are identical to the synchronous API.
+    @MainActor
     static func write(to destination: URL, using block: (URL) async throws -> Bool) async throws {
         let stagedFile = try StagedFile(destination: destination)
         defer { stagedFile.cleanup() }

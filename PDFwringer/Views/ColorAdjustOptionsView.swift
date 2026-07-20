@@ -2,6 +2,7 @@ import SwiftUI
 import PDFKit
 import CoreImage
 
+@MainActor
 struct ColorAdjustOptionsView: View {
     let url: URL
     let document: PDFDocument
@@ -16,23 +17,7 @@ struct ColorAdjustOptionsView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            VStack(spacing: 0) {
-                previewPanel
-                    .padding(20)
-
-                PageThumbnailStripView(
-                    document: document,
-                    currentPage: $currentPage,
-                    selectedPages: pageSelection.appliesToAll ? nil : $pageSelection.selectedPages
-                )
-                .padding(.horizontal, 20)
-            }
-            .frame(minWidth: 260, idealWidth: 320)
-            .overlay {
-                DropReceiverView(isTargeted: $isDropTargeted) { urls in
-                    onFilesDropped(urls)
-                }
-            }
+            previewColumn
 
             Divider()
 
@@ -92,7 +77,7 @@ struct ColorAdjustOptionsView: View {
                         message: msg,
                         isError: vm.isError,
                         outputURL: vm.lastOutputURL,
-                        onRetry: vm.isError ? saveAdjustedPDF : nil
+                        onRetry: vm.isError ? { saveAdjustedPDF() } : nil
                     )
                 }
             }
@@ -100,12 +85,16 @@ struct ColorAdjustOptionsView: View {
             .frame(minWidth: 300, idealWidth: 340)
             .tint(.coral)
         }
-        .onChange(of: currentPage) { vm.updatePreview(document: document, page: currentPage) }
-        .onChange(of: vm.brightness) { vm.updatePreview(document: document, page: currentPage) }
-        .onChange(of: vm.contrast) { vm.updatePreview(document: document, page: currentPage) }
-        .onChange(of: vm.saturation) { vm.updatePreview(document: document, page: currentPage) }
-        .onAppear { vm.updatePreview(document: document, page: currentPage) }
+        .onChange(of: currentPage) { _, _ in refreshPreview() }
+        .onChange(of: vm.brightness) { _, _ in refreshPreview() }
+        .onChange(of: vm.contrast) { _, _ in refreshPreview() }
+        .onChange(of: vm.saturation) { _, _ in refreshPreview() }
+        .onAppear { refreshPreview() }
         .onDisappear { vm.cancelPreview() }
+    }
+
+    private func refreshPreview() {
+        vm.updatePreview(document: document, page: currentPage)
     }
 
     private func saveAdjustedPDF() {
@@ -124,6 +113,26 @@ struct ColorAdjustOptionsView: View {
     }
 
     // MARK: - Preview
+
+    private var previewColumn: some View {
+        VStack(spacing: 0) {
+            previewPanel
+                .padding(20)
+
+            PageThumbnailStripView(
+                document: document,
+                currentPage: $currentPage,
+                selectedPages: pageSelection.appliesToAll ? nil : $pageSelection.selectedPages
+            )
+            .padding(.horizontal, 20)
+        }
+        .frame(minWidth: 260, idealWidth: 320)
+        .overlay {
+            DropReceiverView(isTargeted: $isDropTargeted) { urls in
+                onFilesDropped(urls)
+            }
+        }
+    }
 
     private var previewPanel: some View {
         Group {

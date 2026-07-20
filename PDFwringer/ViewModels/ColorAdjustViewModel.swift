@@ -1,6 +1,14 @@
 import AppKit
 import PDFKit
 
+private struct PreviewPage: @unchecked Sendable {
+    let page: CGPDFPage
+}
+
+private struct PreviewImage: @unchecked Sendable {
+    let image: CGImage
+}
+
 /// Drives color adjustment: preview rendering, preset application, and save operations.
 @MainActor @Observable
 class ColorAdjustViewModel {
@@ -15,12 +23,14 @@ class ColorAdjustViewModel {
     var progress: Double = 0
     var lastOutputURL: URL?
 
-    private var previewTask: Task<Void, Never>?
-    private var operationTask: Task<Void, Never>?
-    private var previewGeneration = 0
+    @ObservationIgnored private var previewTask: Task<Void, Never>?
+    @ObservationIgnored private var operationTask: Task<Void, Never>?
+    @ObservationIgnored private var previewGeneration = 0
+    @ObservationIgnored private weak var pendingPreviewDocument: PDFDocument?
+    @ObservationIgnored private var pendingPreviewPage = 0
     /// Single-flight guard: prevents concurrent preview renders from exhausting resources.
-    private var isRendering = false
-    private let adjuster = PDFColorAdjuster()
+    @ObservationIgnored private var isRendering = false
+    @ObservationIgnored private let adjuster = PDFColorAdjuster()
 
     var settings: PDFColorAdjuster.Settings {
         .init(brightness: brightness, contrast: contrast, saturation: saturation)
@@ -45,49 +55,54 @@ class ColorAdjustViewModel {
     func updatePreview(document: PDFDocument, page: Int) {
         previewTask?.cancel()
         previewGeneration += 1
+        pendingPreviewDocument = document
+        pendingPreviewPage = page
+        startPendingPreviewIfNeeded()
+    }
+
+    private func startPendingPreviewIfNeeded() {
+        guard !isRendering,
+              let document = pendingPreviewDocument else { return }
+
         let gen = previewGeneration
         let currentSettings = settings
 
         // Get CGPDFPage ref on MainActor (PDFKit thread safety)
-        guard let pageRef = document.page(at: page)?.pageRef else { return }
+        guard let pageRef = document.page(at: pendingPreviewPage)?.pageRef else { return }
+        let previewPage = PreviewPage(page: pageRef)
 
-        // Single-flight: if a render is already in progress, just cancel it and
-        // let the generation check discard its result. Don't spawn concurrent renders.
-        guard !isRendering else { return }
         isRendering = true
 
-        // Render off MainActor to avoid blocking UI
-        previewTask = Task.detached(priority: .userInitiated) { [weak self] in
-            defer {
-                Task { @MainActor [weak self] in
-                    self?.isRendering = false
-                    // If generation moved on while we were rendering, trigger one more update
-                    if let self, self.previewGeneration != gen {
-                        // Schedule a re-render for the latest state on next runloop cycle
-                        self.previewTask = Task { [weak self] in
-                            try? await Task.sleep(for: .milliseconds(50))
-                            guard let self else { return }
-                            self.updatePreview(document: document, page: page)
-                        }
-                    }
-                }
-            }
-
+        previewTask = Task { @MainActor [weak self] in
+            defer { self?.finishPreview(generation: gen) }
             try? await Task.sleep(for: .milliseconds(100))
             guard !Task.isCancelled else { return }
 
-            guard let (rendered, _) = PDFCompressor.renderPage(pageRef, dpi: 150, grayscale: false) else { return }
+            let preview = await Task.detached(priority: .userInitiated) {
+                guard let (rendered, _) = PDFCompressor.renderPage(
+                    previewPage.page,
+                    dpi: 150,
+                    grayscale: false
+                ) else { return nil as PreviewImage? }
+
+                let adjusted = PDFColorAdjuster.adjustImage(rendered, settings: currentSettings) ?? rendered
+                return PreviewImage(image: adjusted)
+            }.value
             guard !Task.isCancelled else { return }
+            guard let preview else { return }
 
-            let adjusted = PDFColorAdjuster.adjustImage(rendered, settings: currentSettings) ?? rendered
-            guard !Task.isCancelled else { return }
+            guard let self, self.previewGeneration == gen else { return }
+            self.previewImage = NSImage(
+                cgImage: preview.image,
+                size: NSSize(width: preview.image.width, height: preview.image.height)
+            )
+        }
+    }
 
-            let nsImage = NSImage(cgImage: adjusted, size: NSSize(width: adjusted.width, height: adjusted.height))
-
-            await MainActor.run { [weak self] in
-                guard let self, self.previewGeneration == gen else { return }
-                self.previewImage = nsImage
-            }
+    private func finishPreview(generation: Int) {
+        isRendering = false
+        if previewGeneration != generation {
+            startPendingPreviewIfNeeded()
         }
     }
 

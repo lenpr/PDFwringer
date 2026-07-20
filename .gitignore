@@ -3,7 +3,6 @@
 *.swp
 xcuserdata/
 DerivedData/
-PDFwringer/GeneratedVersion.swift
 *.xcworkspace/
 
 # Test fixtures (real PDFs — too large for git)

@@ -13,7 +13,7 @@ struct CancellationContractTests {
 
     private func expectCancellationAtFinalProgress(
         output: URL,
-        operation: @escaping (@escaping (Double) -> Void) async throws -> Void
+        operation: @escaping @MainActor (@escaping (Double) -> Void) async throws -> Void
     ) async {
         var operationTask: Task<Void, Error>?
         operationTask = Task { @MainActor in

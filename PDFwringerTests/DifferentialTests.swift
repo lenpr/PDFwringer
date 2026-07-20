@@ -22,12 +22,12 @@ struct DifferentialEquivalenceTests {
 
         let splitter = PDFSplitter()
 
-        try await splitter.split(
+        _ = try await splitter.split(
             source: source, mode: .keepPages([0, 1, 2]),
             destination: keepOutput, progress: { _ in }
         )
 
-        try await splitter.split(
+        _ = try await splitter.split(
             source: source, mode: .removePages([3, 4, 5]),
             destination: removeOutput, progress: { _ in }
         )

@@ -7,7 +7,7 @@ import PDFKit
 @MainActor
 struct PDFColorAdjuster {
 
-    struct Settings: Equatable, Hashable {
+    struct Settings: Equatable, Hashable, Sendable {
         var brightness: Float = 0
         var contrast: Float = 1
         var saturation: Float = 1

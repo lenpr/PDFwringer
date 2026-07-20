@@ -121,7 +121,7 @@ struct TextPreservationTests {
         defer { try? FileManager.default.removeItem(at: output) }
 
         let splitter = PDFSplitter()
-        try await splitter.split(
+        _ = try await splitter.split(
             source: fixture.url, mode: .keepPages([0]),
             destination: output, progress: { _ in }
         )
@@ -228,7 +228,7 @@ struct PageGeometryTests {
         defer { try? FileManager.default.removeItem(at: output) }
 
         let splitter = PDFSplitter()
-        try await splitter.split(
+        _ = try await splitter.split(
             source: fixture.url, mode: .keepPages([0, 1]),
             destination: output, progress: { _ in }
         )

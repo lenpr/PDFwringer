@@ -2,6 +2,8 @@ import SwiftUI
 import PDFKit
 import OSLog
 
+let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+
 @main
 struct PDFwringerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate

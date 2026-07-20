@@ -9,29 +9,9 @@
 /* Begin PBXBuildFile section */
 /* End PBXBuildFile section */
 
-/* Begin PBXContainerItemProxy section */
-		BB000001 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = AA000000 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = AA000010;
-			remoteInfo = PDFwringer;
-		};
-/* End PBXContainerItemProxy section */
-
 /* Begin PBXFileReference section */
 		AA000001 /* PDFwringer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PDFwringer.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		BB000010 /* PDFwringerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PDFwringerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		AA000020 /* Exceptions for "PDFwringer" folder in "PDFwringer" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-			);
-			target = AA000010 /* PDFwringer */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		AA000003 /* PDFwringer */ = {
@@ -54,13 +34,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		BB000011 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -77,7 +50,6 @@
 			isa = PBXGroup;
 			children = (
 				AA000001 /* PDFwringer.app */,
-				BB000010 /* PDFwringerTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -107,26 +79,6 @@
 			productReference = AA000001 /* PDFwringer.app */;
 			productType = "com.apple.product-type.application";
 		};
-		BB000020 /* PDFwringerTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = BB000030 /* Build configuration list for PBXNativeTarget "PDFwringerTests" */;
-			buildPhases = (
-				BB000012 /* Sources */,
-				BB000011 /* Frameworks */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				BB000002 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				BB000003 /* PDFwringerTests */,
-			);
-			name = PDFwringerTests;
-			productName = PDFwringerTests;
-			productReference = BB000010 /* PDFwringerTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -152,7 +104,6 @@
 			projectRoot = "";
 			targets = (
 				AA000010 /* PDFwringer */,
-				BB000020 /* PDFwringerTests */,
 			);
 		};
 /* End PBXProject section */
@@ -175,22 +126,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		BB000012 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		BB000002 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = AA000010 /* PDFwringer */;
-			targetProxy = BB000001 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		AA000031 /* Debug */ = {
@@ -244,38 +180,6 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
-			};
-			name = Release;
-		};
-		BB000031 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.pdfwringer.tests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 6.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PDFwringer.app/Contents/MacOS/PDFwringer";
-			};
-			name = Debug;
-		};
-		BB000032 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.pdfwringer.tests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 6.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PDFwringer.app/Contents/MacOS/PDFwringer";
 			};
 			name = Release;
 		};
@@ -405,15 +309,6 @@
 			buildConfigurations = (
 				AA000031 /* Debug */,
 				AA000032 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		BB000030 /* Build configuration list for PBXNativeTarget "PDFwringerTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				BB000031 /* Debug */,
-				BB000032 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
