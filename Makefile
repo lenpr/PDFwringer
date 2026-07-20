@@ -30,7 +30,7 @@ TESTING_RPATH_DIR := $(SDK_PLATFORM_PATH)/Developer/usr/lib
 
 .DEFAULT_GOAL := build
 
-.PHONY: build clean run test test-fast test-corpus verify-fixtures verify-release-tag app release dmg sign notarize FORCE
+.PHONY: build clean run test test-fast test-corpus verify-fixtures verify-release-inputs verify-release-tag app release dmg sign notarize FORCE
 
 FORCE:
 
@@ -69,7 +69,15 @@ release:
 	@$(MAKE) -B SWIFT_FLAGS='$(SWIFT_FLAGS) $(RELEASE_FLAGS)' app
 	@echo "Release build ready at $(APP_BUNDLE)"
 
-verify-release-tag:
+verify-release-inputs:
+	@dirty_inputs=$$(git status --porcelain --untracked-files=all -- Makefile PDFwringer); \
+	if [ -n "$$dirty_inputs" ]; then \
+		echo "Refusing signed release: artifact inputs contain uncommitted changes:" >&2; \
+		echo "$$dirty_inputs" >&2; \
+		exit 1; \
+	fi
+
+verify-release-tag: verify-release-inputs
 	@expected_tag="v$(BUNDLE_VERSION)"; \
 	actual_tag=$$(git describe --tags --exact-match 2>/dev/null || true); \
 	if [ "$$actual_tag" != "$$expected_tag" ]; then \
@@ -83,6 +91,10 @@ sign: verify-release-tag
 	@codesign --force --options runtime --timestamp --sign "$(SIGN_IDENTITY)" \
 		--entitlements $(ENTITLEMENTS) $(APP_BUNDLE)
 	@codesign --verify --deep --strict --verbose=2 $(APP_BUNDLE)
+	@codesign -dvvv $(APP_BUNDLE) 2>&1 | grep -q '^Authority=Developer ID Application:' || { \
+		echo "Refusing signed release: SIGN_IDENTITY did not produce a Developer ID Application signature." >&2; \
+		exit 1; \
+	}
 	@echo "Signed $(APP_BUNDLE) with Developer ID"
 
 notarize: sign
@@ -140,7 +152,6 @@ dmg: sign
 	trap 'rm -rf "$$dmg_work"' EXIT; \
 	payload="$$dmg_work/payload"; \
 	temporary_dmg="$$dmg_work/$(APP_NAME).dmg"; \
-	rm -f "$(DMG)"; \
 	mkdir "$$payload"; \
 	cp -R $(APP_BUNDLE) "$$payload/"; \
 	ln -s /Applications "$$payload/Applications"; \
