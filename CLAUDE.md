@@ -68,7 +68,7 @@ landing → singleFile → compressing / splitting / rotating / editingMetadata 
 - **File items**: `PDFFileItem.from(url:)` / `.from(urls:)` is the single factory for creating items from URLs (filters PDFs, reads page count). Struct is `Sendable`.
 - **Formatting**: `Formatting.fileSize(_:)` is the shared byte-formatting utility. `Formatting.triggerShake(_:)` provides the shared invalid-input shake animation.
 - **Atomic writes**: `AtomicFileWriter` stages single-file outputs on the destination volume, then moves or atomically replaces the destination. `ExclusiveFilePublisher` provides no-clobber publication and rollback for multi-file batches. Both clean up staging data on failure.
-- **Logging**: `Log` enum (in `PDFwringerError.swift`) provides structured `os.Logger` instances per category (compress, merge, split, rotate, metadata).
+- **Logging**: `Log` enum (in `PDFwringerError.swift`) writes structured diagnostics to Apple Unified Logging by category. Only uncaught Objective-C exceptions are appended to the app-owned `~/Library/Logs/PDFwringer/crash.log` file exposed by Help > Show Crash Logs.
 - **Thumbnails**: `ThumbnailCache` is `@MainActor @Observable` with a generation counter for SwiftUI refresh. It snapshots the authoritative page on `MainActor`, renders a worker-local page off actor, and constructs the cached `NSImage` back on `MainActor`.
 
 ## Compression dual-engine

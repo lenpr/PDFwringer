@@ -151,8 +151,8 @@ struct PDFwringerApp: App {
                     NSWorkspace.shared.open(URL(string: "https://github.com/lenpr/PDFwringer/blob/main/PRIVACY.md")!)
                 }
                 Divider()
-                Button(String(localized: "Show Logs")) {
-                    AppDelegate.openLogDirectory()
+                Button(String(localized: "Show Crash Logs")) {
+                    AppDelegate.openCrashLogDirectory()
                 }
             }
         }
@@ -165,7 +165,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var onOpenURLs: (([URL]) -> Void)?
     var hasUnsavedChanges: (() -> Bool)?
 
-    private static let logDirectory: URL = {
+    private static let crashLogDirectory: URL = {
         let dir = FileManager.default.homeDirectoryForCurrentUser
             .appending(path: "Library/Logs/PDFwringer")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -200,13 +200,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return .terminateCancel
     }
 
-    static func openLogDirectory() {
-        NSWorkspace.shared.open(logDirectory)
+    static func openCrashLogDirectory() {
+        NSWorkspace.shared.open(crashLogDirectory)
     }
 
     private func installCrashHandler() {
         NSSetUncaughtExceptionHandler { exception in
-            let logFile = AppDelegate.logDirectory.appending(component: "crash.log")
+            let logFile = AppDelegate.crashLogDirectory.appending(component: "crash.log")
             let timestamp = ISO8601DateFormatter().string(from: Date())
             let info = """
             --- Crash at \(timestamp) ---
