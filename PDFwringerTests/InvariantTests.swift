@@ -72,7 +72,7 @@ struct TextPreservationTests {
         return Double(latinCount) / Double(trimmed.count) > 0.5
     }
 
-    @Test("Lossless compression preserves extractable text", arguments: FixtureDiscovery.modifiableFixtures)
+    @Test("Lossless compression preserves extractable text", arguments: FixtureDiscovery.contentChangeFixtures)
     func losslessPreservesText(fixture: FixtureDiscovery.Fixture) async throws {
         guard hasReliableText(fixture: fixture) else { return }
 
@@ -89,7 +89,7 @@ struct TextPreservationTests {
         assertTextNormalized(source: fixture.url, output: output, operation: "lossless compress")
     }
 
-    @Test("Metadata write preserves extractable text", arguments: FixtureDiscovery.modifiableFixtures)
+    @Test("Metadata write preserves extractable text", arguments: FixtureDiscovery.contentChangeFixtures)
     func metadataPreservesText(fixture: FixtureDiscovery.Fixture) async throws {
         guard hasReliableText(fixture: fixture) else { return }
 
@@ -105,7 +105,7 @@ struct TextPreservationTests {
         assertTextNormalized(source: fixture.url, output: output, operation: "metadata write")
     }
 
-    @Test("Rotation preserves extractable text", arguments: FixtureDiscovery.rotationFixtures)
+    @Test("Rotation preserves extractable text", arguments: FixtureDiscovery.assemblyFixtures)
     func rotationPreservesText(fixture: FixtureDiscovery.Fixture) async throws {
         guard hasReliableText(fixture: fixture) else { return }
 
@@ -121,7 +121,7 @@ struct TextPreservationTests {
         assertTextNormalized(source: fixture.url, output: output, operation: "rotate 90°")
     }
 
-    @Test("Split preserves text in extracted pages", arguments: FixtureDiscovery.modifiableFixtures)
+    @Test("Split preserves text in extracted pages", arguments: FixtureDiscovery.assemblyFixtures)
     func splitPreservesText(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 2 else { return }
         guard hasReliableText(fixture: fixture) else { return }
@@ -138,7 +138,7 @@ struct TextPreservationTests {
         assertSplitTextPresent(source: fixture.url, output: output, sourcePageIndex: 0)
     }
 
-    @Test("Merge preserves text from all sources", arguments: FixtureDiscovery.modifiableFixtures)
+    @Test("Merge preserves text from all sources", arguments: FixtureDiscovery.assemblyFixtures)
     func mergePreservesText(fixture: FixtureDiscovery.Fixture) async throws {
         guard hasReliableText(fixture: fixture) else { return }
         guard fixture.pageCount <= 20 else { return }
@@ -178,7 +178,7 @@ struct TextPreservationTests {
 @MainActor
 struct PageGeometryTests {
 
-    @Test("Lossless compression preserves page geometry", arguments: FixtureDiscovery.modifiableFixtures)
+    @Test("Lossless compression preserves page geometry", arguments: FixtureDiscovery.contentChangeFixtures)
     func losslessPreservesGeometry(fixture: FixtureDiscovery.Fixture) async throws {
         let output = FixtureDiscovery.outputURL(for: fixture, suffix: "_geom_lossless.pdf")
         defer { try? FileManager.default.removeItem(at: output) }
@@ -193,7 +193,7 @@ struct PageGeometryTests {
         PDFAssertions.assertGeometryPreserved(source: fixture.url, output: output, operation: "lossless compress")
     }
 
-    @Test("Metadata write preserves page geometry", arguments: FixtureDiscovery.modifiableFixtures)
+    @Test("Metadata write preserves page geometry", arguments: FixtureDiscovery.contentChangeFixtures)
     func metadataPreservesGeometry(fixture: FixtureDiscovery.Fixture) async throws {
         let output = FixtureDiscovery.outputURL(for: fixture, suffix: "_geom_meta.pdf")
         defer { try? FileManager.default.removeItem(at: output) }
@@ -207,7 +207,7 @@ struct PageGeometryTests {
         PDFAssertions.assertGeometryPreserved(source: fixture.url, output: output, operation: "metadata write")
     }
 
-    @Test("Rotation changes rotation but preserves box dimensions", arguments: FixtureDiscovery.rotationFixtures)
+    @Test("Rotation changes rotation but preserves box dimensions", arguments: FixtureDiscovery.assemblyFixtures)
     func rotationChangesRotation(fixture: FixtureDiscovery.Fixture) async throws {
         let output = FixtureDiscovery.outputURL(for: fixture, suffix: "_geom_rot.pdf")
         defer { try? FileManager.default.removeItem(at: output) }
@@ -229,7 +229,7 @@ struct PageGeometryTests {
         )
     }
 
-    @Test("Split preserves geometry of kept pages", arguments: FixtureDiscovery.modifiableFixtures)
+    @Test("Split preserves geometry of kept pages", arguments: FixtureDiscovery.assemblyFixtures)
     func splitPreservesGeometry(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 2 else { return }
 

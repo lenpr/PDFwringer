@@ -8,7 +8,7 @@ import Foundation
 @MainActor
 struct FixtureCompressTests {
 
-    @Test("Lossless compression produces valid output", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Lossless compression produces valid output", arguments: FixtureDiscovery.contentChangeFixtures)
     func losslessCompression(fixture: FixtureDiscovery.Fixture) async throws {
         let output = FixtureDiscovery.outputURL(for: fixture, suffix: "_lossless.pdf")
         defer { try? FileManager.default.removeItem(at: output) }
@@ -28,7 +28,7 @@ struct FixtureCompressTests {
         #expect(pages == fixture.pageCount, "Lossless should preserve page count: \(fixture) (got \(pages), expected \(fixture.pageCount))")
     }
 
-    @Test("Rasterize compression produces valid smaller output", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Rasterize compression produces valid smaller output", arguments: FixtureDiscovery.contentDerivationFixtures)
     func rasterizeCompression(fixture: FixtureDiscovery.Fixture) async throws {
         let output = FixtureDiscovery.outputURL(for: fixture, suffix: "_rasterized.pdf")
         defer { try? FileManager.default.removeItem(at: output) }
@@ -49,7 +49,7 @@ struct FixtureCompressTests {
         #expect(result.outputSize > 0, "Output should have non-zero size: \(fixture)")
     }
 
-    @Test("Grayscale compression produces valid output", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Grayscale compression produces valid output", arguments: FixtureDiscovery.contentDerivationFixtures)
     func grayscaleCompression(fixture: FixtureDiscovery.Fixture) async throws {
         let output = FixtureDiscovery.outputURL(for: fixture, suffix: "_grayscale.pdf")
         defer { try? FileManager.default.removeItem(at: output) }
@@ -68,7 +68,7 @@ struct FixtureCompressTests {
         #expect(valid, "Grayscale output should be a valid PDF: \(fixture)")
     }
 
-    @Test("High quality compression preserves all pages", arguments: FixtureDiscovery.openableFixtures)
+    @Test("High quality compression preserves all pages", arguments: FixtureDiscovery.contentDerivationFixtures)
     func highQualityCompression(fixture: FixtureDiscovery.Fixture) async throws {
         let output = FixtureDiscovery.outputURL(for: fixture, suffix: "_high.pdf")
         defer { try? FileManager.default.removeItem(at: output) }
@@ -93,7 +93,7 @@ struct FixtureCompressTests {
 @MainActor
 struct FixtureRotateTests {
 
-    @Test("Rotate 90° produces valid output", arguments: FixtureDiscovery.rotationFixtures)
+    @Test("Rotate 90° produces valid output", arguments: FixtureDiscovery.assemblyFixtures)
     func rotate90(fixture: FixtureDiscovery.Fixture) async throws {
         let output = FixtureDiscovery.outputURL(for: fixture, suffix: "_rot90.pdf")
         defer { try? FileManager.default.removeItem(at: output) }
@@ -112,7 +112,7 @@ struct FixtureRotateTests {
         #expect(pages == fixture.pageCount, "Rotation should preserve page count: \(fixture)")
     }
 
-    @Test("Rotate 180° produces valid output", arguments: FixtureDiscovery.rotationFixtures)
+    @Test("Rotate 180° produces valid output", arguments: FixtureDiscovery.assemblyFixtures)
     func rotate180(fixture: FixtureDiscovery.Fixture) async throws {
         let output = FixtureDiscovery.outputURL(for: fixture, suffix: "_rot180.pdf")
         defer { try? FileManager.default.removeItem(at: output) }
@@ -131,7 +131,7 @@ struct FixtureRotateTests {
         #expect(pages == fixture.pageCount, "Rotation should preserve page count: \(fixture)")
     }
 
-    @Test("Rotate specific pages produces valid output", arguments: FixtureDiscovery.rotationFixtures)
+    @Test("Rotate specific pages produces valid output", arguments: FixtureDiscovery.assemblyFixtures)
     func rotateSpecificPages(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 2 else { return }
 
@@ -157,7 +157,7 @@ struct FixtureRotateTests {
 @MainActor
 struct FixtureSplitTests {
 
-    @Test("Split every 1 page produces correct file count", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Split every 1 page produces correct file count", arguments: FixtureDiscovery.assemblyFixtures)
     func splitEveryPage(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 2, fixture.pageCount <= 50 else { return } // Skip huge docs
 
@@ -183,7 +183,7 @@ struct FixtureSplitTests {
         }
     }
 
-    @Test("Keep first page extracts correctly", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Keep first page extracts correctly", arguments: FixtureDiscovery.assemblyFixtures)
     func keepFirstPage(fixture: FixtureDiscovery.Fixture) async throws {
         let output = FixtureDiscovery.outputURL(for: fixture, suffix: "_page1.pdf")
         defer { try? FileManager.default.removeItem(at: output) }
@@ -201,7 +201,7 @@ struct FixtureSplitTests {
         _ = pages
     }
 
-    @Test("Remove first page produces n-1 pages", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Remove first page produces n-1 pages", arguments: FixtureDiscovery.assemblyFixtures)
     func removeFirstPage(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 2 else { return }
 
@@ -226,7 +226,7 @@ struct FixtureSplitTests {
 @MainActor
 struct FixtureMergeTests {
 
-    @Test("Merge fixture with itself doubles page count", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Merge fixture with itself doubles page count", arguments: FixtureDiscovery.assemblyFixtures)
     func mergeWithSelf(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount <= 100 else { return } // Skip huge docs for memory
 
@@ -247,7 +247,7 @@ struct FixtureMergeTests {
 
     @Test("Merge all openable fixtures into one document")
     func mergeAllFixtures() async throws {
-        let fixtures = FixtureDiscovery.openableFixtures
+        let fixtures = FixtureDiscovery.assemblyFixtures
         guard fixtures.count >= 2 else { return }
 
         // Limit to first 5 to avoid excessive memory/time
@@ -275,7 +275,7 @@ struct FixtureMergeTests {
 @MainActor
 struct FixtureCropTests {
 
-    @Test("Crop reduces page dimensions", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Crop reduces page dimensions", arguments: FixtureDiscovery.contentChangeFixtures)
     func cropReducesDimensions(fixture: FixtureDiscovery.Fixture) async throws {
         guard let doc = PDFDocument(url: fixture.url), let page = doc.page(at: 0) else { return }
 
@@ -300,7 +300,7 @@ struct FixtureCropTests {
         }
     }
 
-    @Test("Resize to A4 applies correctly", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Resize to A4 applies correctly", arguments: FixtureDiscovery.contentChangeFixtures)
     func resizeToA4(fixture: FixtureDiscovery.Fixture) async throws {
         guard let doc = PDFDocument(url: fixture.url) else { return }
 
@@ -326,7 +326,7 @@ struct FixtureCropTests {
 @MainActor
 struct FixtureColorAdjustTests {
 
-    @Test("Color adjustment produces valid output", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Color adjustment produces valid output", arguments: FixtureDiscovery.contentDerivationFixtures)
     func adjustColors(fixture: FixtureDiscovery.Fixture) async throws {
         let output = FixtureDiscovery.outputURL(for: fixture, suffix: "_adjusted.pdf")
         defer { try? FileManager.default.removeItem(at: output) }
@@ -372,7 +372,7 @@ struct FixtureColorAdjustTests {
         }
     }
 
-    @Test("Partial page adjustment produces valid output", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Partial page adjustment produces valid output", arguments: FixtureDiscovery.contentDerivationFixtures)
     func partialPageAdjustment(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 2 else { return }
 
@@ -412,7 +412,7 @@ struct FixtureMetadataTests {
         #expect(fields.allSatisfy { $0.count <= 10_000 }, "Metadata was not bounded: \(fixture)")
     }
 
-    @Test("Write metadata produces valid output", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Write metadata produces valid output", arguments: FixtureDiscovery.contentChangeFixtures)
     func writeMetadata(fixture: FixtureDiscovery.Fixture) async throws {
         let output = FixtureDiscovery.outputURL(for: fixture, suffix: "_meta.pdf")
         defer { try? FileManager.default.removeItem(at: output) }
@@ -442,7 +442,7 @@ struct FixtureMetadataTests {
         #expect(readBack.author == "Test Author", "Author should persist: \(fixture)")
     }
 
-    @Test("Flatten annotations produces valid output", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Flatten annotations produces valid output", arguments: FixtureDiscovery.contentDerivationFixtures)
     func flattenAnnotations(fixture: FixtureDiscovery.Fixture) async throws {
         // Only test fixtures with reasonable page count (flattening is slow at 300 DPI)
         guard fixture.pageCount <= 10 else { return }
@@ -520,7 +520,7 @@ struct FixtureErrorTests {
 @MainActor
 struct FixturePipelineTests {
 
-    @Test("Compress then rotate produces valid output", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Compress then rotate produces valid output", arguments: FixtureDiscovery.contentDerivationFixtures)
     func compressThenRotate(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount <= 20 else { return }
 
@@ -549,7 +549,7 @@ struct FixturePipelineTests {
         _ = pages
     }
 
-    @Test("Split and merge round-trip preserves page count", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Split and merge round-trip preserves page count", arguments: FixtureDiscovery.assemblyFixtures)
     func splitMergeRoundTrip(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 2, fixture.pageCount <= 30 else { return }
 

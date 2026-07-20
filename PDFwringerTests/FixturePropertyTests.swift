@@ -10,7 +10,7 @@ import Foundation
 @MainActor
 struct FixtureRoundTripTests {
 
-    @Test("Rotate 4×90° preserves original page dimensions", arguments: FixtureDiscovery.rotationFixtures)
+    @Test("Rotate 4×90° preserves original page dimensions", arguments: FixtureDiscovery.assemblyFixtures)
     func rotateFullCircle(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 1 else { return }
 
@@ -55,7 +55,7 @@ struct FixtureRoundTripTests {
                 "Rotation should match after 4×90°: \(fixture) (original \(originalRotation)°, got \(finalRotation)°)")
     }
 
-    @Test("Lossless compress is idempotent", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Lossless compress is idempotent", arguments: FixtureDiscovery.contentChangeFixtures)
     func losslessIdempotent(fixture: FixtureDiscovery.Fixture) async throws {
         let first = FixtureDiscovery.outputURL(for: fixture, suffix: "_lossless1.pdf")
         let second = FixtureDiscovery.outputURL(for: fixture, suffix: "_lossless2.pdf")
@@ -95,7 +95,7 @@ struct FixtureRoundTripTests {
                 "Double-lossless should not inflate significantly: \(fixture) (first \(firstSize), second \(secondSize), tolerance \(tolerance))")
     }
 
-    @Test("Metadata write then read round-trips correctly", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Metadata write then read round-trips correctly", arguments: FixtureDiscovery.contentChangeFixtures)
     func metadataRoundTrip(fixture: FixtureDiscovery.Fixture) async throws {
         let output = FixtureDiscovery.outputURL(for: fixture, suffix: "_meta_rt.pdf")
         defer { try? FileManager.default.removeItem(at: output) }
@@ -125,7 +125,7 @@ struct FixtureRoundTripTests {
 @MainActor
 struct FixtureProgressTests {
 
-    @Test("Compress progress is monotonically increasing", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Compress progress is monotonically increasing", arguments: FixtureDiscovery.contentDerivationFixtures)
     func compressProgressMonotonic(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 2 else { return }
 
@@ -152,7 +152,7 @@ struct FixtureProgressTests {
         }
     }
 
-    @Test("Color adjust progress is monotonically increasing", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Color adjust progress is monotonically increasing", arguments: FixtureDiscovery.contentDerivationFixtures)
     func colorAdjustProgressMonotonic(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 2 else { return }
 
@@ -178,7 +178,7 @@ struct FixtureProgressTests {
         }
     }
 
-    @Test("Split progress is monotonically increasing", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Split progress is monotonically increasing", arguments: FixtureDiscovery.assemblyFixtures)
     func splitProgressMonotonic(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 4, fixture.pageCount <= 50 else { return }
 
@@ -204,7 +204,7 @@ struct FixtureProgressTests {
 @MainActor
 struct FixtureSizeSanityTests {
 
-    @Test("Rasterize at low DPI produces smaller output for content-rich PDFs", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Rasterize at low DPI produces smaller output for content-rich PDFs", arguments: FixtureDiscovery.contentDerivationFixtures)
     func rasterizeShrinks(fixture: FixtureDiscovery.Fixture) async throws {
         // Only test content-rich PDFs (>50KB) — tiny PDFs may inflate due to JPEG overhead
         guard fixture.fileSize > 50_000 else { return }
@@ -226,7 +226,7 @@ struct FixtureSizeSanityTests {
                 "Low-quality compress should not massively inflate: \(fixture) (ratio \(String(format: "%.1f", ratio))x, source \(fixture.fileSize) → output \(result.outputSize))")
     }
 
-    @Test("Grayscale output is not larger than color output", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Grayscale output is not larger than color output", arguments: FixtureDiscovery.contentDerivationFixtures)
     func grayscaleNotLarger(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount <= 10 else { return } // Keep test fast
 
@@ -265,7 +265,7 @@ struct FixtureSizeSanityTests {
 @MainActor
 struct FixtureReprocessTests {
 
-    @Test("Compressed output can be re-compressed", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Compressed output can be re-compressed", arguments: FixtureDiscovery.contentDerivationFixtures)
     func compressedCanBeRecompressed(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount <= 20 else { return }
 
@@ -295,7 +295,7 @@ struct FixtureReprocessTests {
         #expect(valid, "Re-compressed output should be valid: \(fixture)")
     }
 
-    @Test("Rotated output can be split", arguments: FixtureDiscovery.rotationFixtures)
+    @Test("Rotated output can be split", arguments: FixtureDiscovery.assemblyFixtures)
     func rotatedCanBeSplit(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 2, fixture.pageCount <= 20 else { return }
 
@@ -322,7 +322,7 @@ struct FixtureReprocessTests {
                 "Split of rotated output should produce correct count: \(fixture)")
     }
 
-    @Test("Split parts can be merged back", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Split parts can be merged back", arguments: FixtureDiscovery.assemblyFixtures)
     func splitPartsCanMerge(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount >= 2, fixture.pageCount <= 20 else { return }
 
@@ -353,7 +353,7 @@ struct FixtureReprocessTests {
 @MainActor
 struct FixtureAnnotationTests {
 
-    @Test("Lossless compression preserves annotation count", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Lossless compression preserves annotation count", arguments: FixtureDiscovery.contentChangeFixtures)
     func losslessPreservesAnnotations(fixture: FixtureDiscovery.Fixture) async throws {
         guard let sourceDoc = PDFDocument(url: fixture.url) else { return }
 
@@ -388,7 +388,7 @@ struct FixtureAnnotationTests {
                 "Lossless should preserve annotations: \(fixture) (source \(sourceAnnotationCount), output \(outputAnnotationCount))")
     }
 
-    @Test("Lossless annotation removal removes annotations", arguments: FixtureDiscovery.modifiableFixtures)
+    @Test("Lossless annotation removal removes annotations", arguments: FixtureDiscovery.contentChangeFixtures)
     func removeAnnotationsRemovesAnnotations(fixture: FixtureDiscovery.Fixture) async throws {
         guard let sourceDoc = PDFDocument(url: fixture.url) else { return }
 
@@ -440,7 +440,7 @@ struct FixtureAnnotationTests {
                 "Annotation removal left \(outputAnnotationCount) annotation(s): \(fixture)")
     }
 
-    @Test("Flatten renders annotations into page content", arguments: FixtureDiscovery.openableFixtures)
+    @Test("Flatten renders annotations into page content", arguments: FixtureDiscovery.contentDerivationFixtures)
     func flattenBurnsAnnotations(fixture: FixtureDiscovery.Fixture) async throws {
         guard fixture.pageCount <= 5 else { return } // Flatten is slow at 300 DPI
 

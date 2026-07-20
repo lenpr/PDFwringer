@@ -46,19 +46,22 @@ enum FixtureDiscovery {
         }
     }()
 
-    /// Fixtures that can be opened AND modified (no permission restrictions).
-    /// Use this for tests that rotate, strip annotations, or otherwise mutate content.
-    static let modifiableFixtures: [Fixture] = {
-        allFixtures.filter { fixture in
-            guard let doc = PDFDocument(url: fixture.url) else { return false }
-            guard !doc.isLocked && doc.pageCount > 0 else { return false }
-            // Check if the PDF allows modifications
-            return doc.allowsCopying && doc.allowsCommenting
+    /// Fixtures whose permissions allow document changes such as metadata edits or cropping.
+    static let contentChangeFixtures: [Fixture] = {
+        openableFixtures.filter { fixture in
+            PDFDocument(url: fixture.url)?.allowsDocumentChanges == true
         }
     }()
 
-    /// Fixtures whose security permissions specifically allow page rotation.
-    static let rotationFixtures: [Fixture] = {
+    /// Fixtures whose permissions allow reading content into a changed document.
+    static let contentDerivationFixtures: [Fixture] = {
+        contentChangeFixtures.filter { fixture in
+            PDFDocument(url: fixture.url)?.allowsCopying == true
+        }
+    }()
+
+    /// Fixtures whose permissions allow splitting, merging, rotating, or reordering pages.
+    static let assemblyFixtures: [Fixture] = {
         openableFixtures.filter { fixture in
             PDFDocument(url: fixture.url)?.allowsDocumentAssembly == true
         }
