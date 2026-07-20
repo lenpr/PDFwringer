@@ -143,5 +143,6 @@ struct SplitOptionsView: View {
                 break
             }
         }
+        .onDisappear { vm.cancel() }
     }
 }

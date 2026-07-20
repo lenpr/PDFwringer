@@ -173,6 +173,7 @@ struct MergeOptionsView: View {
             .frame(minWidth: 300, idealWidth: 340)
             .tint(.coral)
         }
+        .onDisappear { vm.cancel() }
     }
 
     private var totalPages: Int {

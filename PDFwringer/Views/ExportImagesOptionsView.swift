@@ -135,6 +135,10 @@ struct ExportImagesOptionsView: View {
             .frame(minWidth: 300, idealWidth: 340)
             .tint(.coral)
         }
+        .onDisappear {
+            operationTask?.cancel()
+            operationTask = nil
+        }
     }
 
     private func exportImages() {

@@ -208,6 +208,7 @@ struct CompressOptionsView: View {
         }
         .onDisappear {
             vm.cancelEstimation()
+            vm.cancel()
         }
     }
 }

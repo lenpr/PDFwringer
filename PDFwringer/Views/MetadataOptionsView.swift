@@ -20,6 +20,7 @@ struct MetadataOptionsView: View {
     @State private var flattenAnnotations = false
     @State private var isSaving = false
     @State private var saveProgress: Double?
+    @State private var saveTask: Task<Void, Never>?
 
     private let editor = PDFMetadataEditor()
 
@@ -126,7 +127,7 @@ struct MetadataOptionsView: View {
 
                 HStack {
                     Spacer()
-                    Button(String(localized: "Save Metadata")) { Task { await saveMetadata() } }
+                    Button(String(localized: "Save Metadata")) { startSaving() }
                         .keyboardShortcut("s")
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
@@ -136,9 +137,20 @@ struct MetadataOptionsView: View {
                         )
                 }
 
-                if let progress = saveProgress {
-                    ProgressView(value: progress)
-                        .progressViewStyle(.linear)
+                if isSaving {
+                    HStack(spacing: 8) {
+                        if let progress = saveProgress {
+                            ProgressView(value: progress)
+                                .progressViewStyle(.linear)
+                        } else {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Button(String(localized: "Cancel")) { saveTask?.cancel() }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                    }
                 }
 
                 if let msg = resultMessage {
@@ -146,7 +158,7 @@ struct MetadataOptionsView: View {
                         message: msg,
                         isError: isError,
                         outputURL: lastOutputURL,
-                        onRetry: isError ? { Task { await saveMetadata() } } : nil
+                        onRetry: isError ? { startSaving() } : nil
                     )
                 }
 
@@ -165,6 +177,10 @@ struct MetadataOptionsView: View {
                 confirmPasswordText = ""
             }
         }
+        .onDisappear {
+            saveTask?.cancel()
+            saveTask = nil
+        }
     }
 
     private func metadataField(_ label: String, text: Binding<String>) -> some View {
@@ -182,6 +198,14 @@ struct MetadataOptionsView: View {
         }
     }
 
+    private func startSaving() {
+        guard !isSaving else { return }
+        saveTask = Task {
+            await saveMetadata()
+            saveTask = nil
+        }
+    }
+
     private func saveMetadata() async {
         let suggestedName = url.deletingPathExtension().lastPathComponent + "_metadata.pdf"
         guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
@@ -190,6 +214,10 @@ struct MetadataOptionsView: View {
         isError = false
         isSaving = true
         saveProgress = flattenAnnotations ? 0 : nil
+        defer {
+            isSaving = false
+            saveProgress = nil
+        }
         let password: String? = if document.isEncrypted && !removeProtection && !passwordText.isEmpty {
             passwordText
         } else if document.isEncrypted && !removeProtection && passwordText.isEmpty {
@@ -206,7 +234,6 @@ struct MetadataOptionsView: View {
         if document.isEncrypted && !removeProtection && password == nil {
             resultMessage = String(localized: "Please enter a password to keep protection, or check 'Remove protection' to save without encryption.")
             isError = true
-            isSaving = false
             return
         }
 
@@ -232,12 +259,14 @@ struct MetadataOptionsView: View {
             }
             isError = false
             lastOutputURL = destination
+        } catch is CancellationError {
+            resultMessage = String(localized: "Cancelled.")
+            isError = false
+            lastOutputURL = nil
         } catch {
             resultMessage = error.localizedDescription
             isError = true
+            lastOutputURL = nil
         }
-
-        isSaving = false
-        saveProgress = nil
     }
 }

@@ -90,7 +90,10 @@ struct ColorAdjustOptionsView: View {
         .onChange(of: vm.contrast) { _, _ in refreshPreview() }
         .onChange(of: vm.saturation) { _, _ in refreshPreview() }
         .onAppear { refreshPreview() }
-        .onDisappear { vm.cancelPreview() }
+        .onDisappear {
+            vm.cancelPreview()
+            vm.cancel()
+        }
     }
 
     private func refreshPreview() {
