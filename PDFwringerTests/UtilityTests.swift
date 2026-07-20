@@ -3,6 +3,12 @@ import Foundation
 import PDFKit
 import CoreText
 
+private final class InvalidRepresentationPDFDocument: PDFDocument {
+    override func dataRepresentation() -> Data? {
+        Data("not a PDF".utf8)
+    }
+}
+
 @Suite("Utilities")
 @MainActor
 struct UtilityTests {
@@ -315,6 +321,29 @@ struct UtilityTests {
         #expect(result.outputURL == nil)
         #expect(result.message == PDFwringerError.sourceEqualsDestination.localizedDescription)
         #expect(try Data(contentsOf: source) == originalData)
+    }
+
+    @Test("DocumentSaver rejects invalid serialization without replacing destination")
+    func documentSaverValidatesStagedOutput() throws {
+        let directory = TestPDFGenerator.makeTempDirectory()
+        let source = directory.appending(component: "source.pdf")
+        let destination = directory.appending(component: "destination.pdf")
+        let originalDestination = Data("existing destination".utf8)
+        try originalDestination.write(to: destination)
+        defer { TestPDFGenerator.cleanup(directory) }
+
+        let document = InvalidRepresentationPDFDocument()
+        document.insert(PDFPage(), at: 0)
+
+        let result = DocumentSaver.save(
+            document: document,
+            source: source,
+            to: destination
+        )
+
+        #expect(result.isError)
+        #expect(result.outputURL == nil)
+        #expect(try Data(contentsOf: destination) == originalDestination)
     }
 
     // MARK: - Formatting

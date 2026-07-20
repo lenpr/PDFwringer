@@ -261,14 +261,29 @@ enum DocumentSaver {
                 outputURL: nil
             )
         }
-        guard let data = document.dataRepresentation() else {
+        guard !document.isLocked else {
+            return Result(
+                message: PDFwringerError.documentIsLocked.localizedDescription,
+                isError: true,
+                outputURL: nil
+            )
+        }
+        let expectedPageCount = document.pageCount
+        guard expectedPageCount > 0,
+              let data = document.dataRepresentation(),
+              !data.isEmpty else {
             return Result(message: "Failed to serialize document.", isError: true, outputURL: nil)
         }
 
         do {
             try AtomicFileWriter.write(to: destination) { tempURL in
                 try data.write(to: tempURL)
-                return true
+                guard let output = PDFDocument(url: tempURL) else { return false }
+                if output.isLocked {
+                    return document.isEncrypted && output.isEncrypted
+                }
+                guard output.pageCount == expectedPageCount else { return false }
+                return (0..<expectedPageCount).allSatisfy { output.page(at: $0) != nil }
             }
             return Result(message: "Saved.", isError: false, outputURL: destination)
         } catch {
