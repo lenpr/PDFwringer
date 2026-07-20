@@ -2,13 +2,13 @@ import Testing
 import PDFKit
 import Foundation
 
-/// Performance warning tests: verify operations complete within reasonable bounds.
-/// These tests WARN (not fail) on slow execution, except for absurd thresholds.
-/// Also includes ViewModel lifecycle tests for operation state flow.
+/// Coarse performance regression tests plus ViewModel lifecycle state checks.
 
 @Suite("Performance Bounds")
 @MainActor
 struct PerformanceBoundsTests {
+
+    private static let regressionLimit = Duration.seconds(30)
 
     @Test("Compress 50-page PDF completes in reasonable time")
     func compress50Pages() async throws {
@@ -28,8 +28,10 @@ struct PerformanceBoundsTests {
         )
         let elapsed = ContinuousClock.now - start
 
-        // Guard against infinite loops — not a speed test
-        #expect(elapsed < .seconds(180), "50-page compression should not hang (took \(elapsed))")
+        #expect(
+            elapsed < Self.regressionLimit,
+            "50-page compression exceeded the coarse 30-second regression bound (took \(elapsed))"
+        )
     }
 
     @Test("Split 100-page PDF into individual pages completes")
@@ -50,7 +52,10 @@ struct PerformanceBoundsTests {
         let elapsed = ContinuousClock.now - start
 
         #expect(parts.count == 100)
-        #expect(elapsed < .seconds(180), "100-page split should not hang (took \(elapsed))")
+        #expect(
+            elapsed < Self.regressionLimit,
+            "100-page split exceeded the coarse 30-second regression bound (took \(elapsed))"
+        )
     }
 
     @Test("Merge 20 PDFs completes")
@@ -70,7 +75,10 @@ struct PerformanceBoundsTests {
         let elapsed = ContinuousClock.now - start
 
         #expect(result.outputPageCount == 100)
-        #expect(elapsed < .seconds(180), "20-file merge should not hang (took \(elapsed))")
+        #expect(
+            elapsed < Self.regressionLimit,
+            "20-file merge exceeded the coarse 30-second regression bound (took \(elapsed))"
+        )
     }
 
     @Test("Color adjust 20-page PDF completes")
@@ -91,7 +99,10 @@ struct PerformanceBoundsTests {
         )
         let elapsed = ContinuousClock.now - start
 
-        #expect(elapsed < .seconds(180), "20-page color adjust should not hang (took \(elapsed))")
+        #expect(
+            elapsed < Self.regressionLimit,
+            "20-page color adjustment exceeded the coarse 30-second regression bound (took \(elapsed))"
+        )
     }
 
     @Test("Output size is bounded relative to page count and DPI")
