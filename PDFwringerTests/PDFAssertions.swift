@@ -64,15 +64,20 @@ enum PDFAssertions {
         let pageIndex: Int
 
         var description: String {
-            "Page \(pageIndex+1): media=\(Int(mediaBox.width))×\(Int(mediaBox.height)), crop=\(Int(cropBox.width))×\(Int(cropBox.height)), rot=\(rotation)°"
+            "Page \(pageIndex+1): media=\(mediaBox), crop=\(cropBox), rot=\(rotation)°"
         }
     }
 
     /// Extracts geometry for all pages in a PDF.
     static func extractGeometry(from url: URL) -> [PageGeometry] {
         guard let doc = PDFDocument(url: url) else { return [] }
-        return (0..<doc.pageCount).compactMap { i in
-            guard let page = doc.page(at: i) else { return nil }
+        return extractGeometry(from: doc)
+    }
+
+    /// Extracts geometry from an already-open document, including unsaved edits.
+    static func extractGeometry(from document: PDFDocument) -> [PageGeometry] {
+        (0..<document.pageCount).compactMap { i in
+            guard let page = document.page(at: i) else { return nil }
             return PageGeometry(
                 mediaBox: page.bounds(for: .mediaBox),
                 cropBox: page.bounds(for: .cropBox),
@@ -80,6 +85,41 @@ enum PDFAssertions {
                 pageIndex: i
             )
         }
+    }
+
+    /// Returns whether the origins and sizes of two rectangles match within tolerance.
+    static func rectanglesMatch(
+        _ lhs: CGRect,
+        _ rhs: CGRect,
+        tolerance: CGFloat = 1
+    ) -> Bool {
+        abs(lhs.origin.x - rhs.origin.x) < tolerance &&
+        abs(lhs.origin.y - rhs.origin.y) < tolerance &&
+        abs(lhs.size.width - rhs.size.width) < tolerance &&
+        abs(lhs.size.height - rhs.size.height) < tolerance
+    }
+
+    /// Compares page boxes in page-relative coordinates. PDFKit may legally
+    /// normalize a nonzero media-box origin while shifting every other box by
+    /// the same amount during serialization.
+    static func pageBoxesMatch(
+        _ lhs: PageGeometry,
+        _ rhs: PageGeometry,
+        tolerance: CGFloat = 1
+    ) -> Bool {
+        rectanglesMatch(
+            relativeBox(lhs.mediaBox, mediaBox: lhs.mediaBox),
+            relativeBox(rhs.mediaBox, mediaBox: rhs.mediaBox),
+            tolerance: tolerance
+        ) && rectanglesMatch(
+            relativeBox(lhs.cropBox, mediaBox: lhs.mediaBox),
+            relativeBox(rhs.cropBox, mediaBox: rhs.mediaBox),
+            tolerance: tolerance
+        )
+    }
+
+    private static func relativeBox(_ box: CGRect, mediaBox: CGRect) -> CGRect {
+        box.offsetBy(dx: -mediaBox.minX, dy: -mediaBox.minY)
     }
 
     /// Asserts that page geometry is preserved between source and output.
@@ -104,21 +144,23 @@ enum PDFAssertions {
         }
 
         for (s, o) in zip(sourceGeom, outputGeom) {
-            let mediaMatch = abs(s.mediaBox.width - o.mediaBox.width) < 1 &&
-                             abs(s.mediaBox.height - o.mediaBox.height) < 1
-            let cropMatch = abs(s.cropBox.width - o.cropBox.width) < 1 &&
-                            abs(s.cropBox.height - o.cropBox.height) < 1
+            let sourceMedia = relativeBox(s.mediaBox, mediaBox: s.mediaBox)
+            let outputMedia = relativeBox(o.mediaBox, mediaBox: o.mediaBox)
+            let sourceCrop = relativeBox(s.cropBox, mediaBox: s.mediaBox)
+            let outputCrop = relativeBox(o.cropBox, mediaBox: o.mediaBox)
+            let mediaMatch = rectanglesMatch(sourceMedia, outputMedia)
+            let cropMatch = rectanglesMatch(sourceCrop, outputCrop)
             let rotMatch = allowRotationChange || s.rotation == o.rotation
 
             if !mediaMatch {
                 Issue.record(
-                    "Geometry failed for \(operation) on page \(s.pageIndex+1): mediaBox differs (source \(Int(s.mediaBox.width))×\(Int(s.mediaBox.height)), output \(Int(o.mediaBox.width))×\(Int(o.mediaBox.height)))",
+                    "Geometry failed for \(operation) on page \(s.pageIndex+1): mediaBox size differs (source \(s.mediaBox), output \(o.mediaBox))",
                     sourceLocation: sourceLocation
                 )
             }
             if !cropMatch {
                 Issue.record(
-                    "Geometry failed for \(operation) on page \(s.pageIndex+1): cropBox differs (source \(Int(s.cropBox.width))×\(Int(s.cropBox.height)), output \(Int(o.cropBox.width))×\(Int(o.cropBox.height)))",
+                    "Geometry failed for \(operation) on page \(s.pageIndex+1): page-relative cropBox differs (source \(sourceCrop), output \(outputCrop))",
                     sourceLocation: sourceLocation
                 )
             }

@@ -245,10 +245,14 @@ struct PageGeometryTests {
         let sourceGeom = PDFAssertions.extractGeometry(from: fixture.url)
         let outputGeom = PDFAssertions.extractGeometry(from: output)
 
-        #expect(outputGeom.count == 2, "Should have 2 pages: \(fixture)")
-        if outputGeom.count >= 2 && sourceGeom.count >= 2 {
-            #expect(abs(sourceGeom[0].cropBox.width - outputGeom[0].cropBox.width) < 1)
-            #expect(abs(sourceGeom[1].cropBox.width - outputGeom[1].cropBox.width) < 1)
+        try #require(sourceGeom.count >= 2, "Source geometry is incomplete: \(fixture)")
+        try #require(outputGeom.count == 2, "Should have 2 pages: \(fixture)")
+        for index in 0..<2 {
+            #expect(
+                PDFAssertions.pageBoxesMatch(sourceGeom[index], outputGeom[index]),
+                "Page-relative geometry should be preserved for page \(index + 1): \(fixture)"
+            )
+            #expect(sourceGeom[index].rotation == outputGeom[index].rotation)
         }
     }
 }

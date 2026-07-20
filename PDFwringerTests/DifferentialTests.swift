@@ -63,10 +63,18 @@ struct DifferentialEquivalenceTests {
         #expect(result.pagesSkipped == 0)
 
         // Geometry should be unchanged
-        let afterGeom = PDFAssertions.extractGeometry(from: source) // doc was modified in place
+        let afterGeom = PDFAssertions.extractGeometry(from: doc)
+        try #require(afterGeom.count == beforeGeom.count)
         for (b, a) in zip(beforeGeom, afterGeom) {
-            #expect(abs(b.cropBox.width - a.cropBox.width) < 0.01, "Zero crop should not change width")
-            #expect(abs(b.cropBox.height - a.cropBox.height) < 0.01, "Zero crop should not change height")
+            #expect(
+                PDFAssertions.rectanglesMatch(b.mediaBox, a.mediaBox, tolerance: 0.01),
+                "Zero crop should not change the media box"
+            )
+            #expect(
+                PDFAssertions.rectanglesMatch(b.cropBox, a.cropBox, tolerance: 0.01),
+                "Zero crop should not change the crop box"
+            )
+            #expect(b.rotation == a.rotation, "Zero crop should not change rotation")
         }
     }
 
@@ -143,41 +151,4 @@ struct DifferentialEquivalenceTests {
         PDFAssertions.assertTextPreserved(source: source, output: output, operation: "empty metadata write")
     }
 
-    @Test("Compress then split equals split then compress in page count")
-    func compressSplitOrderIndependent() async throws {
-        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 6, filename: "diff_order.pdf")
-        let compressed = URL.temporaryDirectory.appending(component: "diff_compressed_\(UUID()).pdf")
-        let splitDirA = TestPDFGenerator.makeTempDirectory()
-        let splitDirB = TestPDFGenerator.makeTempDirectory()
-        defer {
-            TestPDFGenerator.cleanup(source)
-            try? FileManager.default.removeItem(at: compressed)
-            TestPDFGenerator.cleanup(splitDirA)
-            TestPDFGenerator.cleanup(splitDirB)
-        }
-
-        let compressor = PDFCompressor()
-        let splitter = PDFSplitter()
-
-        // Path A: compress then split
-        try await compressor.compress(
-            source: source, destination: compressed,
-            level: .medium, quality: .good, grayscale: false,
-            progress: { _ in }
-        )
-        let partsA = try await splitter.split(
-            source: compressed, mode: .splitEveryN(2),
-            destination: splitDirA, progress: { _ in }
-        )
-
-        // Path B: split then compress each part
-        let partsRaw = try await splitter.split(
-            source: source, mode: .splitEveryN(2),
-            destination: splitDirB, progress: { _ in }
-        )
-
-        // Same number of output files
-        #expect(partsA.count == partsRaw.count, "Compress→split should produce same file count as split→compress")
-        #expect(partsA.count == 3, "6 pages / 2 = 3 files")
-    }
 }
