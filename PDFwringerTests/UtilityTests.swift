@@ -272,6 +272,57 @@ struct UtilityTests {
         #expect(try Data(contentsOf: output) == payload)
     }
 
+    @Test("Exclusive publisher rolls back earlier outputs when a later staged file is missing")
+    func exclusivePublisherRollsBackPartialBatch() throws {
+        let stagingDirectory = TestPDFGenerator.makeTempDirectory()
+        let outputDirectory = TestPDFGenerator.makeTempDirectory()
+        let firstStaged = stagingDirectory.appending(component: "first.jpg")
+        let missingStaged = stagingDirectory.appending(component: "missing.jpg")
+        try Data("first image".utf8).write(to: firstStaged)
+        defer {
+            TestPDFGenerator.cleanup(stagingDirectory)
+            TestPDFGenerator.cleanup(outputDirectory)
+        }
+
+        do {
+            _ = try ExclusiveFilePublisher.publish([
+                .init(
+                    url: firstStaged,
+                    baseStem: "batch",
+                    generatedSuffix: "_page_001",
+                    pathExtension: "jpg"
+                ),
+                .init(
+                    url: missingStaged,
+                    baseStem: "batch",
+                    generatedSuffix: "_page_002",
+                    pathExtension: "jpg"
+                ),
+            ], to: outputDirectory)
+            Issue.record("Expected the missing staged file to fail publication")
+        } catch let error as PDFwringerError {
+            guard case .cannotWriteOutput = error else {
+                Issue.record("Expected cannotWriteOutput, got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+
+        #expect(!FileManager.default.fileExists(
+            atPath: firstStaged.path(percentEncoded: false)
+        ))
+        #expect(!FileManager.default.fileExists(
+            atPath: outputDirectory
+                .appending(component: "batch_page_001.jpg")
+                .path(percentEncoded: false)
+        ))
+        #expect(try FileManager.default.contentsOfDirectory(
+            at: outputDirectory,
+            includingPropertiesForKeys: nil
+        ).isEmpty)
+    }
+
     // MARK: - DocumentSaver
 
     @Test("Text extraction preserves blank-page positions")

@@ -323,6 +323,79 @@ struct CancellationContractTests {
         }
     }
 
+    @Test("Image export cancellation at final progress publishes no files")
+    func imageExporterCancellationAtFinalProgress() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(
+            pageCount: 1,
+            filename: "final_cancel_export.pdf"
+        )
+        let outputDirectory = TestPDFGenerator.makeTempDirectory()
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(outputDirectory)
+        }
+        let sourceData = try Data(contentsOf: source)
+
+        var operationTask: Task<[URL], Error>?
+        operationTask = Task { @MainActor in
+            try await PDFImageExporter().exportPages(
+                source: source,
+                outputDirectory: outputDirectory,
+                options: .init(format: .jpeg, dpi: 72, quality: 0.8),
+                pageIndices: nil,
+                progress: { value in
+                    if value >= 1 {
+                        operationTask?.cancel()
+                    }
+                }
+            )
+        }
+        let task = try #require(operationTask)
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await task.value
+        }
+        #expect(try FileManager.default.contentsOfDirectory(
+            at: outputDirectory,
+            includingPropertiesForKeys: nil
+        ).isEmpty)
+        PDFAssertions.assertSourceUnmodified(
+            url: source,
+            originalData: sourceData,
+            operation: "image export final-progress cancel"
+        )
+    }
+
+    @Test("Rotation cancellation at final progress preserves source and publishes no output")
+    func rotatorCancellationAtFinalProgress() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(
+            pageCount: 1,
+            filename: "final_cancel_rotate.pdf"
+        )
+        let directory = TestPDFGenerator.makeTempDirectory()
+        let output = directory.appending(component: "rotated.pdf")
+        defer {
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(directory)
+        }
+        let sourceData = try Data(contentsOf: source)
+
+        await expectCancellationAtFinalProgress(output: output) { reportProgress in
+            try await PDFRotator().rotate(
+                source: source,
+                destination: output,
+                angle: .ninety,
+                pageIndices: nil,
+                progress: reportProgress
+            )
+        }
+        PDFAssertions.assertSourceUnmodified(
+            url: source,
+            originalData: sourceData,
+            operation: "rotation final-progress cancel"
+        )
+    }
+
     @Test("Page reordering cancellation prevents publication")
     func pageReorderingCancellation() async throws {
         let source = makeLargeSource()
