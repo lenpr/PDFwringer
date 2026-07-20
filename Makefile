@@ -1,4 +1,5 @@
-SDK := $(shell xcrun --show-sdk-path)
+SDK := $(shell xcrun --sdk macosx --show-sdk-path)
+SDK_PLATFORM_PATH := $(shell xcrun --sdk macosx --show-sdk-platform-path)
 TARGET := arm64-apple-macosx26.0
 SWIFT_LANGUAGE_FLAGS := -swift-version 6 -strict-concurrency=complete
 SWIFT_FLAGS := -target $(TARGET) -sdk $(SDK) $(SWIFT_LANGUAGE_FLAGS) -parse-as-library -framework SwiftUI -framework PDFKit -framework AppKit
@@ -21,20 +22,15 @@ TEST_NAME := PDFwringerTests
 APP_SOURCE_LIST := $(BUILD_DIR)/app-sources.list
 TEST_SOURCE_LIST := $(BUILD_DIR)/test-sources.list
 FIXTURE_CHECKSUMS := PDFwringerTests/Fixtures/SHA256SUMS
-FAST_TEST_FILTER := AppViewModelTests|AtomicWriteSafetyTests|CancellationContractTests|CompressViewModelTests|ConcatenateViewModelTests|EncryptedWorkflowTests|EndToEndTests|FailureModeTests|PDFColorAdjusterTests|PDFCompressorTests|PDFConcatenatorTests|PDFCropperTests|PDFFileItemTests|PDFImageExporterTests|PDFMetadataEditorTests|PDFPageReordererTests|PDFRotatorTests|PDFSplitterTests|PageRangeParserTests|PageSelectionTests|PathEdgeCaseTests|SourceEqualsDestinationTests|SplitViewModelTests|UtilityTests|ViewModelLifecycleTests
 CORPUS_TEST_FILTER := DifferentialEquivalenceTests|Fixture.*Tests|PageGeometryTests|PerformanceBoundsTests|TextPreservationTests|VisualRegressionTests
 
-# Derive Testing framework paths from active toolchain
+# Keep the compiler plugin, framework, and runtime on the active Xcode toolchain.
 SWIFT_LIB_DIR := $(shell dirname $$(dirname $$(xcrun --find swift)))/lib
 TESTING_PLUGIN := $(SWIFT_LIB_DIR)/swift/host/plugins/testing/libTestingMacros.dylib
-DEVELOPER_DIR := $(shell xcode-select -p)
-TESTING_FW_DIR := $(DEVELOPER_DIR)/Library/Developer/Frameworks
-TESTING_RPATH_DIR := $(DEVELOPER_DIR)/Library/Developer/usr/lib
-# Fallback for CommandLineTools layout
-ifeq ($(wildcard $(TESTING_FW_DIR)/Testing.framework),)
-    TESTING_FW_DIR := /Library/Developer/CommandLineTools/Library/Developer/Frameworks
-    TESTING_RPATH_DIR := /Library/Developer/CommandLineTools/Library/Developer/usr/lib
-endif
+TESTING_FW_DIR := $(SDK_PLATFORM_PATH)/Developer/Library/Frameworks
+TESTING_RPATH_DIR := $(SDK_PLATFORM_PATH)/Developer/usr/lib
+
+.DEFAULT_GOAL := build
 
 .PHONY: build clean run test test-fast test-corpus verify-fixtures app release dmg sign notarize FORCE
 
@@ -113,7 +109,7 @@ test: verify-fixtures $(BUILD_DIR)/$(TEST_NAME)
 
 # Fast lane: unit + viewmodel + safety tests only (no fixtures, <5s)
 test-fast: $(BUILD_DIR)/$(TEST_NAME)
-	$(BUILD_DIR)/$(TEST_NAME) --filter "$(FAST_TEST_FILTER)"
+	$(BUILD_DIR)/$(TEST_NAME) --skip "$(CORPUS_TEST_FILTER)"
 
 # Slow/corpus lane: fixture, invariant, visual, differential, and performance tests
 test-corpus: verify-fixtures $(BUILD_DIR)/$(TEST_NAME)
