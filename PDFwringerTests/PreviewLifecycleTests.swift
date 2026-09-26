@@ -5,6 +5,31 @@ import Testing
 @Suite("Preview lifecycle")
 @MainActor
 struct PreviewLifecycleTests {
+    @Test("Cancelled preview requests do not access PDF pages before debounce")
+    func debounceBeforeSnapshot() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
+        defer { TestPDFGenerator.cleanup(source) }
+        let document = try #require(PageAccessCountingDocument(data: Data(contentsOf: source)))
+        document.pageAccessCount = 0
+        let vm = ColorAdjustViewModel()
+        defer { vm.cancelPreview() }
+
+        for brightness: Float in [0.1, 0.2, 0.3] {
+            vm.brightness = brightness
+            vm.updatePreview(document: document, page: 0)
+        }
+        #expect(document.pageAccessCount == 0)
+        vm.cancelPreview()
+        try await waitUntil { !vm.isRendering }
+        #expect(document.pageAccessCount == 0)
+
+        vm.updatePreview(document: document, page: 0)
+        try await waitUntil { !vm.isRendering }
+        #expect(document.pageAccessCount > 0)
+        #expect(vm.previewImage != nil)
+        #expect(vm.lastPublishedPreviewSettings == vm.settings)
+    }
+
     @Test("Leaving after rapid preview changes does not restart queued work")
     func cancellingQueuedColorPreview() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
@@ -107,5 +132,16 @@ struct PreviewLifecycleTests {
         context.endPDFPage()
         context.closePDF()
         return try #require(PDFDocument(data: data as Data))
+    }
+}
+
+/// Counts only the authoritative document's page access; background rendering
+/// reconstructs a separate PDFDocument from its snapshot.
+private final class PageAccessCountingDocument: PDFDocument {
+    var pageAccessCount = 0
+
+    override func page(at index: Int) -> PDFPage? {
+        pageAccessCount += 1
+        return super.page(at: index)
     }
 }

@@ -17,17 +17,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     private var pendingOpenURLs: [URL] = []
 
-    private static let crashLogDirectory: URL = {
-        let dir = FileManager.default.homeDirectoryForCurrentUser
-            .appending(path: "Library/Logs/PDFwringer")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir
-    }()
-
     func applicationDidFinishLaunching(_ notification: Notification) {
         Log.app.info("PDFwringer launched, version=\(appVersion)")
         AtomicFileWriter.cleanupLegacyTempFiles()
-        installCrashHandler()
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
@@ -49,32 +41,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         viewModel?.canLeaveWorkflow() == false ? .terminateCancel : .terminateNow
     }
 
-    static func openCrashLogDirectory() {
-        NSWorkspace.shared.open(crashLogDirectory)
-    }
-
-    private func installCrashHandler() {
-        NSSetUncaughtExceptionHandler { exception in
-            let logFile = AppDelegate.crashLogDirectory.appending(component: "crash.log")
-            let timestamp = ISO8601DateFormatter().string(from: Date())
-            let info = """
-            --- Crash at \(timestamp) ---
-            \(exception.name.rawValue): \(exception.reason ?? "unknown")
-            Stack trace:
-            \(exception.callStackSymbols.joined(separator: "\n"))
-
-            """
-            if let data = info.data(using: .utf8) {
-                if FileManager.default.fileExists(atPath: logFile.path(percentEncoded: false)) {
-                    if let handle = try? FileHandle(forWritingTo: logFile) {
-                        handle.seekToEndOfFile()
-                        handle.write(data)
-                        handle.closeFile()
-                    }
-                } else {
-                    try? data.write(to: logFile)
-                }
-            }
+    /// Let macOS collect crashes; avoid allocating, formatting, or writing files
+    /// from an uncaught-exception handler in an already failing process.
+    static func openDiagnostics() {
+        guard let consoleURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Console"),
+              NSWorkspace.shared.open(consoleURL) else {
+            let alert = NSAlert()
+            alert.messageText = String(localized: "Could not open Console")
+            alert.informativeText = String(localized: "Open Console from Applications > Utilities to inspect PDFwringer's diagnostic and crash reports.")
+            alert.runModal()
+            return
         }
     }
 }

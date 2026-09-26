@@ -149,8 +149,8 @@ struct PDFwringerApp: App {
                     NSWorkspace.shared.open(URL(string: "https://github.com/lenpr/PDFwringer/blob/main/PRIVACY.md")!)
                 }
                 Divider()
-                Button(String(localized: "Show Crash Logs")) {
-                    AppDelegate.openCrashLogDirectory()
+                Button(String(localized: "Open Console")) {
+                    AppDelegate.openDiagnostics()
                 }
             }
         }

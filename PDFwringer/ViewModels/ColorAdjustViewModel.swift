@@ -64,8 +64,7 @@ class ColorAdjustViewModel {
         let gen = previewGeneration
         let currentSettings = settings
 
-        // Snapshot on MainActor; the worker reconstructs its own one-page document.
-        guard let pageData = document.page(at: pendingPreviewPage)?.dataRepresentation else { return }
+        let pageIndex = pendingPreviewPage
 
         isRendering = true
 
@@ -73,6 +72,11 @@ class ColorAdjustViewModel {
             defer { self?.finishPreview(generation: gen) }
             try? await Task.sleep(for: .milliseconds(100))
             guard !Task.isCancelled else { return }
+
+            // Debounce before serializing a potentially expensive page. Cancelled
+            // slider changes must not perform this work on the UI thread.
+            // PDFKit access stays on MainActor; the worker receives only Data.
+            guard let pageData = document.page(at: pageIndex)?.dataRepresentation else { return }
 
             do {
                 let previewData = try await PDFPageWorker.run(pageData: pageData) { page in
