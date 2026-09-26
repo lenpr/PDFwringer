@@ -185,6 +185,10 @@ struct PDFSplitter {
     ) async throws {
         guard !pageIndices.isEmpty else { throw PDFwringerError.invalidPageRange("empty") }
 
+        guard pageIndices.allSatisfy({ (0..<sourceDoc.pageCount).contains($0) }) else {
+            throw PDFwringerError.invalidPageRange("page outside the document")
+        }
+        let expectedPageCount = pageIndices.count
         let outputDoc = PDFDocument()
 
         for (i, pageIdx) in pageIndices.enumerated() {
@@ -196,7 +200,7 @@ struct PDFSplitter {
                 else { return nil }
                 return page.copy() as? PDFPage
             }
-            guard let copiedPage else { continue }
+            guard let copiedPage else { throw PDFwringerError.cannotOpenDocument }
             outputDoc.insert(copiedPage, at: outputDoc.pageCount)
 
             progress(Double(i + 1) / Double(pageIndices.count))
@@ -214,7 +218,7 @@ struct PDFSplitter {
         try AtomicFileWriter.write(to: destination) { tempURL in
             guard outputDoc.write(to: tempURL),
                   let verificationDocument = PDFDocument(url: tempURL),
-                  verificationDocument.pageCount == outputDoc.pageCount else {
+                  verificationDocument.pageCount == expectedPageCount else {
                 return false
             }
             return (0..<outputDoc.pageCount).allSatisfy {

@@ -57,6 +57,7 @@ struct PDFRotator {
                   output.pageCount == doc.pageCount else {
                 return false
             }
+            try PDFEncryptionPolicy.requirePreservedProtection(from: doc, in: output)
             if output.isLocked {
                 return doc.isEncrypted && output.isEncrypted
             }

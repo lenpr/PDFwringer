@@ -37,7 +37,7 @@ Most PDF tools are either bloated Electron apps, subscription-gated web services
 
 ### Compress
 
-Squeeze bloated PDFs down to size. Choose lossless metadata stripping for a quick trim, or lossy rasterization at configurable DPI (72-300) and JPEG quality for dramatic reductions. Live size estimates let you compare options *before* committing — no guesswork. Oversized pages (common in scanned PDFs and iPhone photos) are automatically capped to prevent file inflation.
+Squeeze bloated PDFs down to size. Choose lossless rewriting with standard document-info fields cleared for a quick trim, or lossy rasterization at configurable DPI (72-300) and JPEG quality for dramatic reductions. Rasterization removes searchable text, accessibility tags, interactive fields, and links. Clearing document-info fields does not remove embedded XMP or sanitize private content. Live size estimates let you compare options *before* committing — no guesswork. Oversized pages (common in scanned PDFs and iPhone photos) are automatically capped to prevent file inflation.
 
 <p align="center">
   <img src="screenshots/compress.png" width="720" alt="Compression options with live size estimates">
@@ -73,7 +73,7 @@ Fine-tune brightness, contrast, and saturation with real-time preview. Named pre
 
 ### Edit Metadata
 
-View and edit title, author, subject, keywords, and creator. Set or remove password protection. Flatten annotations to permanently burn highlights, comments, and form fields into the page content — useful for sharing documents without editable markup.
+View and edit title, author, subject, keywords, and creator. These are standard document-info fields; embedded XMP and other identifying content can remain. Ordinary saves retain existing password protection, or remove it when explicitly requested. Creating a new password requires explicitly flattening the document and produces verified AES-128 encryption. New passwords must contain 1–32 printable ASCII characters. Flattening turns every page into an image, including annotation and form appearances; searchable text, accessibility tags, interactive forms, links, and digital signatures are not preserved.
 
 <p align="center">
   <img src="screenshots/metadata.png" width="720" alt="Edit PDF metadata">
@@ -110,7 +110,8 @@ Used in Split / Extract, Rotate, and Crop operations:
 ### Requirements
 
 - macOS 26.0+ (Tahoe)
-- Apple Silicon (arm64)
+- Apple Silicon for Makefile builds; Xcode Store archives are universal
+  (`arm64` and `x86_64`)
 - Xcode 26 with its command-line tools selected
 
 ### Build & Run
@@ -121,6 +122,7 @@ make app       # produces .build/PDFwringer.app (ad-hoc codesigned)
 make release   # optimized build (-O) + app bundle
 make dmg       # signed + notarized drag-to-install disk image
 make run       # build + launch the sandboxed app bundle
+make app-store-check # credential-free Mac App Store archive validation
 
 # Or open PDFwringer.xcodeproj in Xcode (Cmd+B)
 ```
@@ -160,6 +162,23 @@ Uses [Swift Testing](https://developer.apple.com/documentation/testing). The fas
 
 ## Distribution
 
+### Mac App Store
+
+The App Store build uses Xcode's archive and automatic-signing path, separately
+from the Developer ID targets below:
+
+```bash
+make app-store-check
+make app-store-archive APP_STORE_TEAM_ID=XXXXXXXXXX
+make app-store-export APP_STORE_TEAM_ID=XXXXXXXXXX
+```
+
+The archive/export commands require committed release inputs and an exact
+`appstore-v<version>-build.<build>` tag. They create local, versioned artifacts
+and never upload them. See [APP_STORE.md](APP_STORE.md) for the account setup,
+version/build policy, privacy and encryption decisions, validation, and upload
+checklist.
+
 ### Code Signing & Notarization
 
 The Makefile includes targets for signing and notarizing with a Developer ID certificate:
@@ -185,7 +204,10 @@ The app is sandboxed with `com.apple.security.files.user-selected.read-write` en
 
 ### Privacy
 
-See [PRIVACY.md](PRIVACY.md). The app makes no network requests and collects no data.
+See [PRIVACY.md](PRIVACY.md). The app makes no network requests and collects no
+data. Its bundled privacy manifest also declares the required-reason APIs used
+for local preferences, output-space checks, and metadata for app-owned or
+user-selected files.
 
 ---
 
@@ -202,6 +224,9 @@ PDFwringer/
 ├── Utilities/       Error types, atomic/exclusive file publication, dialogs, formatting helpers
 └── Resources/       Asset catalog, AppIcon.icns
 ```
+
+`PrivacyInfo.xcprivacy` at the target root is bundled into
+`Contents/Resources` by both Xcode and Make builds.
 
 ### Design Decisions
 

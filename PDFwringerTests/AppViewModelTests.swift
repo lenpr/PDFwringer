@@ -21,7 +21,7 @@ struct AppViewModelTests {
 
     @Test("Starts in landing state")
     func initialState() {
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         #expect(vm.isLanding)
         #expect(vm.windowTitle == "PDFwringer")
     }
@@ -33,7 +33,7 @@ struct AppViewModelTests {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 2, filename: "single.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
 
         if case .singleFile(let loadedURL, let doc) = vm.state {
@@ -46,7 +46,7 @@ struct AppViewModelTests {
 
     @Test("loadSingleFile with invalid URL stays in current state")
     func loadInvalidFile() {
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(URL.temporaryDirectory.appending(component: "nonexistent.pdf"))
         #expect(vm.isLanding)
     }
@@ -105,7 +105,7 @@ struct AppViewModelTests {
             TestPDFGenerator.cleanup(url2)
         }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.loadMultipleFiles([url1, url2])
         try await waitForStateChange(vm)
 
@@ -128,7 +128,7 @@ struct AppViewModelTests {
             TestPDFGenerator.cleanup(txt)
         }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.loadMultipleFiles([pdf, txt])
         try await waitForStateChange(vm)
 
@@ -151,7 +151,7 @@ struct AppViewModelTests {
             TestPDFGenerator.cleanup(newer)
         }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         let staleIntake = vm.loadMultipleFiles([old1, old2])
         vm.loadSingleFile(newer)
         await staleIntake.value
@@ -173,7 +173,7 @@ struct AppViewModelTests {
             TestPDFGenerator.cleanup(url2)
         }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         let staleIntake = vm.loadMultipleFiles([url1, url2])
         vm.startOver()
         await staleIntake.value
@@ -188,7 +188,7 @@ struct AppViewModelTests {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "drop.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.handleDrop([url])
 
         if case .singleFile = vm.state {
@@ -207,7 +207,7 @@ struct AppViewModelTests {
             TestPDFGenerator.cleanup(url2)
         }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.handleDrop([url1, url2])
         try await waitForStateChange(vm)
 
@@ -220,7 +220,7 @@ struct AppViewModelTests {
 
     @Test("handleDrop ignores non-PDF files, including images")
     func handleDropNonPDF() {
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         let stem = UUID().uuidString
         let txt = URL.temporaryDirectory.appending(component: "\(stem).txt")
         let image = URL.temporaryDirectory.appending(component: "\(stem).png")
@@ -242,7 +242,7 @@ struct AppViewModelTests {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "c.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
         vm.selectCompress()
 
@@ -258,7 +258,7 @@ struct AppViewModelTests {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "s.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
         vm.selectSplit()
 
@@ -274,7 +274,7 @@ struct AppViewModelTests {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "gb.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
         vm.selectCompress()
         vm.goBack()
@@ -295,7 +295,7 @@ struct AppViewModelTests {
             TestPDFGenerator.cleanup(url2)
         }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.loadMultipleFiles([url1, url2])
         try await waitForStateChange(vm)
         vm.goBack()
@@ -308,7 +308,7 @@ struct AppViewModelTests {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "so.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
         vm.selectCompress()
         vm.currentPage = 4
@@ -316,7 +316,7 @@ struct AppViewModelTests {
         vm.navigationDirection = .leading
         vm.hasUnsavedChanges = true
         vm.confirmStartOver()
-        #expect(vm.showStartOverConfirm)
+        #expect(vm.isLanding)
 
         vm.startOver()
 
@@ -325,7 +325,6 @@ struct AppViewModelTests {
         #expect(vm.currentFileSize == 0)
         #expect(vm.navigationDirection == .trailing)
         #expect(!vm.hasUnsavedChanges)
-        #expect(!vm.showStartOverConfirm)
     }
 
     @Test("goBack is a true no-op outside child workflows")
@@ -333,7 +332,7 @@ struct AppViewModelTests {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "no-op.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.navigationDirection = .trailing
         vm.hasUnsavedChanges = true
         vm.goBack()
@@ -359,7 +358,7 @@ struct AppViewModelTests {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 3, filename: "export.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
         vm.selectExportImages()
 
@@ -386,7 +385,7 @@ struct AppViewModelTests {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 2, filename: "reorder.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
         vm.selectReorderPages()
         #expect(vm.canGoBack)
@@ -410,7 +409,7 @@ struct AppViewModelTests {
             TestPDFGenerator.cleanup(url2)
         }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         #expect(vm.windowTitle == "PDFwringer")
 
         vm.loadSingleFile(url)
@@ -429,7 +428,7 @@ struct AppViewModelTests {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "r.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
         guard case .singleFile(_, let originalDocument) = vm.state else {
             Issue.record("Expected singleFile state")
@@ -454,7 +453,7 @@ struct AppViewModelTests {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "m.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
         vm.selectMetadata()
 
@@ -470,7 +469,7 @@ struct AppViewModelTests {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "gs.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
         vm.selectSplit()
         vm.goBack()
@@ -487,7 +486,7 @@ struct AppViewModelTests {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "gr.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
         vm.selectRotate()
         guard case .rotating(_, let sourceDocument, let workingDocument) = vm.state else {
@@ -521,7 +520,7 @@ struct AppViewModelTests {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "gm.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
         vm.selectMetadata()
         vm.goBack()
@@ -540,7 +539,7 @@ struct AppViewModelTests {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "cr.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
         guard case .singleFile(_, let originalDocument) = vm.state else {
             Issue.record("Expected singleFile state")
@@ -565,7 +564,7 @@ struct AppViewModelTests {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "gc.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
         vm.selectCrop()
         guard case .cropping(_, let sourceDocument, let workingDocument) = vm.state else {
@@ -605,7 +604,7 @@ struct AppViewModelTests {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 3, filename: "sized.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
         #expect(vm.currentFileSize > 0)
     }
@@ -614,7 +613,7 @@ struct AppViewModelTests {
 
     @Test("cancelPassword resets all password state")
     func cancelPasswordResetsState() {
-        let vm = AppViewModel()
+        let vm = AppViewModel(confirmDiscard: { true })
         vm.showPasswordPrompt = true
         vm.passwordText = "secret"
         vm.wrongPasswordAttempt = true

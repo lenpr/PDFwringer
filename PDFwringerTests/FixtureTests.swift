@@ -14,14 +14,19 @@ struct FixtureCompressTests {
         defer { try? FileManager.default.removeItem(at: output) }
 
         let compressor = PDFCompressor()
-        try await compressor.compress(
-            source: fixture.url,
-            destination: output,
-            level: .lossless,
-            quality: .good,
-            grayscale: false,
-            progress: { _ in }
-        )
+        let outputWritten = try await FixtureDiscovery.writeOrVerifySafeRejection(
+            fixture: fixture, output: output, operation: .lossless
+        ) {
+            try await compressor.compress(
+                source: fixture.url,
+                destination: output,
+                level: .lossless,
+                quality: .good,
+                grayscale: false,
+                progress: { _ in }
+            )
+        }
+        guard outputWritten else { return }
 
         let (valid, pages) = FixtureDiscovery.validateOutput(at: output)
         #expect(valid, "Lossless output should be a valid PDF: \(fixture)")
@@ -426,11 +431,16 @@ struct FixtureMetadataTests {
             creator: "PDFwringer Tests"
         )
 
-        try await editor.write(
-            metadata: metadata,
-            source: fixture.url,
-            destination: output
-        )
+        let outputWritten = try await FixtureDiscovery.writeOrVerifySafeRejection(
+            fixture: fixture, output: output, operation: .metadata
+        ) {
+            try await editor.write(
+                metadata: metadata,
+                source: fixture.url,
+                destination: output
+            )
+        }
+        guard outputWritten else { return }
 
         let (valid, pages) = FixtureDiscovery.validateOutput(at: output, expectedPages: fixture.pageCount)
         #expect(valid, "Metadata-written output should be valid: \(fixture)")
@@ -578,5 +588,41 @@ struct FixturePipelineTests {
         let (valid, pages) = FixtureDiscovery.validateOutput(at: merged, expectedPages: fixture.pageCount)
         #expect(valid, "Round-trip output should be valid: \(fixture)")
         _ = pages
+    }
+}
+
+@Suite("Fixture: Safe serialization rejection")
+@MainActor
+struct FixtureSafeRejectionTests {
+    @Test("Known PDFKit failures preserve existing destinations", arguments: FixtureDiscovery.openableFixtures.filter {
+        ["cmyk_image.pdf", "highlight.pdf", "zapfdingbats.pdf", "sechandler.pdf"].contains($0.filename)
+    })
+    func existingDestinationSurvives(fixture: FixtureDiscovery.Fixture) async throws {
+        let directory = TestPDFGenerator.makeTempDirectory()
+        defer { TestPDFGenerator.cleanup(directory) }
+        let output = directory.appending(component: "existing.pdf")
+        let sentinel = Data("Keep this existing destination".utf8)
+        let operations: [FixtureDiscovery.WriteOperation] = ["cmyk_image.pdf", "sechandler.pdf"].contains(fixture.filename)
+            ? [.lossless, .metadata] : [.removeAnnotations]
+        for operation in operations {
+            try sentinel.write(to: output)
+            let succeeded = try await FixtureDiscovery.writeOrVerifySafeRejection(
+                fixture: fixture, output: output, operation: operation
+            ) {
+                if operation == .metadata {
+                    try await PDFMetadataEditor().write(metadata: .empty, source: fixture.url, destination: output)
+                } else {
+                    _ = try await PDFCompressor().compress(source: fixture.url, destination: output,
+                        level: .lossless, quality: .good, grayscale: false,
+                        removeAnnotations: operation == .removeAnnotations, progress: { _ in })
+                }
+            }
+            // If a future PDFKit fixes these defects, allow success only with valid output.
+            if succeeded {
+                #expect(FixtureDiscovery.validateOutput(at: output, expectedPages: fixture.pageCount).valid)
+            } else {
+                #expect(try Data(contentsOf: output) == sentinel)
+            }
+        }
     }
 }

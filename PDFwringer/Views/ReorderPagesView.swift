@@ -2,6 +2,7 @@ import SwiftUI
 import PDFKit
 
 struct ReorderPagesView: View {
+    @Environment(AppViewModel.self) private var appVM
     let url: URL
     let document: PDFDocument
     let onBack: () -> Void
@@ -88,6 +89,12 @@ struct ReorderPagesView: View {
 
                 Divider()
 
+                if document.isEncrypted {
+                    Text(String(localized: "The reordered copy will not be password-protected."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+
                 Text(String(localized: "Drag page thumbnails to rearrange their order. Changes are saved to a new file."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -145,9 +152,11 @@ struct ReorderPagesView: View {
             .frame(minWidth: 280, idealWidth: 320)
             .tint(.coral)
         }
+        .onAppear { appVM.operationIsRunning = { vm.isSaving } }
         .onAppear {
             vm.setDocument(document)
         }
+        .onChange(of: vm.hasUnsavedChanges) { _, dirty in appVM.hasUnsavedChanges = dirty }
         .onDisappear { vm.cancel() }
     }
 }

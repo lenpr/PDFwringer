@@ -5,6 +5,16 @@ import UniformTypeIdentifiers
 /// All methods run modally and return nil if the user cancels.
 @MainActor
 struct FileDialogHelper {
+    static func confirmDiscardChanges() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Discard unsaved changes?")
+        alert.informativeText = String(localized: "Your original PDF is unchanged. Edits that have not been saved will be lost.")
+        alert.addButton(withTitle: String(localized: "Keep Editing"))
+        alert.addButton(withTitle: String(localized: "Discard Changes"))
+        alert.alertStyle = .warning
+        return alert.runModal() == .alertSecondButtonReturn
+    }
+
 
     /// Shows a save dialog pre-filled with a suggested filename. Returns the chosen URL or nil on cancel.
     static func showSavePanel(suggestedName: String) -> URL? {

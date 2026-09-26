@@ -2,6 +2,7 @@ import SwiftUI
 import PDFKit
 
 struct SplitOptionsView: View {
+    @Environment(AppViewModel.self) private var appVM
     let url: URL
     let document: PDFDocument
     let onBack: () -> Void
@@ -32,104 +33,113 @@ struct SplitOptionsView: View {
             Divider()
 
             // Right: Split options
-            VStack(alignment: .leading, spacing: 16) {
-                OptionsHeaderView(url: url, onBack: onBack)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    OptionsHeaderView(url: url, onBack: onBack)
 
-                HStack {
-                    Text(String(localized: "Split / Extract"))
-                        .font(.title3.weight(.semibold))
-                    Spacer()
-                    Text("\(vm.sourcePageCount) pages")
+                    HStack {
+                        Text(String(localized: "Split / Extract"))
+                            .font(.title3.weight(.semibold))
+                        Spacer()
+                        Text("\(vm.sourcePageCount) pages")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .contentTransition(.numericText())
+                    }
+
+                    Divider()
+
+                    if document.isEncrypted {
+                        Text(String(localized: "Extracted and split copies will not be password-protected."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .contentTransition(.numericText())
-                }
+                    }
 
-                Divider()
-
-                // Split every N pages
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(String(localized: "Split document"))
-                        .font(.callout.weight(.medium))
-                    HStack {
-                        TextField("1", value: $vm.splitPagesPerFile, format: .number)
-                            .frame(width: 50)
-                            .textFieldStyle(.roundedBorder)
-                            .accessibilityLabel(String(localized: "Pages per file"))
-                        Text(String(localized: "page(s) per file"))
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Button(String(localized: "Split")) {
-                            Task { await vm.splitByPages() }
+                    // Split every N pages
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(String(localized: "Split document"))
+                            .font(.callout.weight(.medium))
+                        HStack {
+                            TextField("1", value: $vm.splitPagesPerFile, format: .number)
+                                .frame(width: 50)
+                                .textFieldStyle(.roundedBorder)
+                                .accessibilityLabel(String(localized: "Pages per file"))
+                            Text(String(localized: "page(s) per file"))
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button(String(localized: "Split")) {
+                                Task { await vm.splitByPages() }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!vm.canProcess)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!vm.canProcess)
                     }
-                }
 
-                Divider()
+                    Divider()
 
-                // Keep pages
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(String(localized: "Keep only these pages"))
-                        .font(.callout.weight(.medium))
-                    HStack {
-                        TextField(String(localized: "e.g. 1, 3-5, 8-"), text: $vm.keepPagesText)
-                            .textFieldStyle(.roundedBorder)
-                            .offset(x: keepShakeOffset)
-                        Button(String(localized: "Extract")) {
-                            Task { await vm.keepPages() }
+                    // Keep pages
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(String(localized: "Keep only these pages"))
+                            .font(.callout.weight(.medium))
+                        HStack {
+                            TextField(String(localized: "e.g. 1, 3-5, 8-"), text: $vm.keepPagesText)
+                                .textFieldStyle(.roundedBorder)
+                                .offset(x: keepShakeOffset)
+                            Button(String(localized: "Extract")) {
+                                Task { await vm.keepPages() }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!vm.canProcess || vm.keepPagesText.isEmpty)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!vm.canProcess || vm.keepPagesText.isEmpty)
                     }
-                }
 
-                Divider()
+                    Divider()
 
-                // Remove pages
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(String(localized: "Remove these pages"))
-                        .font(.callout.weight(.medium))
-                    HStack {
-                        TextField(String(localized: "e.g. 1, 3-5, 8-"), text: $vm.removePagesText)
-                            .textFieldStyle(.roundedBorder)
-                            .offset(x: removeShakeOffset)
-                        Button(String(localized: "Remove")) {
-                            Task { await vm.removePages() }
+                    // Remove pages
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(String(localized: "Remove these pages"))
+                            .font(.callout.weight(.medium))
+                        HStack {
+                            TextField(String(localized: "e.g. 1, 3-5, 8-"), text: $vm.removePagesText)
+                                .textFieldStyle(.roundedBorder)
+                                .offset(x: removeShakeOffset)
+                            Button(String(localized: "Remove")) {
+                                Task { await vm.removePages() }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!vm.canProcess || vm.removePagesText.isEmpty)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!vm.canProcess || vm.removePagesText.isEmpty)
                     }
-                }
 
-                if vm.isProcessing {
-                    HStack(spacing: 8) {
-                        ProgressView(value: vm.progress)
-                            .progressViewStyle(.linear)
-                        Button(String(localized: "Cancel")) { vm.cancel() }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.secondary)
-                            .font(.caption)
+                    if vm.isProcessing {
+                        HStack(spacing: 8) {
+                            ProgressView(value: vm.progress)
+                                .progressViewStyle(.linear)
+                            Button(String(localized: "Cancel")) { vm.cancel() }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                        }
                     }
-                }
 
-                if let msg = vm.resultMessage {
-                    ResultMessageView(
-                        message: msg,
-                        isError: vm.isError,
-                        outputURL: vm.lastOutputURL,
-                        onRetry: vm.isError ? { Task { await vm.retryLastOperation() } } : nil
-                    )
-                }
+                    if let msg = vm.resultMessage {
+                        ResultMessageView(
+                            message: msg,
+                            isError: vm.isError,
+                            outputURL: vm.lastOutputURL,
+                            onRetry: vm.isError ? { Task { await vm.retryLastOperation() } } : nil
+                        )
+                    }
 
-                Spacer()
+                    Spacer()
+                }
+                .padding(24)
             }
-            .padding(24)
             .frame(minWidth: 300, idealWidth: 340)
             .tint(.coral)
         }
+        .onAppear { appVM.operationIsRunning = { vm.isProcessing } }
         .onAppear {
             vm.setSource(url, document: document)
         }

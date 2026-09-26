@@ -56,7 +56,7 @@ struct PDFMetadataEditor {
     }
 
     /// Writes metadata to a PDF file, saving to destination.
-    /// If `password` is non-nil and non-empty, encrypts the output with that password.
+    /// New password protection requires explicit flattening and verified AES-128 output.
     /// If `flattenAnnotations` is true, rasterizes each page at 300 DPI to burn annotations into content.
     func write(
         metadata: Metadata,
@@ -88,6 +88,9 @@ struct PDFMetadataEditor {
 
     /// Writes metadata using an already-open document as the authoritative content.
     /// Set `removeProtection` explicitly to rebuild an encrypted input without protection.
+    /// Ordinary encrypted saves retain their existing security settings; existingPassword
+    /// unlocks the staged result for verification. `password` creates a new password only
+    /// for explicitly flattened output, never through PDFKit's legacy RC4 writer.
     func write(
         metadata: Metadata,
         document: PDFDocument,
@@ -95,6 +98,7 @@ struct PDFMetadataEditor {
         destination: URL,
         password: String? = nil,
         removeProtection: Bool = false,
+        existingPassword: String? = nil,
         flattenAnnotations: Bool = false,
         progress: ((Double) -> Void)? = nil
     ) async throws {
@@ -110,6 +114,15 @@ struct PDFMetadataEditor {
         try Task.checkCancellation()
 
         let outputPassword = removeProtection ? nil : password
+        if let outputPassword, !outputPassword.isEmpty {
+            guard flattenAnnotations else { throw PDFwringerError.passwordRequiresFlattening }
+            try PDFEncryptionPolicy.validateNewPassword(outputPassword)
+        }
+        if document.isEncrypted && !removeProtection {
+            if flattenAnnotations {
+                guard outputPassword?.isEmpty == false else { throw PDFwringerError.outputPasswordRequired }
+            }
+        }
 
         Log.metadata.info("Writing metadata: encrypted=\(outputPassword != nil), removeProtection=\(removeProtection), flatten=\(flattenAnnotations)")
 
@@ -126,7 +139,7 @@ struct PDFMetadataEditor {
                 sourceDocument: document,
                 metadata: metadata,
                 destination: destination,
-                password: outputPassword,
+                verificationPassword: existingPassword,
                 removeProtection: removeProtection
             )
             progress?(1.0)
@@ -170,44 +183,47 @@ struct PDFMetadataEditor {
         sourceDocument: PDFDocument,
         metadata: Metadata,
         destination: URL,
-        password: String?,
+        verificationPassword: String?,
         removeProtection: Bool
     ) throws {
         let doc = try outputDocument(from: sourceDocument, removeProtection: removeProtection)
         doc.documentAttributes = buildAttributes(from: metadata)
 
-        var writeOptions: [PDFDocumentWriteOption: Any] = [:]
-        if let pw = password, !pw.isEmpty {
-            writeOptions[.ownerPasswordOption] = pw
-            writeOptions[.userPasswordOption] = pw
-        }
-
         try AtomicFileWriter.write(to: destination) { tempURL in
-            let didWrite: Bool
-            if writeOptions.isEmpty {
-                didWrite = doc.write(to: tempURL)
-            } else {
-                didWrite = doc.write(to: tempURL, withOptions: writeOptions)
+            guard doc.write(to: tempURL),
+                  let verificationDocument = PDFDocument(url: tempURL) else { return false }
+            if sourceDocument.isEncrypted && !removeProtection {
+                try PDFEncryptionPolicy.requirePreservedProtection(from: sourceDocument, in: verificationDocument)
+                guard !verificationDocument.isLocked
+                        || verificationDocument.unlock(withPassword: verificationPassword ?? "") else {
+                    throw PDFwringerError.existingPasswordRequired
+                }
+                try PDFEncryptionPolicy.requirePreservedProtection(from: sourceDocument, in: verificationDocument)
+            } else if verificationDocument.isEncrypted {
+                throw PDFwringerError.cannotWriteOutput
             }
-            guard didWrite, let verificationDocument = PDFDocument(url: tempURL) else {
-                return false
+            guard !verificationDocument.isLocked else {
+                throw PDFwringerError.metadataVerificationFailed
             }
-            if let password, !password.isEmpty {
-                guard verificationDocument.isEncrypted,
-                      verificationDocument.isLocked,
-                      verificationDocument.unlock(withPassword: password) else { return false }
-                return verificationDocument.pageCount == sourceDocument.pageCount
-            }
-            if verificationDocument.isLocked {
-                return verificationDocument.isEncrypted
-            }
+            try verifyMetadata(metadata, in: verificationDocument)
             return verificationDocument.pageCount == sourceDocument.pageCount
+                && (0..<sourceDocument.pageCount).allSatisfy { verificationDocument.page(at: $0) != nil }
         }
     }
 
     /// `PDFDocument.copy()` retains an unlocked document's protection settings.
     /// Removing protection therefore requires a fresh document populated with copied pages.
     private func outputDocument(from source: PDFDocument, removeProtection: Bool) throws -> PDFDocument {
+        if !source.isEncrypted {
+            // PDFKit can ignore edits to the Info dictionary on some original PDF 2.0
+            // files. Reopen a serialized snapshot before editing, keeping vector content,
+            // annotations, and document-level objects (including any embedded XMP).
+            guard let data = source.dataRepresentation(),
+                  let normalized = PDFDocument(data: data),
+                  normalized.pageCount == source.pageCount,
+                  !normalized.isLocked else { throw PDFwringerError.cannotWriteOutput }
+            return normalized
+        }
         guard removeProtection else {
             guard let copiedDocument = source.copy() as? PDFDocument else {
                 throw PDFwringerError.cannotOpenDocument
@@ -294,6 +310,9 @@ struct PDFMetadataEditor {
 
             guard let verificationDocument = PDFDocument(url: stagedURL) else { return false }
             if expectsEncryption {
+                guard PDFEncryptionPolicy.hasAES128Encryption(at: stagedURL) else {
+                    throw PDFwringerError.unsupportedEncryption
+                }
                 guard verificationDocument.isEncrypted,
                       verificationDocument.isLocked,
                       let password,
@@ -307,8 +326,20 @@ struct PDFMetadataEditor {
                   (0..<pageCount).allSatisfy({ verificationDocument.page(at: $0) != nil }) else {
                 return false
             }
+            try verifyMetadata(metadata, in: verificationDocument)
             try Task.checkCancellation()
             return true
+        }
+    }
+
+    private func verifyMetadata(_ expected: Metadata, in document: PDFDocument) throws {
+        let actual = read(from: document)
+        guard actual.title == expected.title,
+              actual.author == expected.author,
+              actual.subject == expected.subject,
+              actual.creator == expected.creator,
+              parsedKeywords(from: actual) == parsedKeywords(from: expected) else {
+            throw PDFwringerError.metadataVerificationFailed
         }
     }
 }

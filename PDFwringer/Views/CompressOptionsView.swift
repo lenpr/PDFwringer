@@ -2,6 +2,7 @@ import SwiftUI
 import PDFKit
 
 struct CompressOptionsView: View {
+    @Environment(AppViewModel.self) private var appVM
     let url: URL
     let document: PDFDocument
     let onBack: () -> Void
@@ -31,178 +32,199 @@ struct CompressOptionsView: View {
             Divider()
 
             // Right: Compression options
-            VStack(alignment: .leading, spacing: 16) {
-                OptionsHeaderView(url: url, onBack: onBack)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    OptionsHeaderView(url: url, onBack: onBack)
 
-                HStack {
-                    Text(String(localized: "Compress"))
-                        .font(.title3.weight(.semibold))
-                    Spacer()
-                    Text("\(vm.sourcePageCount) pages, \(Formatting.fileSize(vm.sourceFileSize))")
+                    HStack {
+                        Text(String(localized: "Compress"))
+                            .font(.title3.weight(.semibold))
+                        Spacer()
+                        Text("\(vm.sourcePageCount) pages, \(Formatting.fileSize(vm.sourceFileSize))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .contentTransition(.numericText())
+                    }
+
+                    Divider()
+
+                    if !vm.selectedLevel.isRasterize {
+                        Text(String(localized: "Standard title, author, and other document-info fields are cleared. Embedded XMP and other identifying content may remain; this is not a privacy sanitizer."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .contentTransition(.numericText())
-                }
+                    }
 
-                Divider()
+                    if document.isEncrypted && vm.selectedLevel.isRasterize {
+                        Text(String(localized: "This copy will not be password-protected."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
 
-                // Compression level options
-                ForEach(CompressionLevel.allCases) { level in
-                    let key = PDFCompressor.estimateKey(
-                        level: level,
-                        quality: vm.selectedQuality,
-                        grayscale: vm.grayscale
-                    )
-                    let estimatedSize = vm.estimatedSizes[key]
-                    let heuristicSize = vm.heuristicSizes[key]
-                    let displaySize = estimatedSize ?? heuristicSize
-                    let isHeuristic = estimatedSize == nil && heuristicSize != nil
+                    if vm.selectedLevel.isRasterize {
+                        Text(String(localized: "Rasterization turns every page into an image. Searchable text, accessibility tags, links, forms, and digital signatures are not preserved."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
 
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: vm.selectedLevel == level ? "largecircle.fill.circle" : "circle")
-                            .foregroundColor(vm.selectedLevel == level ? .coral : .secondary)
-                            .font(.body)
-                            .frame(width: 20)
-                        VStack(alignment: .leading, spacing: 1) {
-                            let exceedsOriginal = displaySize.map { $0 >= vm.sourceFileSize && vm.sourceFileSize > 0 } ?? false
-                            HStack(alignment: .firstTextBaseline) {
-                                Text(level.title)
-                                    .font(.body.weight(.medium))
-                                Spacer()
-                                if let size = displaySize {
-                                    HStack(spacing: 4) {
-                                        if exceedsOriginal {
-                                            Image(systemName: "arrow.up")
-                                                .font(.caption2)
+                    // Compression level options
+                    ForEach(CompressionLevel.allCases) { level in
+                        let key = PDFCompressor.estimateKey(
+                            level: level,
+                            quality: vm.selectedQuality,
+                            grayscale: vm.grayscale
+                        )
+                        let estimatedSize = vm.estimatedSizes[key]
+                        let heuristicSize = vm.heuristicSizes[key]
+                        let displaySize = estimatedSize ?? heuristicSize
+                        let isHeuristic = estimatedSize == nil && heuristicSize != nil
+
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: vm.selectedLevel == level ? "largecircle.fill.circle" : "circle")
+                                .foregroundColor(vm.selectedLevel == level ? .coral : .secondary)
+                                .font(.body)
+                                .frame(width: 20)
+                            VStack(alignment: .leading, spacing: 1) {
+                                let exceedsOriginal = displaySize.map { $0 >= vm.sourceFileSize && vm.sourceFileSize > 0 } ?? false
+                                HStack(alignment: .firstTextBaseline) {
+                                    Text(level.title)
+                                        .font(.body.weight(.medium))
+                                    Spacer()
+                                    if let size = displaySize {
+                                        HStack(spacing: 4) {
+                                            if exceedsOriginal {
+                                                Image(systemName: "arrow.up")
+                                                    .font(.caption2)
+                                            }
+                                            Text(isHeuristic ? "~\(Formatting.fileSize(size))" : Formatting.fileSize(size))
+                                                .font(.caption)
+                                                .strikethrough(exceedsOriginal)
                                         }
-                                        Text(isHeuristic ? "~\(Formatting.fileSize(size))" : Formatting.fileSize(size))
-                                            .font(.caption)
-                                            .strikethrough(exceedsOriginal)
+                                        .foregroundStyle(exceedsOriginal ? .red : .secondary)
+                                        .contentTransition(.numericText())
+                                    } else if vm.sourceFileSize > 0 {
+                                        ProgressView()
+                                            .controlSize(.mini)
                                     }
-                                    .foregroundStyle(exceedsOriginal ? .red : .secondary)
-                                    .contentTransition(.numericText())
-                                } else if vm.sourceFileSize > 0 {
-                                    ProgressView()
-                                        .controlSize(.mini)
                                 }
+                                Text(exceedsOriginal ? String(localized: "Larger than original") : level.subtitle)
+                                    .font(.caption)
+                                    .foregroundStyle(exceedsOriginal ? .red.opacity(0.8) : .secondary)
                             }
-                            Text(exceedsOriginal ? String(localized: "Larger than original") : level.subtitle)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            vm.selectedLevel = level
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityLabel("\(level.title): \(level.subtitle)")
+                        .accessibilityValue(vm.selectedLevel == level ? "Selected" : "")
+                    }
+
+                    if vm.selectedLevel.isRasterize {
+                        Divider()
+
+                        Text(String(localized: "JPEG Quality"))
+                            .font(.subheadline.weight(.medium))
+
+                        HStack(spacing: 12) {
+                            ForEach(JPEGQuality.allCases) { q in
+                                Text(q.title)
+                                    .font(.caption.weight(vm.selectedQuality == q ? .bold : .regular))
+                                    .foregroundColor(vm.selectedQuality == q ? .coral : .primary)
+                                    .padding(.vertical, 4)
+                                    .padding(.horizontal, 8)
+                                    .background {
+                                        if vm.selectedQuality == q {
+                                            RoundedRectangle(cornerRadius: 5)
+                                                .fill(Color.coral.opacity(0.12))
+                                                .matchedGeometryEffect(id: "quality", in: qualityNamespace)
+                                        }
+                                    }
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        withAnimation(.spring(duration: 0.25)) {
+                                            vm.selectedQuality = q
+                                        }
+                                    }
+                                    .accessibilityAddTraits(.isButton)
+                                    .accessibilityLabel("JPEG quality: \(q.title)")
+                                    .accessibilityValue(vm.selectedQuality == q ? "Selected" : "")
+                            }
+                        }
+                        Divider()
+
+                        Toggle(isOn: $vm.grayscale) {
+                            Text(String(localized: "Convert to grayscale"))
+                                .font(.callout)
+                        }
+                        .toggleStyle(.checkbox)
+                    } else {
+                        Divider()
+
+                        Toggle(isOn: $vm.removeAnnotations) {
+                            Text(String(localized: "Remove annotations (including links)"))
+                                .font(.callout)
+                        }
+                        .toggleStyle(.checkbox)
+
+                        if vm.removeAnnotations {
+                            Text(String(localized: "Forms, signatures, redactions, and unsupported annotations must be flattened instead."))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    if let warning = vm.largeFileWarning {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
                                 .font(.caption)
-                                .foregroundStyle(exceedsOriginal ? .red.opacity(0.8) : .secondary)
+                            Text(warning)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                     }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        vm.selectedLevel = level
+
+                    HStack {
+                        Spacer()
+                        Button(String(localized: "Compress")) {
+                            Task { await vm.performCompression() }
+                        }
+                        .keyboardShortcut("s")
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .disabled(!vm.canCompress)
                     }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityAddTraits(.isButton)
-                    .accessibilityLabel("\(level.title): \(level.subtitle)")
-                    .accessibilityValue(vm.selectedLevel == level ? "Selected" : "")
-                }
 
-                if vm.selectedLevel.isRasterize {
-                    Divider()
-
-                    Text(String(localized: "JPEG Quality"))
-                        .font(.subheadline.weight(.medium))
-
-                    HStack(spacing: 12) {
-                        ForEach(JPEGQuality.allCases) { q in
-                            Text(q.title)
-                                .font(.caption.weight(vm.selectedQuality == q ? .bold : .regular))
-                                .foregroundColor(vm.selectedQuality == q ? .coral : .primary)
-                                .padding(.vertical, 4)
-                                .padding(.horizontal, 8)
-                                .background {
-                                    if vm.selectedQuality == q {
-                                        RoundedRectangle(cornerRadius: 5)
-                                            .fill(Color.coral.opacity(0.12))
-                                            .matchedGeometryEffect(id: "quality", in: qualityNamespace)
-                                    }
-                                }
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    withAnimation(.spring(duration: 0.25)) {
-                                        vm.selectedQuality = q
-                                    }
-                                }
-                                .accessibilityAddTraits(.isButton)
-                                .accessibilityLabel("JPEG quality: \(q.title)")
-                                .accessibilityValue(vm.selectedQuality == q ? "Selected" : "")
+                    if vm.isProcessing {
+                        HStack(spacing: 8) {
+                            ProgressView(value: vm.progress)
+                                .progressViewStyle(.linear)
+                            Button(String(localized: "Cancel")) { vm.cancel() }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.secondary)
+                                .font(.caption)
                         }
                     }
-                    Divider()
 
-                    Toggle(isOn: $vm.grayscale) {
-                        Text(String(localized: "Convert to grayscale"))
-                            .font(.callout)
+                    if let msg = vm.resultMessage {
+                        ResultMessageView(
+                            message: msg,
+                            isError: vm.isError,
+                            outputURL: vm.lastOutputURL,
+                            onRetry: vm.isError ? { Task { await vm.performCompression() } } : nil
+                        )
                     }
-                    .toggleStyle(.checkbox)
-                } else {
-                    Divider()
 
-                    Toggle(isOn: $vm.removeAnnotations) {
-                        Text(String(localized: "Remove annotations (including links)"))
-                            .font(.callout)
-                    }
-                    .toggleStyle(.checkbox)
-
-                    if vm.removeAnnotations {
-                        Text(String(localized: "Forms, signatures, redactions, and unsupported annotations must be flattened instead."))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                if let warning = vm.largeFileWarning {
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                            .font(.caption)
-                        Text(warning)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                HStack {
                     Spacer()
-                    Button(String(localized: "Compress")) {
-                        Task { await vm.performCompression() }
-                    }
-                    .keyboardShortcut("s")
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .disabled(!vm.canCompress)
                 }
-
-                if vm.isProcessing {
-                    HStack(spacing: 8) {
-                        ProgressView(value: vm.progress)
-                            .progressViewStyle(.linear)
-                        Button(String(localized: "Cancel")) { vm.cancel() }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.secondary)
-                            .font(.caption)
-                    }
-                }
-
-                if let msg = vm.resultMessage {
-                    ResultMessageView(
-                        message: msg,
-                        isError: vm.isError,
-                        outputURL: vm.lastOutputURL,
-                        onRetry: vm.isError ? { Task { await vm.performCompression() } } : nil
-                    )
-                }
-
-                Spacer()
+                .padding(24)
             }
-            .padding(24)
             .frame(minWidth: 300, idealWidth: 340)
             .tint(.coral)
         }
+        .onAppear { appVM.operationIsRunning = { vm.isProcessing } }
         .onAppear {
             vm.setSource(url, document: document)
         }

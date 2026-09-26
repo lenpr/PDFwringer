@@ -15,6 +15,7 @@ class ColorAdjustViewModel {
     var isSaving = false
     var progress: Double = 0
     var lastOutputURL: URL?
+    private(set) var successfulSaveCount = 0
 
     @ObservationIgnored private var previewTask: Task<Void, Never>?
     @ObservationIgnored private var operationTask: Task<Void, Never>?
@@ -42,6 +43,9 @@ class ColorAdjustViewModel {
         contrast = 1
         saturation = 1
     }
+
+    private var savedSettings = PDFColorAdjuster.Settings(brightness: 0, contrast: 1, saturation: 1)
+    var hasUnsavedChanges: Bool { settings != savedSettings }
 
     // MARK: - Preview
 
@@ -152,6 +156,8 @@ class ColorAdjustViewModel {
                     resultMessage? += String(localized: " Password protection was removed.")
                 }
                 isError = false
+                savedSettings = operationSettings
+                successfulSaveCount += 1
                 lastOutputURL = destination
             } catch is CancellationError {
                 resultMessage = String(localized: "Cancelled.")

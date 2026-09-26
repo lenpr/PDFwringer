@@ -414,7 +414,7 @@ struct FailureModeTests {
                 Issue.record("Expected invalidPageRange, got \(error)")
                 return
             }
-            #expect(detail == "no valid pages in range")
+            #expect(detail == "page outside the document")
         } catch {
             Issue.record("Unexpected error: \(error)")
         }

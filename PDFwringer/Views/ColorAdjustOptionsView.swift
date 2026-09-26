@@ -4,6 +4,7 @@ import CoreImage
 
 @MainActor
 struct ColorAdjustOptionsView: View {
+    @Environment(AppViewModel.self) private var appVM
     let url: URL
     let document: PDFDocument
     let onBack: () -> Void
@@ -12,6 +13,7 @@ struct ColorAdjustOptionsView: View {
 
     @State private var vm = ColorAdjustViewModel()
     @State private var pageSelection = PageSelection()
+    @State private var savedPageSelection = PageSelection()
     @State private var shakeOffset: CGFloat = 0
     @State private var isDropTargeted = false
 
@@ -21,79 +23,99 @@ struct ColorAdjustOptionsView: View {
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 16) {
-                OptionsHeaderView(url: url, onBack: onBack)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    OptionsHeaderView(url: url, onBack: onBack)
 
-                HStack {
-                    Text(String(localized: "Adjust Colors"))
-                        .font(.title3.weight(.semibold))
-                    Spacer()
-                    Text("\(document.pageCount) pages")
+                    HStack {
+                        Text(String(localized: "Adjust Colors"))
+                            .font(.title3.weight(.semibold))
+                        Spacer()
+                        Text("\(document.pageCount) pages")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Divider()
+
+                    if document.isEncrypted {
+                        Text(String(localized: "The saved copy will not be password-protected."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                }
-
-                Divider()
-
-                PageSelectionView(
-                    pageCount: document.pageCount,
-                    selection: $pageSelection,
-                    shakeOffset: $shakeOffset,
-                    label: String(localized: "Adjust all pages")
-                )
-
-                Divider()
-
-                sliderSection
-
-                presetButtons
-
-                Spacer()
-
-                HStack {
-                    Spacer()
-                    Button(String(localized: "Save")) {
-                        saveAdjustedPDF()
                     }
-                    .keyboardShortcut("s")
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .disabled(vm.isIdentity || vm.isSaving)
-                }
 
-                if vm.isSaving {
-                    HStack(spacing: 8) {
-                        ProgressView(value: vm.progress)
-                            .progressViewStyle(.linear)
-                        Button(String(localized: "Cancel")) { vm.cancel() }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.secondary)
-                            .font(.caption)
-                    }
-                }
+                    Text(String(localized: "Adjusted pages become images. Searchable text, accessibility tags, interactive forms, links, and digital signatures on those pages are not preserved."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
-                if let msg = vm.resultMessage {
-                    ResultMessageView(
-                        message: msg,
-                        isError: vm.isError,
-                        outputURL: vm.lastOutputURL,
-                        onRetry: vm.isError ? { saveAdjustedPDF() } : nil
+                    PageSelectionView(
+                        pageCount: document.pageCount,
+                        selection: $pageSelection,
+                        shakeOffset: $shakeOffset,
+                        label: String(localized: "Adjust all pages")
                     )
+
+                    Divider()
+
+                    sliderSection
+                        .disabled(vm.isSaving)
+
+                    presetButtons
+                        .disabled(vm.isSaving)
+
+                    Spacer()
+
+                    HStack {
+                        Spacer()
+                        Button(String(localized: "Save")) {
+                            saveAdjustedPDF()
+                        }
+                        .keyboardShortcut("s")
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .disabled(vm.isIdentity || vm.isSaving)
+                    }
+
+                    if vm.isSaving {
+                        HStack(spacing: 8) {
+                            ProgressView(value: vm.progress)
+                                .progressViewStyle(.linear)
+                            Button(String(localized: "Cancel")) { vm.cancel() }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                        }
+                    }
+
+                    if let msg = vm.resultMessage {
+                        ResultMessageView(
+                            message: msg,
+                            isError: vm.isError,
+                            outputURL: vm.lastOutputURL,
+                            onRetry: vm.isError ? { saveAdjustedPDF() } : nil
+                        )
+                    }
                 }
+                .padding(24)
             }
-            .padding(24)
             .frame(minWidth: 300, idealWidth: 340)
             .tint(.coral)
         }
+        .onChange(of: hasPendingChanges) { _, dirty in appVM.hasUnsavedChanges = dirty }
         .onChange(of: currentPage) { _, _ in refreshPreview() }
         .onChange(of: vm.brightness) { _, _ in refreshPreview() }
         .onChange(of: vm.contrast) { _, _ in refreshPreview() }
         .onChange(of: vm.saturation) { _, _ in refreshPreview() }
+        .onAppear { appVM.operationIsRunning = { vm.isSaving } }
         .onAppear { refreshPreview() }
         .onDisappear {
             vm.cancelPreview()
             vm.cancel()
         }
+    }
+
+    private var hasPendingChanges: Bool {
+        vm.hasUnsavedChanges || (!vm.isIdentity && pageSelection != savedPageSelection)
     }
 
     private func refreshPreview() {
@@ -106,12 +128,15 @@ struct ColorAdjustOptionsView: View {
             return
         }
         let pageIndices = pageSelection.appliesToAll ? nil : resolvedPages
+        let selection = pageSelection
+        let revision = vm.successfulSaveCount
         Task {
             await vm.save(
                 source: url,
                 document: document,
                 pageIndices: pageIndices
             )
+            if vm.successfulSaveCount != revision { savedPageSelection = selection }
         }
     }
 

@@ -9,6 +9,14 @@ enum PDFwringerError: LocalizedError {
     case documentIsLocked
     case cannotCreateOutput
     case cannotWriteOutput
+    case passwordRequiresFlattening
+    case outputPasswordRequired
+    case protectionPreservationFailed
+    case existingPasswordRequired
+    case unsupportedEncryption
+    case invalidEncryptionPassword
+    case annotationRemovalFailed
+    case metadataVerificationFailed
     case invalidPageRange(String)
     case invalidPageOrder
     case noSourceFile
@@ -27,6 +35,22 @@ enum PDFwringerError: LocalizedError {
         case .documentIsLocked: String(localized: "This PDF is password-protected.")
         case .cannotCreateOutput: String(localized: "Cannot create the output file.")
         case .cannotWriteOutput: String(localized: "Failed to write the output file.")
+        case .passwordRequiresFlattening:
+            String(localized: "New password protection requires explicitly flattening this PDF. Flattening turns pages into images and removes searchable text. Existing protection can be retained without flattening.")
+        case .outputPasswordRequired:
+            String(localized: "Enter a password for the flattened copy, or explicitly choose Remove protection.")
+        case .protectionPreservationFailed:
+            String(localized: "PDFKit could not retain this document's password protection and permissions. No output was replaced. To create an unprotected copy, explicitly choose Remove protection in Edit Metadata.")
+        case .existingPasswordRequired:
+            String(localized: "Enter the document's current password to verify the saved copy. Its existing protection will be retained.")
+        case .unsupportedEncryption:
+            String(localized: "The output did not use the required AES-128 encryption. No output was replaced.")
+        case .invalidEncryptionPassword:
+            String(localized: "Use 1–32 printable ASCII characters for a new PDF password. Longer or non-ASCII passwords are not supported by the PDF writer.")
+        case .annotationRemovalFailed:
+            String(localized: "PDFKit could not remove all annotations from this PDF. No output was replaced. You can explicitly flatten annotations to preserve their visible appearance instead.")
+        case .metadataVerificationFailed:
+            String(localized: "The requested metadata could not be verified in the saved PDF. No output was replaced. Try a different PDF or explicitly flatten the document.")
         case .invalidPageRange(let range): String(localized: "Invalid page range: '\(range)'")
         case .invalidPageOrder: String(localized: "The page order is incomplete or invalid.")
         case .noSourceFile: String(localized: "No source file selected.")
@@ -299,6 +323,7 @@ enum DocumentSaver {
             try AtomicFileWriter.write(to: destination) { tempURL in
                 try data.write(to: tempURL)
                 guard let output = PDFDocument(url: tempURL) else { return false }
+                try PDFEncryptionPolicy.requirePreservedProtection(from: document, in: output)
                 if output.isLocked {
                     return document.isEncrypted && output.isEncrypted
                 }

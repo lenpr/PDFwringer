@@ -67,11 +67,16 @@ struct FixtureRoundTripTests {
         let compressor = PDFCompressor()
 
         // First compression
-        try await compressor.compress(
-            source: fixture.url, destination: first,
-            level: .lossless, quality: .good, grayscale: false,
-            progress: { _ in }
-        )
+        let outputWritten = try await FixtureDiscovery.writeOrVerifySafeRejection(
+            fixture: fixture, output: first, operation: .lossless
+        ) {
+            try await compressor.compress(
+                source: fixture.url, destination: first,
+                level: .lossless, quality: .good, grayscale: false,
+                progress: { _ in }
+            )
+        }
+        guard outputWritten else { return }
 
         // Second compression of the already-compressed output
         try await compressor.compress(
@@ -116,7 +121,12 @@ struct FixtureRoundTripTests {
             creator: "PDFwringer v0.1.13"
         )
 
-        try await editor.write(metadata: written, source: fixture.url, destination: output)
+        let outputWritten = try await FixtureDiscovery.writeOrVerifySafeRejection(
+            fixture: fixture, output: output, operation: .metadata
+        ) {
+            try await editor.write(metadata: written, source: fixture.url, destination: output)
+        }
+        guard outputWritten else { return }
 
         let readBack = editor.read(from: output)
         #expect(readBack.title == written.title, "Title should round-trip: \(fixture)")
@@ -296,11 +306,16 @@ struct FixtureAnnotationTests {
         defer { try? FileManager.default.removeItem(at: output) }
 
         let compressor = PDFCompressor()
-        try await compressor.compress(
-            source: fixture.url, destination: output,
-            level: .lossless, quality: .good, grayscale: false,
-            progress: { _ in }
-        )
+        let outputWritten = try await FixtureDiscovery.writeOrVerifySafeRejection(
+            fixture: fixture, output: output, operation: .lossless
+        ) {
+            try await compressor.compress(
+                source: fixture.url, destination: output,
+                level: .lossless, quality: .good, grayscale: false,
+                progress: { _ in }
+            )
+        }
+        guard outputWritten else { return }
 
         guard let outputDoc = PDFDocument(url: output) else {
             Issue.record("Cannot open lossless output: \(fixture)")
@@ -348,11 +363,16 @@ struct FixtureAnnotationTests {
             return
         }
 
-        try await compressor.compress(
-            source: fixture.url, destination: output,
-            level: .lossless, quality: .good, grayscale: false, removeAnnotations: true,
-            progress: { _ in }
-        )
+        let outputWritten = try await FixtureDiscovery.writeOrVerifySafeRejection(
+            fixture: fixture, output: output, operation: .removeAnnotations
+        ) {
+            try await compressor.compress(
+                source: fixture.url, destination: output,
+                level: .lossless, quality: .good, grayscale: false, removeAnnotations: true,
+                progress: { _ in }
+            )
+        }
+        guard outputWritten else { return }
 
         guard let outputDoc = PDFDocument(url: output) else {
             Issue.record("Cannot open stripped output: \(fixture)")

@@ -184,11 +184,16 @@ struct PageGeometryTests {
         defer { try? FileManager.default.removeItem(at: output) }
 
         let compressor = PDFCompressor()
-        try await compressor.compress(
-            source: fixture.url, destination: output,
-            level: .lossless, quality: .good, grayscale: false,
-            progress: { _ in }
-        )
+        let outputWritten = try await FixtureDiscovery.writeOrVerifySafeRejection(
+            fixture: fixture, output: output, operation: .lossless
+        ) {
+            try await compressor.compress(
+                source: fixture.url, destination: output,
+                level: .lossless, quality: .good, grayscale: false,
+                progress: { _ in }
+            )
+        }
+        guard outputWritten else { return }
 
         PDFAssertions.assertGeometryPreserved(source: fixture.url, output: output, operation: "lossless compress")
     }
@@ -199,10 +204,15 @@ struct PageGeometryTests {
         defer { try? FileManager.default.removeItem(at: output) }
 
         let editor = PDFMetadataEditor()
-        try await editor.write(
-            metadata: .init(title: "Geom Test", author: "A", subject: "S", keywords: "k", creator: "C"),
-            source: fixture.url, destination: output
-        )
+        let outputWritten = try await FixtureDiscovery.writeOrVerifySafeRejection(
+            fixture: fixture, output: output, operation: .metadata
+        ) {
+            try await editor.write(
+                metadata: .init(title: "Geom Test", author: "A", subject: "S", keywords: "k", creator: "C"),
+                source: fixture.url, destination: output
+            )
+        }
+        guard outputWritten else { return }
 
         PDFAssertions.assertGeometryPreserved(source: fixture.url, output: output, operation: "metadata write")
     }

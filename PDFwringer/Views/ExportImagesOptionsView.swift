@@ -2,6 +2,7 @@ import SwiftUI
 import PDFKit
 
 struct ExportImagesOptionsView: View {
+    @Environment(AppViewModel.self) private var appVM
     let url: URL
     let document: PDFDocument
     let onBack: () -> Void
@@ -40,101 +41,110 @@ struct ExportImagesOptionsView: View {
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 16) {
-                OptionsHeaderView(url: url, onBack: onBack)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    OptionsHeaderView(url: url, onBack: onBack)
 
-                HStack {
-                    Text(String(localized: "Export as Images"))
-                        .font(.title3.weight(.semibold))
-                    Spacer()
-                    Text("\(document.pageCount) pages")
+                    HStack {
+                        Text(String(localized: "Export as Images"))
+                            .font(.title3.weight(.semibold))
+                        Spacer()
+                        Text("\(document.pageCount) pages")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Divider()
+
+                    if document.isEncrypted {
+                        Text(String(localized: "Exported images are not password-protected."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                }
+                    }
 
-                Divider()
+                    PageSelectionView(
+                        pageCount: document.pageCount,
+                        selection: $pageSelection,
+                        shakeOffset: $shakeOffset,
+                        label: String(localized: "Export all pages")
+                    )
 
-                PageSelectionView(
-                    pageCount: document.pageCount,
-                    selection: $pageSelection,
-                    shakeOffset: $shakeOffset,
-                    label: String(localized: "Export all pages")
-                )
+                    Divider()
 
-                Divider()
+                    // Format selection
+                    HStack {
+                        Text(String(localized: "Format"))
+                            .font(.callout)
+                        Spacer()
+                        Picker("", selection: $format) {
+                            ForEach(PDFImageExporter.ImageFormat.allCases) { f in
+                                Text(f.title).tag(f)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 140)
+                    }
 
-                // Format selection
-                HStack {
-                    Text(String(localized: "Format"))
-                        .font(.callout)
-                    Spacer()
-                    Picker("", selection: $format) {
-                        ForEach(PDFImageExporter.ImageFormat.allCases) { f in
-                            Text(f.title).tag(f)
+                    // DPI
+                    HStack {
+                        Text(String(localized: "Resolution"))
+                            .font(.callout)
+                        Spacer()
+                        Picker("", selection: $dpi) {
+                            Text("72 DPI").tag(CGFloat(72))
+                            Text("150 DPI").tag(CGFloat(150))
+                            Text("300 DPI").tag(CGFloat(300))
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 200)
+                    }
+
+                    // JPEG quality (only for JPEG)
+                    if format == .jpeg {
+                        HStack {
+                            Text(String(localized: "Quality"))
+                                .font(.callout)
+                            Slider(value: $quality, in: 0.3...1.0)
+                            Text("\(Int(quality * 100))%")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 35)
                         }
                     }
-                    .pickerStyle(.segmented)
-                    .frame(width: 140)
-                }
 
-                // DPI
-                HStack {
-                    Text(String(localized: "Resolution"))
-                        .font(.callout)
                     Spacer()
-                    Picker("", selection: $dpi) {
-                        Text("72 DPI").tag(CGFloat(72))
-                        Text("150 DPI").tag(CGFloat(150))
-                        Text("300 DPI").tag(CGFloat(300))
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 200)
-                }
 
-                // JPEG quality (only for JPEG)
-                if format == .jpeg {
                     HStack {
-                        Text(String(localized: "Quality"))
-                            .font(.callout)
-                        Slider(value: $quality, in: 0.3...1.0)
-                        Text("\(Int(quality * 100))%")
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .frame(width: 35)
+                        Spacer()
+                        Button(String(localized: "Export")) { exportImages() }
+                            .keyboardShortcut("s")
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
+                            .disabled(isProcessing)
+                    }
+
+                    if isProcessing {
+                        HStack(spacing: 8) {
+                            ProgressView(value: progress).progressViewStyle(.linear)
+                            Button(String(localized: "Cancel")) { operationTask?.cancel() }
+                                .buttonStyle(.plain).foregroundStyle(.secondary).font(.caption)
+                        }
+                    }
+
+                    if let msg = resultMessage {
+                        ResultMessageView(
+                            message: msg,
+                            isError: isError,
+                            outputURL: lastOutputURL
+                        )
                     }
                 }
-
-                Spacer()
-
-                HStack {
-                    Spacer()
-                    Button(String(localized: "Export")) { exportImages() }
-                        .keyboardShortcut("s")
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .disabled(isProcessing)
-                }
-
-                if isProcessing {
-                    HStack(spacing: 8) {
-                        ProgressView(value: progress).progressViewStyle(.linear)
-                        Button(String(localized: "Cancel")) { operationTask?.cancel() }
-                            .buttonStyle(.plain).foregroundStyle(.secondary).font(.caption)
-                    }
-                }
-
-                if let msg = resultMessage {
-                    ResultMessageView(
-                        message: msg,
-                        isError: isError,
-                        outputURL: lastOutputURL
-                    )
-                }
+                .padding(24)
             }
-            .padding(24)
             .frame(minWidth: 300, idealWidth: 340)
             .tint(.coral)
         }
+        .onAppear { appVM.operationIsRunning = { isProcessing } }
         .onDisappear {
             operationTask?.cancel()
             operationTask = nil

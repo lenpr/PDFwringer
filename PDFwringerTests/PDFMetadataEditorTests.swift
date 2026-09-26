@@ -136,7 +136,7 @@ struct PDFMetadataEditorTests {
 
     // MARK: - Encryption
 
-    @Test("Write with password produces encrypted document")
+    @Test("Explicit flattening with a password produces encrypted document")
     func writeWithPassword() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
         let output = TestPDFGenerator.makeTempDirectory().appending(component: "encrypted.pdf")
@@ -148,10 +148,11 @@ struct PDFMetadataEditorTests {
         let meta = PDFMetadataEditor.Metadata(
             title: "Secret", author: "", subject: "", keywords: "", creator: ""
         )
-        try await editor.write(metadata: meta, source: source, destination: output, password: "test123")
+        try await editor.write(metadata: meta, source: source, destination: output, password: "test123", flattenAnnotations: true)
 
         let doc = PDFDocument(url: output)
         #expect(doc != nil)
+        #expect(PDFEncryptionPolicy.hasAES128Encryption(at: output))
         #expect(doc!.isEncrypted == true)
         #expect(doc!.isLocked == true)
     }
@@ -184,7 +185,7 @@ struct PDFMetadataEditorTests {
         let meta = PDFMetadataEditor.Metadata(
             title: "Locked Doc", author: "Author", subject: "", keywords: "", creator: ""
         )
-        try await editor.write(metadata: meta, source: source, destination: encrypted, password: "pw")
+        try await editor.write(metadata: meta, source: source, destination: encrypted, password: "pw", flattenAnnotations: true)
 
         let doc = PDFDocument(url: encrypted)!
         #expect(doc.isLocked == true)

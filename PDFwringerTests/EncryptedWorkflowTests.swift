@@ -95,7 +95,7 @@ struct EncryptedWorkflowTests {
         #expect(retainedURL == newer)
     }
 
-    @Test("Metadata can replace encryption with a new password")
+    @Test("Explicit flattening replaces encryption with a new AES password")
     func metadataReencryptsUnlockedDocument() async throws {
         let source = try makeEncryptedPDF(pageCount: 2, filename: "metadata-reencrypt.pdf")
         let outputDirectory = TestPDFGenerator.makeTempDirectory()
@@ -111,7 +111,8 @@ struct EncryptedWorkflowTests {
             document: document,
             source: source,
             destination: output,
-            password: "replacement-password"
+            password: "replacement-password",
+            flattenAnnotations: true
         )
 
         let lockedOutput = try #require(PDFDocument(url: output))
@@ -123,6 +124,35 @@ struct EncryptedWorkflowTests {
         #expect(reopenedOutput.unlock(withPassword: "replacement-password"))
         #expect(reopenedOutput.pageCount == 2)
         assertSourceIsStillLocked(source)
+    }
+
+    @Test("Ordinary metadata saves retain password, permissions, and searchable text")
+    func metadataPreservesExistingProtection() async throws {
+        let source = try makeEncryptedPDF(pageCount: 1, filename: "retain-protection.pdf")
+        let directory = TestPDFGenerator.makeTempDirectory()
+        defer { TestPDFGenerator.cleanup(source); TestPDFGenerator.cleanup(directory) }
+        let output = directory.appending(component: "saved.pdf")
+        let sourceBytes = try Data(contentsOf: source)
+        let document = try unlockedDocument(at: source)
+        let metadata = PDFMetadataEditor.Metadata(title: "Changed", author: "A", subject: "S", keywords: "one, two", creator: "C")
+        try await PDFMetadataEditor().write(metadata: metadata, document: document,
+            source: source, destination: output, existingPassword: Self.password)
+        let reopened = try #require(PDFDocument(url: output))
+        #expect(reopened.isEncrypted && reopened.isLocked)
+        #expect(!reopened.unlock(withPassword: "wrong"))
+        #expect(reopened.unlock(withPassword: Self.password))
+        #expect(reopened.accessPermissions == document.accessPermissions)
+        #expect(reopened.string == document.string)
+        #expect(PDFMetadataEditor().read(from: reopened) == metadata)
+        #expect(try Data(contentsOf: source) == sourceBytes)
+
+        let savedBytes = try Data(contentsOf: output)
+        do {
+            try await PDFMetadataEditor().write(metadata: .empty, document: document,
+                source: source, destination: output, existingPassword: "wrong")
+            Issue.record("Incorrect verification password must not publish")
+        } catch PDFwringerError.existingPasswordRequired { }
+        #expect(try Data(contentsOf: output) == savedBytes)
     }
 
     @Test("Mutable editors isolate unlocked encrypted documents")

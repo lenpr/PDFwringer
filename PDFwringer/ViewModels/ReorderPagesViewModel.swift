@@ -12,6 +12,8 @@ final class ReorderPagesViewModel {
     var progress: Double = 0
 
     private var sourcePageCount = 0
+    private var savedPageOrder: [Int] = []
+    var hasUnsavedChanges: Bool { pageOrder != savedPageOrder }
     private var operationTask: Task<Void, Never>?
     private let reorderer = PDFPageReorderer()
 
@@ -19,13 +21,14 @@ final class ReorderPagesViewModel {
         !isSaving
             && pageOrder.count == sourcePageCount
             && Set(pageOrder) == Set(0..<sourcePageCount)
-            && pageOrder != Array(0..<sourcePageCount)
+            && hasUnsavedChanges
     }
 
     func setDocument(_ document: PDFDocument) {
         cancel()
         sourcePageCount = document.pageCount
         pageOrder = Array(0..<sourcePageCount)
+        savedPageOrder = pageOrder
         resultMessage = nil
         isError = false
         lastOutputURL = nil
@@ -69,6 +72,7 @@ final class ReorderPagesViewModel {
                 resultMessage = document.isEncrypted
                     ? String(localized: "Saved. Password protection was removed.")
                     : String(localized: "Saved.")
+                savedPageOrder = order
                 isError = false
                 lastOutputURL = destination
             } catch is CancellationError {

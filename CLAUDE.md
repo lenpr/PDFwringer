@@ -10,6 +10,9 @@ make sign       # release + codesign with Developer ID (hardened runtime)
 make notarize   # sign + submit to Apple notary service + staple ticket
 make dmg        # signed app + signed/notarized drag-to-install .dmg
 make run        # build + launch the sandboxed app bundle
+make app-store-check # unsigned Mac App Store archive validation
+make app-store-archive APP_STORE_TEAM_ID=XXXXXXXXXX # signed local archive
+make app-store-export APP_STORE_TEAM_ID=XXXXXXXXXX  # local package; no upload
 make clean      # rm -rf .build
 ```
 
@@ -43,6 +46,9 @@ Utilities/    → PDFwringerError, FileDialogHelper, BookmarkManager, Formatting
 Resources/    → Asset catalog, AppIcon.icns
 ```
 
+`PrivacyInfo.xcprivacy` lives at the target root and is bundled into
+`Contents/Resources` by both build systems.
+
 ### Navigation model
 
 `AppState` (in `AppViewModel.swift`) is the top-level state machine:
@@ -73,16 +79,21 @@ landing → singleFile → compressing / splitting / rotating / editingMetadata 
 
 ## Compression dual-engine
 
-- **Lossless** (`CompressionLevel.lossless`): Strips document-level metadata and re-serializes via PDFKit. Optional annotation removal is limited to known comment, markup, stamp, popup, and link types; forms, signatures, redactions, and unknown subtypes fail closed and must be flattened instead.
+- **Lossless** (`CompressionLevel.lossless`): Clears standard document-info fields and re-serializes via PDFKit; embedded XMP and other identifying content can remain. Optional annotation removal is limited to supported types and must verify that no annotations remain in the serialized output. Forms, signatures, redactions, and unsupported annotations fail closed. Existing protection must survive serialization or the write is rejected.
 - **Rasterize** (`CompressionLevel.high/medium/low`): Renders each page to a bitmap at target DPI, encodes as JPEG, assembles new PDF via CGContext. Flattens all content. Oversized pages (where point dimensions exceed A3 at the target DPI — common in scanned PDFs and iPhone photos) are automatically capped to prevent bitmap inflation.
 - **Size estimation**: `CompressViewModel` provides instant heuristic estimates (based on page dimensions × DPI × JPEG ratio) shown with a "~" prefix, then replaces them with a batched first-page probe. The batch opens the source once and renders once per DPI/color combination before encoding all JPEG qualities.
 
 ## Annotation flattening
 
-`PDFMetadataEditor` supports flattening annotations via the `flattenAnnotations` parameter. When enabled, each page is snapshotted and rasterized at 300 DPI (JPEG quality 0.92) on an isolated worker using `page.draw(with:to:)`, which renders annotation appearances into the bitmap. The result is a visually identical PDF where annotations are burned into the page content and are no longer editable. Text selectability is lost. The operation is async with progress reporting and cancellation support.
+`PDFMetadataEditor` supports flattening annotations via the `flattenAnnotations` parameter. When enabled, each page is snapshotted and rasterized at 300 DPI (JPEG quality 0.92) on an isolated worker using `page.draw(with:to:)`, which renders annotation appearances into the bitmap. The result is a visually identical PDF where annotations are burned into the page content and are no longer editable. Text selectability, accessibility tags, interactive forms, links, and digital signatures are lost. New password creation requires this explicit flattening path and verifies AES-128 output before publication; ordinary saves only retain existing protection or remove it explicitly. The operation is async with progress reporting and cancellation support.
 
 ## App bundle
 
 `make app` creates `.build/PDFwringer.app` with a proper `Info.plist`, sandbox entitlements, hardened runtime, and an ad-hoc signature. `make release` forces an optimized ad-hoc bundle without requiring credentials. `make sign` replaces that signature with a timestamped Developer ID signature. `make notarize` submits and staples the standalone app, while `make dmg` packages the signed app with an Applications symlink, signs the disk image, and notarizes/staples the final DMG. `SIGN_IDENTITY` and `NOTARY_PROFILE` can be overridden on the command line or through the environment.
 
 Signed-release targets require a clean `Makefile` and `PDFwringer/` tree plus an exact `v<version>` tag matching `CFBundleShortVersionString` in `PDFwringer/Info.plist`. Bump the version, commit the release inputs, and tag that commit before running `make sign`, `make notarize`, or `make dmg`.
+
+Mac App Store distribution is a separate Xcode archive/export path documented
+in `APP_STORE.md`. App Store targets require a clean Xcode/archive input set, an
+exact `appstore-v<version>-build.<build>` tag, and an `APP_STORE_TEAM_ID` passed
+at invocation. They never upload or notarize artifacts.

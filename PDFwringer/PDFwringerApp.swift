@@ -2,8 +2,6 @@ import SwiftUI
 import PDFKit
 import OSLog
 
-let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
-
 @main
 struct PDFwringerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -12,7 +10,7 @@ struct PDFwringerApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(appVM: appVM)
+            ContentView(appVM: appVM, appDelegate: appDelegate)
                 .navigationTitle(appVM.windowTitle)
                 .preferredColorScheme(appearance.colorScheme)
         }
@@ -44,7 +42,7 @@ struct PDFwringerApp: App {
                 Divider()
 
                 Button(String(localized: "Close")) {
-                    NSApp.keyWindow?.close()
+                    NSApp.keyWindow?.performClose(nil)
                 }
                 .keyboardShortcut("w")
             }
@@ -153,91 +151,6 @@ struct PDFwringerApp: App {
                 Divider()
                 Button(String(localized: "Show Crash Logs")) {
                     AppDelegate.openCrashLogDirectory()
-                }
-            }
-        }
-    }
-}
-
-/// Handles files opened via Finder (double-click, Open With, drag to Dock icon).
-@MainActor
-class AppDelegate: NSObject, NSApplicationDelegate {
-    var onOpenURLs: (([URL]) -> Void)? {
-        didSet { deliverPendingOpenURLs() }
-    }
-    var hasUnsavedChanges: (() -> Bool)?
-    private var pendingOpenURLs: [URL] = []
-
-    private static let crashLogDirectory: URL = {
-        let dir = FileManager.default.homeDirectoryForCurrentUser
-            .appending(path: "Library/Logs/PDFwringer")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir
-    }()
-
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        Log.app.info("PDFwringer launched, version=\(appVersion)")
-        AtomicFileWriter.cleanupLegacyTempFiles()
-        installCrashHandler()
-    }
-
-    func application(_ application: NSApplication, open urls: [URL]) {
-        guard let onOpenURLs else {
-            pendingOpenURLs.append(contentsOf: urls)
-            return
-        }
-        onOpenURLs(urls)
-    }
-
-    private func deliverPendingOpenURLs() {
-        guard let onOpenURLs, !pendingOpenURLs.isEmpty else { return }
-        let urls = pendingOpenURLs
-        pendingOpenURLs.removeAll()
-        onOpenURLs(urls)
-    }
-
-    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        let dirty = hasUnsavedChanges?() == true ||
-            sender.windows.contains(where: { $0.isDocumentEdited })
-        guard dirty else { return .terminateNow }
-
-        let alert = NSAlert()
-        alert.messageText = String(localized: "You have unsaved changes.")
-        alert.informativeText = String(localized: "If you quit now, your changes will be lost.")
-        alert.addButton(withTitle: String(localized: "Quit"))
-        alert.addButton(withTitle: String(localized: "Cancel"))
-        alert.alertStyle = .warning
-
-        if alert.runModal() == .alertFirstButtonReturn {
-            return .terminateNow
-        }
-        return .terminateCancel
-    }
-
-    static func openCrashLogDirectory() {
-        NSWorkspace.shared.open(crashLogDirectory)
-    }
-
-    private func installCrashHandler() {
-        NSSetUncaughtExceptionHandler { exception in
-            let logFile = AppDelegate.crashLogDirectory.appending(component: "crash.log")
-            let timestamp = ISO8601DateFormatter().string(from: Date())
-            let info = """
-            --- Crash at \(timestamp) ---
-            \(exception.name.rawValue): \(exception.reason ?? "unknown")
-            Stack trace:
-            \(exception.callStackSymbols.joined(separator: "\n"))
-
-            """
-            if let data = info.data(using: .utf8) {
-                if FileManager.default.fileExists(atPath: logFile.path(percentEncoded: false)) {
-                    if let handle = try? FileHandle(forWritingTo: logFile) {
-                        handle.seekToEndOfFile()
-                        handle.write(data)
-                        handle.closeFile()
-                    }
-                } else {
-                    try? data.write(to: logFile)
                 }
             }
         }

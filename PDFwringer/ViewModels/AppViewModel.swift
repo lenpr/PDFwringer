@@ -34,11 +34,21 @@ class AppViewModel {
     var showErrorAlert = false
     var errorMessage = ""
 
-    // Start-over confirmation state
-    var showStartOverConfirm = false
-
-    // Dirty state: set only for unsaved mutations to an isolated working document.
+    // Includes pending metadata, color, page-order, and working-document edits.
     var hasUnsavedChanges = false
+    @ObservationIgnored var operationIsRunning: @MainActor () -> Bool = { false }
+    @ObservationIgnored private let confirmDiscard: @MainActor () -> Bool
+
+    /// Navigation and termination share the same gate. Running operations must finish
+    /// or be cancelled through their view before releasing document/file access.
+    func canLeaveWorkflow() -> Bool {
+        if operationIsRunning() {
+            errorMessage = String(localized: "An operation is still running. Wait for it to finish, or cancel it before leaving this document.")
+            showErrorAlert = true
+            return false
+        }
+        return !hasUnsavedChanges || confirmDiscard()
+    }
 
     // Password prompt state
     var showPasswordPrompt = false
@@ -54,8 +64,10 @@ class AppViewModel {
 
     init(
         beginSecurityScopedAccess: @escaping @MainActor (URL) -> Bool = BookmarkManager.startAccessing,
-        endSecurityScopedAccess: @escaping @MainActor (URL) -> Void = BookmarkManager.stopAccessing
+        endSecurityScopedAccess: @escaping @MainActor (URL) -> Void = BookmarkManager.stopAccessing,
+        confirmDiscard: @escaping @MainActor () -> Bool = FileDialogHelper.confirmDiscardChanges
     ) {
+        self.confirmDiscard = confirmDiscard
         self.beginSecurityScopedAccess = beginSecurityScopedAccess
         self.endSecurityScopedAccess = endSecurityScopedAccess
     }
@@ -147,6 +159,7 @@ class AppViewModel {
     }
 
     private func loadSingleFile(_ url: URL, requiresSecurityScopedAccess: Bool) {
+        guard canLeaveWorkflow() else { return }
         cancelPendingIntake()
         if requiresSecurityScopedAccess {
             guard beginSecurityScopedAccess(url) else {
@@ -178,6 +191,7 @@ class AppViewModel {
         BookmarkManager.saveBookmark(for: url)
         refreshRecentDocuments()
         hasUnsavedChanges = false
+        operationIsRunning = { false }
         state = .singleFile(url, doc)
     }
 
@@ -198,6 +212,7 @@ class AppViewModel {
             BookmarkManager.saveBookmark(for: url)
             refreshRecentDocuments()
             hasUnsavedChanges = false
+            operationIsRunning = { false }
             pendingLockedURL = nil
             wrongPasswordAttempt = false
             showPasswordPrompt = false
@@ -215,6 +230,10 @@ class AppViewModel {
 
     @discardableResult
     func loadMultipleFiles(_ urls: [URL]) -> Task<Void, Never> {
+        guard !operationIsRunning() else {
+            _ = canLeaveWorkflow()
+            return Task {}
+        }
         cancelPendingIntake()
         let requestID = UUID()
         fileIntakeID = requestID
@@ -285,6 +304,7 @@ class AppViewModel {
     }
 
     func goBack() {
+        guard canGoBack, canLeaveWorkflow() else { return }
         let destination: AppState
         switch state {
         case .rotating(let url, let sourceDocument, _),
@@ -302,20 +322,32 @@ class AppViewModel {
         }
         navigationDirection = .leading
         state = destination
+        operationIsRunning = { false }
         hasUnsavedChanges = false
     }
 
     func confirmStartOver() {
-        showStartOverConfirm = true
+        startOver()
     }
 
     func startOver() {
+        guard canLeaveWorkflow() else { return }
+        resetWorkflow()
+    }
+
+    func closeWorkflow() -> Bool {
+        guard canLeaveWorkflow() else { return false }
+        resetWorkflow()
+        return true
+    }
+
+    private func resetWorkflow() {
         stopActiveSecurityScope()
         state = .landing
+        operationIsRunning = { false }
         currentPage = 0
         currentFileSize = 0
         navigationDirection = .trailing
-        showStartOverConfirm = false
         hasUnsavedChanges = false
     }
 
@@ -331,6 +363,8 @@ class AppViewModel {
         case 1:
             loadSingleFile(items[0].url)
         default:
+            guard canLeaveWorkflow() else { return }
+            operationIsRunning = { false }
             commitPendingSecurityScope()
             for item in items {
                 NSDocumentController.shared.noteNewRecentDocumentURL(item.url)

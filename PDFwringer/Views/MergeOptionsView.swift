@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MergeOptionsView: View {
+    @Environment(AppViewModel.self) private var appVM
     @Binding var files: [PDFFileItem]
     let onBack: () -> Void
 
@@ -9,6 +10,7 @@ struct MergeOptionsView: View {
     @State private var fileIntakeTask: Task<Void, Never>?
     @State private var fileIntakeID: UUID?
     @State private var isAddingFiles = false
+    @State private var savedFileIDs: [UUID] = []
 
     var body: some View {
         HStack(spacing: 0) {
@@ -140,6 +142,10 @@ struct MergeOptionsView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
 
+                Text(String(localized: "The merged copy will not be password-protected, even if an input has protection."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 HStack {
                     Text("\(files.count) files")
                         .font(.caption)
@@ -190,6 +196,13 @@ struct MergeOptionsView: View {
             .frame(minWidth: 300, idealWidth: 340)
             .tint(.coral)
         }
+        .onAppear {
+            savedFileIDs = files.map(\.id)
+            appVM.operationIsRunning = { vm.isProcessing || isAddingFiles }
+        }
+        .onChange(of: files.map(\.id)) { _, ids in
+            appVM.hasUnsavedChanges = ids != savedFileIDs
+        }
         .onDisappear {
             vm.cancel()
             cancelFileIntake()
@@ -237,6 +250,11 @@ struct MergeOptionsView: View {
 
     private func performMerge() async {
         vm.files = files
+        let revision = vm.successfulSaveCount
         await vm.concatenate()
+        if vm.successfulSaveCount != revision {
+            savedFileIDs = files.map(\.id)
+            appVM.hasUnsavedChanges = false
+        }
     }
 }

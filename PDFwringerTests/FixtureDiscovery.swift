@@ -1,5 +1,6 @@
 import Foundation
 import PDFKit
+import Testing
 
 /// Discovers and categorizes PDF fixture files for integration testing.
 /// Fixtures are located relative to this source file at `Fixtures/`.
@@ -149,6 +150,47 @@ enum FixtureDiscovery {
         return URL.temporaryDirectory.appending(
             component: "PDFwringer-\(UUID().uuidString)-\(baseName)\(suffix)"
         )
+    }
+
+    enum WriteOperation { case lossless, metadata, removeAnnotations }
+
+    /// Known PDFKit serialization defects are safe rejections, not successful writes.
+    /// Accept only the exact fixture/operation/error pairs reproduced by the audit;
+    /// any new failure still fails the suite. Never skip running the operation.
+    @MainActor
+    static func writeOrVerifySafeRejection(
+        fixture: Fixture,
+        output: URL,
+        operation: WriteOperation,
+        write: () async throws -> Void
+    ) async throws -> Bool {
+        let sourceBefore = try Data(contentsOf: fixture.url)
+        let destinationBefore = try? Data(contentsOf: output)
+        do {
+            try await write()
+            return true
+        } catch {
+            let expected: Bool
+            switch (fixture.filename, operation, error) {
+            case ("sechandler.pdf", .metadata, PDFwringerError.protectionPreservationFailed),
+                 ("sechandler.pdf", .lossless, PDFwringerError.protectionPreservationFailed),
+                 ("cmyk_image.pdf", .lossless, PDFwringerError.cannotWriteOutput),
+                 ("cmyk_image.pdf", .metadata, PDFwringerError.cannotWriteOutput),
+                 ("highlight.pdf", .removeAnnotations, PDFwringerError.annotationRemovalFailed),
+                 ("zapfdingbats.pdf", .removeAnnotations, PDFwringerError.annotationRemovalFailed):
+                expected = true
+            default:
+                expected = false
+            }
+            guard expected else { throw error }
+            #expect(try Data(contentsOf: fixture.url) == sourceBefore, "Rejected operation modified source: \(fixture)")
+            if let destinationBefore {
+                #expect(try Data(contentsOf: output) == destinationBefore, "Rejected operation replaced destination: \(fixture)")
+            } else {
+                #expect(!FileManager.default.fileExists(atPath: output.path), "Rejected operation published output: \(fixture)")
+            }
+            return false
+        }
     }
 
     /// Validates that a PDF at the given URL is readable with the expected page count.

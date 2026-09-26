@@ -14,6 +14,26 @@ private final class MissingPageSplitterDocument: PDFDocument {
 @MainActor
 struct PDFSplitterTests {
 
+    @Test("Extraction fails closed when a requested page is unavailable", arguments: [false, true])
+    func extractionRequiresEveryPage(removeMode: Bool) async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 3)
+        let directory = TestPDFGenerator.makeTempDirectory()
+        defer { TestPDFGenerator.cleanup(source); TestPDFGenerator.cleanup(directory) }
+        let document = try #require(MissingPageSplitterDocument(url: source))
+        document.inaccessiblePageIndex = 1
+        let destination = directory.appending(component: "existing.pdf")
+        let sentinel = Data("existing destination".utf8)
+        try sentinel.write(to: destination)
+        await #expect(throws: PDFwringerError.self) {
+            try await PDFSplitter().split(
+                document: document, source: source,
+                mode: removeMode ? .removePages([2]) : .keepPages([0, 1]),
+                destination: destination, progress: { _ in }
+            )
+        }
+        #expect(try Data(contentsOf: destination) == sentinel)
+    }
+
     // MARK: - Split every N pages
 
     @Test("Split 10-page PDF every 3 pages produces 4 files")
@@ -349,7 +369,7 @@ struct PDFSplitterTests {
 
     // MARK: - Edge cases
 
-    @Test("Keep pages with out-of-bounds indices silently skips them")
+    @Test("Keep pages with out-of-bounds indices fails without publishing")
     func keepPagesOutOfBounds() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 3, filename: "three.pdf")
         let output = TestPDFGenerator.makeTempDirectory().appending(component: "out.pdf")
@@ -359,15 +379,15 @@ struct PDFSplitterTests {
         }
 
         let splitter = PDFSplitter()
-        let outputs = try await splitter.split(
-            source: source,
-            mode: .keepPages([0, 5, 10, -1]),
-            destination: output,
-            progress: { _ in }
-        )
-
-        #expect(outputs.count == 1)
-        #expect(PDFDocument(url: outputs[0])?.pageCount == 1)
+        await #expect(throws: PDFwringerError.self) {
+            try await splitter.split(
+                source: source,
+                mode: .keepPages([0, 5, 10, -1]),
+                destination: output,
+                progress: { _ in }
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: output.path))
     }
 
     @Test("Keep pages with duplicate indices includes page multiple times")

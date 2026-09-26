@@ -214,7 +214,7 @@ struct PDFCompressor {
                     page.removeAnnotation(annotation)
                 }
                 guard page.annotations.isEmpty else {
-                    throw PDFwringerError.cannotWriteOutput
+                    throw PDFwringerError.annotationRemovalFailed
                 }
             }
         }
@@ -225,6 +225,7 @@ struct PDFCompressor {
         guard !data.isEmpty, let serializedOutput = PDFDocument(data: data) else {
             throw PDFwringerError.cannotWriteOutput
         }
+        try PDFEncryptionPolicy.requirePreservedProtection(from: document, in: serializedOutput)
         if serializedOutput.isLocked {
             guard serializedOutput.isEncrypted else {
                 throw PDFwringerError.cannotWriteOutput
@@ -248,6 +249,7 @@ struct PDFCompressor {
         try AtomicFileWriter.write(to: destination) { tempURL in
             try data.write(to: tempURL)
             guard let output = PDFDocument(url: tempURL) else { return false }
+            try PDFEncryptionPolicy.requirePreservedProtection(from: document, in: output)
             if output.isLocked { return output.isEncrypted }
             do {
                 try Self.validateOutput(
@@ -415,7 +417,7 @@ struct PDFCompressor {
                 throw PDFwringerError.cannotWriteOutput
             }
             if requireNoAnnotations, !page.annotations.isEmpty {
-                throw PDFwringerError.cannotWriteOutput
+                throw PDFwringerError.annotationRemovalFailed
             }
         }
     }

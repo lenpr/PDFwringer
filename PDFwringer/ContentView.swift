@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Bindable var appVM: AppViewModel
+    let appDelegate: AppDelegate
 
     var body: some View {
         Group {
@@ -228,7 +229,9 @@ struct ContentView: View {
                 .transition(.move(edge: appVM.navigationDirection).combined(with: .opacity))
             }
         }
+        .environment(appVM)
         .frame(minWidth: 650, minHeight: 420)
+        .background(WindowCloseGuard { appVM.closeWorkflow() })
         .overlay(alignment: .bottomTrailing) {
             Text(appVersion)
                 .font(.system(size: 10))
@@ -247,31 +250,13 @@ struct ContentView: View {
                 Text(String(localized: "This PDF is password-protected."))
             }
         }
-        .alert(String(localized: "Cannot Open File"), isPresented: $appVM.showErrorAlert) {
+        .alert(String(localized: "PDFwringer"), isPresented: $appVM.showErrorAlert) {
             Button(String(localized: "OK"), role: .cancel) {}
         } message: {
             Text(appVM.errorMessage)
         }
-        .alert(String(localized: "Start Over?"), isPresented: $appVM.showStartOverConfirm) {
-            Button(String(localized: "Start Over"), role: .destructive) {
-                withAnimation(.spring(duration: 0.35)) {
-                    appVM.startOver()
-                }
-            }
-            Button(String(localized: "Cancel"), role: .cancel) {}
-        } message: {
-            Text(String(localized: "This will discard your current selection."))
-        }
         .onAppear {
-            // Wire AppDelegate to forward Finder-opened files and check dirty state
-            if let delegate = NSApp.delegate as? AppDelegate {
-                delegate.onOpenURLs = { [weak appVM] urls in
-                    appVM?.handleDrop(urls)
-                }
-                delegate.hasUnsavedChanges = { [weak appVM] in
-                    appVM?.hasUnsavedChanges ?? false
-                }
-            }
+            appDelegate.configure(with: appVM)
             // Persist window frame across launches
             NSApp.keyWindow?.setFrameAutosaveName("MainWindow")
             // Load recent documents once at launch
