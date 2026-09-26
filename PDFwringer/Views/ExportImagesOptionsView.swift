@@ -163,6 +163,7 @@ struct ExportImagesOptionsView: View {
         isProcessing = true
         progress = 0
         resultMessage = nil
+        lastOutputURL = nil
         isError = false
 
         operationTask = Task {

@@ -78,45 +78,47 @@ struct CompressOptionsView: View {
                         let displaySize = estimatedSize ?? heuristicSize
                         let isHeuristic = estimatedSize == nil && heuristicSize != nil
 
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: vm.selectedLevel == level ? "largecircle.fill.circle" : "circle")
-                                .foregroundColor(vm.selectedLevel == level ? .coral : .secondary)
-                                .font(.body)
-                                .frame(width: 20)
-                            VStack(alignment: .leading, spacing: 1) {
-                                let exceedsOriginal = displaySize.map { $0 >= vm.sourceFileSize && vm.sourceFileSize > 0 } ?? false
-                                HStack(alignment: .firstTextBaseline) {
-                                    Text(level.title)
-                                        .font(.body.weight(.medium))
-                                    Spacer()
-                                    if let size = displaySize {
-                                        HStack(spacing: 4) {
-                                            if exceedsOriginal {
-                                                Image(systemName: "arrow.up")
-                                                    .font(.caption2)
-                                            }
-                                            Text(isHeuristic ? "~\(Formatting.fileSize(size))" : Formatting.fileSize(size))
-                                                .font(.caption)
-                                                .strikethrough(exceedsOriginal)
-                                        }
-                                        .foregroundStyle(exceedsOriginal ? .red : .secondary)
-                                        .contentTransition(.numericText())
-                                    } else if vm.sourceFileSize > 0 {
-                                        ProgressView()
-                                            .controlSize(.mini)
-                                    }
-                                }
-                                Text(exceedsOriginal ? String(localized: "Larger than original") : level.subtitle)
-                                    .font(.caption)
-                                    .foregroundStyle(exceedsOriginal ? .red.opacity(0.8) : .secondary)
-                            }
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
+                        Button {
                             vm.selectedLevel = level
+                        } label: {
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: vm.selectedLevel == level ? "largecircle.fill.circle" : "circle")
+                                    .foregroundColor(vm.selectedLevel == level ? .coral : .secondary)
+                                    .font(.body)
+                                    .frame(width: 20)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    let exceedsOriginal = displaySize.map { $0 >= vm.sourceFileSize && vm.sourceFileSize > 0 } ?? false
+                                    HStack(alignment: .firstTextBaseline) {
+                                        Text(level.title)
+                                            .font(.body.weight(.medium))
+                                        Spacer()
+                                        if let size = displaySize {
+                                            HStack(spacing: 4) {
+                                                if exceedsOriginal {
+                                                    Image(systemName: "arrow.up")
+                                                        .font(.caption2)
+                                                }
+                                                Text(isHeuristic ? "~\(Formatting.fileSize(size))" : Formatting.fileSize(size))
+                                                    .font(.caption)
+                                                    .strikethrough(exceedsOriginal)
+                                            }
+                                            .foregroundStyle(exceedsOriginal ? .red : .secondary)
+                                            .contentTransition(.numericText())
+                                        } else if vm.sourceFileSize > 0 {
+                                            ProgressView()
+                                                .controlSize(.mini)
+                                        }
+                                    }
+                                    Text(exceedsOriginal ? String(localized: "Larger than original") : level.subtitle)
+                                        .font(.caption)
+                                        .foregroundStyle(exceedsOriginal ? .red.opacity(0.8) : .secondary)
+                                }
+                            }
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .disabled(vm.isProcessing)
                         .accessibilityElement(children: .combine)
-                        .accessibilityAddTraits(.isButton)
                         .accessibilityLabel("\(level.title): \(level.subtitle)")
                         .accessibilityValue(vm.selectedLevel == level ? "Selected" : "")
                     }
@@ -129,27 +131,29 @@ struct CompressOptionsView: View {
 
                         HStack(spacing: 12) {
                             ForEach(JPEGQuality.allCases) { q in
-                                Text(q.title)
-                                    .font(.caption.weight(vm.selectedQuality == q ? .bold : .regular))
-                                    .foregroundColor(vm.selectedQuality == q ? .coral : .primary)
-                                    .padding(.vertical, 4)
-                                    .padding(.horizontal, 8)
-                                    .background {
-                                        if vm.selectedQuality == q {
-                                            RoundedRectangle(cornerRadius: 5)
-                                                .fill(Color.coral.opacity(0.12))
-                                                .matchedGeometryEffect(id: "quality", in: qualityNamespace)
-                                        }
+                                Button {
+                                    withAnimation(.spring(duration: 0.25)) {
+                                        vm.selectedQuality = q
                                     }
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        withAnimation(.spring(duration: 0.25)) {
-                                            vm.selectedQuality = q
+                                } label: {
+                                    Text(q.title)
+                                        .font(.caption.weight(vm.selectedQuality == q ? .bold : .regular))
+                                        .foregroundColor(vm.selectedQuality == q ? .coral : .primary)
+                                        .padding(.vertical, 4)
+                                        .padding(.horizontal, 8)
+                                        .background {
+                                            if vm.selectedQuality == q {
+                                                RoundedRectangle(cornerRadius: 5)
+                                                    .fill(Color.coral.opacity(0.12))
+                                                    .matchedGeometryEffect(id: "quality", in: qualityNamespace)
+                                            }
                                         }
-                                    }
-                                    .accessibilityAddTraits(.isButton)
-                                    .accessibilityLabel("JPEG quality: \(q.title)")
-                                    .accessibilityValue(vm.selectedQuality == q ? "Selected" : "")
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(vm.isProcessing)
+                                .accessibilityLabel("JPEG quality: \(q.title)")
+                                .accessibilityValue(vm.selectedQuality == q ? "Selected" : "")
                             }
                         }
                         Divider()
@@ -159,6 +163,7 @@ struct CompressOptionsView: View {
                                 .font(.callout)
                         }
                         .toggleStyle(.checkbox)
+                        .disabled(vm.isProcessing)
                     } else {
                         Divider()
 
@@ -167,6 +172,7 @@ struct CompressOptionsView: View {
                                 .font(.callout)
                         }
                         .toggleStyle(.checkbox)
+                        .disabled(vm.isProcessing)
 
                         if vm.removeAnnotations {
                             Text(String(localized: "Forms, signatures, redactions, and unsupported annotations must be flattened instead."))

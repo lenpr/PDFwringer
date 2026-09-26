@@ -157,6 +157,9 @@ struct ReorderPagesView: View {
             vm.setDocument(document)
         }
         .onChange(of: vm.hasUnsavedChanges) { _, dirty in appVM.hasUnsavedChanges = dirty }
-        .onDisappear { vm.cancel() }
+        .onDisappear {
+            vm.cancel()
+            thumbnailCache.cancel()
+        }
     }
 }

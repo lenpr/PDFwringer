@@ -47,6 +47,7 @@ struct PageThumbnailStripView: View {
                 }
             }
         }
+        .onDisappear { cache.cancel() }
         .frame(height: thumbHeight + (document.pageCount > 20 ? 48 : 28))
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
         .background {
@@ -117,11 +118,19 @@ struct PageThumbnailStripView: View {
             if let page = document.page(at: index) {
                 let size = page.bounds(for: .cropBox).size
                 let scale = min(400 / size.width, 500 / size.height)
-                Image(nsImage: page.thumbnail(of: CGSize(width: size.width * scale, height: size.height * scale), for: .cropBox))
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: 400, maxHeight: 500)
-                    .padding(8)
+                let previewSize = CGSize(width: size.width * scale, height: size.height * scale)
+                if size.width > 0, size.height > 0,
+                   previewSize.width.isFinite, previewSize.height.isFinite,
+                   previewSize.width > 0, previewSize.height > 0 {
+                    Image(nsImage: page.thumbnail(of: previewSize, for: .cropBox))
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxWidth: 400, maxHeight: 500)
+                        .padding(8)
+                } else {
+                    Text(String(localized: "Preview unavailable for this page."))
+                        .padding()
+                }
             }
         }
     }
@@ -144,55 +153,6 @@ struct PageThumbnailStripView: View {
         } else {
             selBinding.wrappedValue.insert(index)
         }
-    }
-}
-
-@MainActor @Observable
-final class ThumbnailCache {
-    private let cache = NSCache<NSNumber, NSImage>()
-    private var pending = Set<Int>()
-    var generation = 0
-
-    init() {
-        cache.countLimit = 200
-    }
-
-    func thumbnail(for index: Int, document: PDFDocument, size: CGSize) -> NSImage? {
-        let key = NSNumber(value: index)
-        if let cached = cache.object(forKey: key) {
-            return cached
-        }
-
-        guard !pending.contains(index) else { return nil }
-        pending.insert(index)
-
-        guard let page = document.page(at: index) else {
-            pending.remove(index)
-            return nil
-        }
-        let thumbSize = size
-
-        guard let pageData = page.dataRepresentation else {
-            pending.remove(index)
-            return nil
-        }
-
-        Task { [weak self] in
-            let imageData = try? await PDFPageWorker.run(pageData: pageData) { isolatedPage in
-                let image = isolatedPage.thumbnail(of: thumbSize, for: .cropBox)
-                guard let data = image.tiffRepresentation else {
-                    throw PDFwringerError.cannotCreateOutput
-                }
-                return data
-            }
-            guard let self else { return }
-            self.pending.remove(index)
-            guard let imageData, let image = NSImage(data: imageData) else { return }
-            self.cache.setObject(image, forKey: key)
-            self.generation += 1
-        }
-
-        return nil
     }
 }
 

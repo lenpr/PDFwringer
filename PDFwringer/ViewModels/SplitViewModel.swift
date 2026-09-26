@@ -43,6 +43,7 @@ class SplitViewModel {
         sourceURL = url
         sourceDocument = document
         resultMessage = nil
+        lastOutputURL = nil
         isError = false
         sourcePageCount = document.pageCount
     }
@@ -69,6 +70,7 @@ class SplitViewModel {
         isProcessing = true
         progress = 0
         resultMessage = nil
+        lastOutputURL = nil
         isError = false
 
         operationTask = Task {
@@ -119,6 +121,7 @@ class SplitViewModel {
             isProcessing = true
             progress = 0
             resultMessage = nil
+            lastOutputURL = nil
             isError = false
 
             operationTask = Task {
@@ -175,6 +178,7 @@ class SplitViewModel {
             isProcessing = true
             progress = 0
             resultMessage = nil
+            lastOutputURL = nil
             isError = false
 
             operationTask = Task {

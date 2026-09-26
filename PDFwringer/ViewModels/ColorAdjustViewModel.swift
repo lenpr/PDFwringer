@@ -23,7 +23,7 @@ class ColorAdjustViewModel {
     @ObservationIgnored private weak var pendingPreviewDocument: PDFDocument?
     @ObservationIgnored private var pendingPreviewPage = 0
     /// Single-flight guard: prevents concurrent preview renders from exhausting resources.
-    @ObservationIgnored private var isRendering = false
+    @ObservationIgnored private(set) var isRendering = false
     @ObservationIgnored private let adjuster = PDFColorAdjuster()
 
     var settings: PDFColorAdjuster.Settings {
@@ -74,8 +74,6 @@ class ColorAdjustViewModel {
             try? await Task.sleep(for: .milliseconds(100))
             guard !Task.isCancelled else { return }
 
-            guard !Task.isCancelled else { return }
-
             do {
                 let previewData = try await PDFPageWorker.run(pageData: pageData) { page in
                     guard let (rendered, _) = PDFRasterizer.render(
@@ -116,6 +114,8 @@ class ColorAdjustViewModel {
     }
 
     func cancelPreview() {
+        pendingPreviewDocument = nil
+        previewGeneration += 1
         previewTask?.cancel()
     }
 
@@ -134,6 +134,7 @@ class ColorAdjustViewModel {
         let sourceWasEncrypted = document.isEncrypted
 
         resultMessage = nil
+        lastOutputURL = nil
         isError = false
         isSaving = true
         progress = 0
