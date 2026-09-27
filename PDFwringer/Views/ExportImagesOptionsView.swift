@@ -105,6 +105,8 @@ struct ExportImagesOptionsView: View {
                             Text(String(localized: "Quality"))
                                 .font(.callout)
                             Slider(value: $quality, in: 0.3...1.0)
+                                .accessibilityLabel("JPEG quality")
+                                .accessibilityValue("\(Int(quality * 100)) percent")
                             Text("\(Int(quality * 100))%")
                                 .font(.caption.monospacedDigit())
                                 .foregroundStyle(.secondary)

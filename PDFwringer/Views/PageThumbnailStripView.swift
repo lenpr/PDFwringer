@@ -104,15 +104,16 @@ struct PageThumbnailStripView: View {
         .onTapGesture(count: 2) {
             zoomedPage = index
         }
-        .onTapGesture {
-            currentPage?.wrappedValue = index
-            if selectable, let binding = selectedPages {
-                if binding.wrappedValue.contains(index) {
-                    binding.wrappedValue.remove(index)
-                } else {
-                    binding.wrappedValue.insert(index)
-                }
-            }
+        .onTapGesture { activatePage(index) }
+        .focusable()
+        .onKeyPress(keys: [.space, .return], phases: .down) { _ in
+            activatePage(index)
+            return .handled
+        }
+        .accessibilityAction { activatePage(index) }
+        .accessibilityAction(named: Text("Show Preview")) { zoomedPage = index }
+        .contextMenu {
+            Button("Show Preview") { zoomedPage = index }
         }
         .popover(isPresented: Binding(get: { zoomedPage == index }, set: { if !$0 { zoomedPage = nil } })) {
             if let page = document.page(at: index) {
@@ -138,6 +139,17 @@ struct PageThumbnailStripView: View {
                     Text(String(localized: "Preview unavailable for this page."))
                         .padding()
                 }
+            }
+        }
+    }
+
+    private func activatePage(_ index: Int) {
+        currentPage?.wrappedValue = index
+        if let binding = selectedPages {
+            if binding.wrappedValue.contains(index) {
+                binding.wrappedValue.remove(index)
+            } else {
+                binding.wrappedValue.insert(index)
             }
         }
     }

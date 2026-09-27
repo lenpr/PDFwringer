@@ -236,6 +236,26 @@ struct ViewModelLifecycleTests {
         #expect(!vm.canSave)
     }
 
+    @Test("Accessible page moves follow page identity and respect boundaries and saving")
+    func accessiblePageMoves() {
+        let vm = ReorderPagesViewModel()
+        vm.pageOrder = [0, 1, 2, 3]
+        vm.movePage(1, by: 1)
+        vm.movePage(1, by: 1)
+        #expect(vm.pageOrder == [0, 2, 3, 1])
+        vm.movePage(1, by: 1)
+        vm.movePage(0, by: -1)
+        vm.movePage(99, by: -1)
+        vm.movePage(0, by: Int.max)
+        #expect(vm.pageOrder == [0, 2, 3, 1])
+        vm.isSaving = true
+        vm.movePage(1, by: -1)
+        #expect(vm.pageOrder == [0, 2, 3, 1])
+        vm.isSaving = false
+        vm.movePage(1, by: -1)
+        #expect(vm.pageOrder == [0, 2, 1, 3])
+    }
+
     @Test("ColorAdjustViewModel preview cancellation on rapid changes")
     func colorAdjustPreviewCancellation() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "vm_preview.pdf")

@@ -35,6 +35,14 @@ final class ReorderPagesViewModel {
         progress = 0
     }
 
+    /// Move by page identity so repeated actions follow the page after it moves.
+    func movePage(_ page: Int, by offset: Int) {
+        guard !isSaving, offset == -1 || offset == 1,
+              let position = pageOrder.firstIndex(of: page),
+              pageOrder.indices.contains(position + offset) else { return }
+        pageOrder.swapAt(position, position + offset)
+    }
+
     func reset() {
         pageOrder = Array(0..<sourcePageCount)
     }

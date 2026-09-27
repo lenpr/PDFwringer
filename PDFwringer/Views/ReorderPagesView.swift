@@ -8,6 +8,12 @@ struct ReorderPagesView: View {
     let onBack: () -> Void
     let onFilesDropped: ([URL]) -> Void
 
+    @State private var selectedPage: Int?
+
+    private var selectedPosition: Int? {
+        selectedPage.flatMap { vm.pageOrder.firstIndex(of: $0) }
+    }
+
     @State private var isDropTargeted = false
     @State private var thumbnailCache = ThumbnailCache()
     @State private var vm = ReorderPagesViewModel()
@@ -16,12 +22,12 @@ struct ReorderPagesView: View {
         HStack(spacing: 0) {
             // Left: reorderable page list
             VStack(spacing: 0) {
-                Text(String(localized: "Drag pages to reorder"))
+                Text(String(localized: "Drag pages or select a page and use the arrow buttons"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.top, 12)
 
-                List {
+                List(selection: $selectedPage) {
                     ForEach(Array(vm.pageOrder.enumerated()), id: \.element) { position, pageIdx in
                         let _ = thumbnailCache.generation
                         HStack(spacing: 12) {
@@ -59,6 +65,9 @@ struct ReorderPagesView: View {
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 4)
+                        .tag(pageIdx)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("Page \(pageIdx + 1), position \(position + 1) of \(vm.pageOrder.count)")
                     }
                     .onMove { from, to in
                         vm.pageOrder.move(fromOffsets: from, toOffset: to)
@@ -66,6 +75,26 @@ struct ReorderPagesView: View {
                     .moveDisabled(vm.isSaving)
                 }
                 .listStyle(.inset(alternatesRowBackgrounds: true))
+
+                HStack {
+                    Button {
+                        if let selectedPage { vm.movePage(selectedPage, by: -1) }
+                    } label: {
+                        Label("Move Earlier", systemImage: "arrow.up")
+                    }
+                    .keyboardShortcut(.upArrow, modifiers: .option)
+                    .disabled(vm.isSaving || selectedPosition == nil || selectedPosition == 0)
+
+                    Button {
+                        if let selectedPage { vm.movePage(selectedPage, by: 1) }
+                    } label: {
+                        Label("Move Later", systemImage: "arrow.down")
+                    }
+                    .keyboardShortcut(.downArrow, modifiers: .option)
+                    .disabled(vm.isSaving || selectedPosition == nil || selectedPosition == vm.pageOrder.count - 1)
+                }
+                .controlSize(.small)
+                .padding(8)
             }
             .frame(minWidth: 280, idealWidth: 400)
             .overlay {
@@ -95,7 +124,7 @@ struct ReorderPagesView: View {
                     .foregroundStyle(.secondary)
                 }
 
-                Text(String(localized: "Drag page thumbnails to rearrange their order. Changes are saved to a new file."))
+                Text(String(localized: "Drag pages to rearrange them, or select a page and use Move Earlier or Move Later (Option–Up/Down Arrow). Changes are saved to a new file."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
 
