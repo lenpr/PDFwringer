@@ -168,7 +168,7 @@ class ColorAdjustViewModel {
                 resultMessage = String(localized: "Cancelled.")
                 isError = false
             } catch {
-                resultMessage = error.localizedDescription
+                resultMessage = PDFwringerError.userMessage(for: error)
                 isError = true
             }
 

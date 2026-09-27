@@ -30,6 +30,27 @@ enum PDFwringerError: LocalizedError {
     case documentPermissionsDenied
     case sensitiveAnnotationsRequireFlattening
 
+    /// Keep domain-specific explanations; make common filesystem failures actionable.
+    static func userMessage(for error: Error) -> String {
+        guard let cocoa = error as? CocoaError else { return error.localizedDescription }
+        switch cocoa.code {
+        case .fileWriteNoPermission:
+            return String(localized: "Cannot save in this location. Choose a folder you can write to, or select the destination again.")
+        case .fileReadNoPermission:
+            return String(localized: "Cannot read this file. Select it again to grant access, or check its permissions in Finder.")
+        case .fileWriteOutOfSpace:
+            return String(localized: "There is not enough free space to save the output. Free space on the destination disk or choose another disk, then try again.")
+        case .fileWriteVolumeReadOnly:
+            return String(localized: "The destination disk is read-only. Choose a writable disk or folder.")
+        case .fileWriteFileExists:
+            return String(localized: "A file already exists at this destination. Choose another name, or select the existing file again to confirm replacement.")
+        case .fileNoSuchFile, .fileReadNoSuchFile:
+            return String(localized: "A required file or folder is no longer available. Reconnect the disk if needed, then select the file and destination again.")
+        default:
+            return error.localizedDescription
+        }
+    }
+
     var errorDescription: String? {
         switch self {
         case .cannotOpenDocument: String(localized: "Cannot open the PDF document. It may be corrupted or have zero pages.")
@@ -350,7 +371,7 @@ enum DocumentSaver {
             }
             return Result(message: "Saved.", isError: false, outputURL: destination)
         } catch {
-            return Result(message: error.localizedDescription, isError: true, outputURL: nil)
+            return Result(message: PDFwringerError.userMessage(for: error), isError: true, outputURL: nil)
         }
     }
 }

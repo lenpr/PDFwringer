@@ -91,7 +91,7 @@ class SplitViewModel {
                 resultMessage = "Cancelled."
                 isError = false
             } catch {
-                resultMessage = error.localizedDescription
+                resultMessage = PDFwringerError.userMessage(for: error)
                 isError = true
                 errorSource = .split
             }
@@ -143,7 +143,7 @@ class SplitViewModel {
                     resultMessage = "Cancelled."
                     isError = false
                 } catch {
-                    resultMessage = error.localizedDescription
+                    resultMessage = PDFwringerError.userMessage(for: error)
                     isError = true
                     errorSource = .keep
                 }
@@ -152,7 +152,7 @@ class SplitViewModel {
             }
             await operationTask?.value
         } catch {
-            resultMessage = error.localizedDescription
+            resultMessage = PDFwringerError.userMessage(for: error)
             isError = true
             errorSource = .keep
         }
@@ -201,7 +201,7 @@ class SplitViewModel {
                     resultMessage = "Cancelled."
                     isError = false
                 } catch {
-                    resultMessage = error.localizedDescription
+                    resultMessage = PDFwringerError.userMessage(for: error)
                     isError = true
                     errorSource = .remove
                 }
@@ -210,7 +210,7 @@ class SplitViewModel {
             }
             await operationTask?.value
         } catch {
-            resultMessage = error.localizedDescription
+            resultMessage = PDFwringerError.userMessage(for: error)
             isError = true
             errorSource = .remove
         }

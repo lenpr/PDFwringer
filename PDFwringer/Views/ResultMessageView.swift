@@ -31,7 +31,8 @@ struct ResultMessageView: View {
             Text(message)
                 .font(.callout)
                 .foregroundStyle(.primary)
-                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
 
             Spacer()
 
@@ -59,8 +60,8 @@ struct ResultMessageView: View {
                 )
         )
         .transition(.move(edge: .bottom).combined(with: .opacity))
-        .onAppear {
-            AccessibilityNotification.Announcement(message).post()
+        .onChange(of: message, initial: true) { _, updatedMessage in
+            AccessibilityNotification.Announcement(updatedMessage).post()
         }
     }
 }

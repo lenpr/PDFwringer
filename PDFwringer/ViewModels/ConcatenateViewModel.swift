@@ -48,7 +48,7 @@ class ConcatenateViewModel {
                 resultMessage = "Cancelled."
                 isError = false
             } catch {
-                resultMessage = error.localizedDescription
+                resultMessage = PDFwringerError.userMessage(for: error)
                 isError = true
             }
 

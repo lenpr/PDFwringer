@@ -114,7 +114,7 @@ struct RotateOptionsView: View {
             lastOutputURL = nil
             onDirtyChange?(true)
         } catch {
-            resultMessage = error.localizedDescription
+            resultMessage = PDFwringerError.userMessage(for: error)
             isError = true
             lastOutputURL = nil
         }
@@ -124,7 +124,7 @@ struct RotateOptionsView: View {
         do {
             try PDFPermissionPolicy.require(.assembleDocument, for: document)
         } catch {
-            resultMessage = error.localizedDescription
+            resultMessage = PDFwringerError.userMessage(for: error)
             isError = true
             lastOutputURL = nil
             return

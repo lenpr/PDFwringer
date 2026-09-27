@@ -341,7 +341,7 @@ struct MetadataOptionsView: View {
             isError = false
             lastOutputURL = nil
         } catch {
-            resultMessage = error.localizedDescription
+            resultMessage = PDFwringerError.userMessage(for: error)
             isError = true
             lastOutputURL = nil
         }

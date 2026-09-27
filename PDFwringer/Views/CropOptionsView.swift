@@ -217,7 +217,7 @@ struct CropOptionsView: View {
                 right: cropRight
             )
         } catch {
-            resultMessage = error.localizedDescription
+            resultMessage = PDFwringerError.userMessage(for: error)
             isError = true
             return
         }
@@ -260,7 +260,7 @@ struct CropOptionsView: View {
                 targetSize: targetSize
             )
         } catch {
-            resultMessage = error.localizedDescription
+            resultMessage = PDFwringerError.userMessage(for: error)
             isError = true
             return
         }

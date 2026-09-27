@@ -13,6 +13,21 @@ private final class InvalidRepresentationPDFDocument: PDFDocument {
 @MainActor
 struct UtilityTests {
 
+    @Test("Filesystem messages offer recovery while domain and unknown errors are preserved")
+    func actionableErrorMessages() {
+        let diskFull = CocoaError(.fileWriteOutOfSpace)
+        #expect(PDFwringerError.userMessage(for: diskFull).contains("Free space"))
+        #expect(PDFwringerError.userMessage(for: CocoaError(.fileWriteNoPermission)).contains("Choose a folder"))
+        #expect(PDFwringerError.userMessage(for: CocoaError(.fileWriteVolumeReadOnly)).contains("read-only"))
+        let protectionError = PDFwringerError.protectionPreservationFailed
+        #expect(PDFwringerError.userMessage(for: protectionError) == protectionError.localizedDescription)
+        let unknown = NSError(domain: "TestDomain", code: 1, userInfo: [NSLocalizedDescriptionKey: "Specific failure"])
+        #expect(PDFwringerError.userMessage(for: unknown) == "Specific failure")
+        // NSError values thrown by Foundation bridge to the same recovery path.
+        let bridged = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteFileExists.rawValue)
+        #expect(PDFwringerError.userMessage(for: bridged).contains("another name"))
+    }
+
     // MARK: - Formatting
 
     @Test("Page tooltips reject dimensions outside integer range")
