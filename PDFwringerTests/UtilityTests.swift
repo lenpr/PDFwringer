@@ -147,6 +147,62 @@ struct UtilityTests {
         }
     }
 
+    @Test("Cancelled synchronous writes preserve destinations and clean staging", arguments: [false, true])
+    func synchronousWriteCancellation(existing: Bool) async throws {
+        let directory = TestPDFGenerator.makeTempDirectory()
+        defer { TestPDFGenerator.cleanup(directory) }
+        let destination = directory.appending(component: "output.pdf")
+        let original = Data("original".utf8)
+        if existing { try original.write(to: destination) }
+        var stagingDirectory: URL?
+        let task = Task { @MainActor in
+            let producer: (URL) throws -> Bool = { temporary in
+                stagingDirectory = temporary.deletingLastPathComponent()
+                try Data("new content".utf8).write(to: temporary)
+                withUnsafeCurrentTask { $0?.cancel() }
+                return true
+            }
+            try AtomicFileWriter.write(to: destination, using: producer)
+        }
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect((try? Data(contentsOf: destination)) == (existing ? original : nil))
+        let staging = try #require(stagingDirectory)
+        #expect(!FileManager.default.fileExists(atPath: staging.path))
+        // A cancelled attempt must not poison a subsequent save.
+        try AtomicFileWriter.write(to: destination) { temporary in
+            try Data("retry".utf8).write(to: temporary)
+            return true
+        }
+        #expect(try Data(contentsOf: destination) == Data("retry".utf8))
+    }
+
+    @Test("A save rejects a destination installed during preparation", arguments: [false, true])
+    func changedDestinationDuringWrite(existing: Bool) throws {
+        let directory = TestPDFGenerator.makeTempDirectory()
+        defer { TestPDFGenerator.cleanup(directory) }
+        let destination = directory.appending(component: "output.pdf")
+        if existing { try Data("original".utf8).write(to: destination) }
+        var stagingDirectory: URL?
+        do {
+            try AtomicFileWriter.write(to: destination) { temporary in
+                stagingDirectory = temporary.deletingLastPathComponent()
+                try Data("our output".utf8).write(to: temporary)
+                // Atomic write installs a new inode, as another saving app would.
+                try Data("other app's output".utf8).write(to: destination, options: .atomic)
+                return true
+            }
+            Issue.record("Expected the changed destination to be preserved")
+        } catch let error as PDFwringerError {
+            guard case .destinationChanged = error else {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+        }
+        #expect(try Data(contentsOf: destination) == Data("other app's output".utf8))
+        let staging = try #require(stagingDirectory)
+        #expect(!FileManager.default.fileExists(atPath: staging.path))
+    }
+
     @Test("AtomicFileWriter replaces an existing regular file")
     func atomicWriteReplacesExistingFile() throws {
         let dest = URL.temporaryDirectory.appending(component: UUID().uuidString + ".pdf")

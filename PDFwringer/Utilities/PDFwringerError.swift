@@ -9,6 +9,7 @@ enum PDFwringerError: LocalizedError {
     case documentIsLocked
     case cannotCreateOutput
     case cannotWriteOutput
+    case destinationChanged
     case passwordRequiresFlattening
     case outputPasswordRequired
     case protectionPreservationFailed
@@ -35,6 +36,8 @@ enum PDFwringerError: LocalizedError {
         case .documentIsLocked: String(localized: "This PDF is password-protected.")
         case .cannotCreateOutput: String(localized: "Cannot create the output file.")
         case .cannotWriteOutput: String(localized: "Failed to write the output file.")
+        case .destinationChanged:
+            String(localized: "The destination changed while this file was being prepared. Save again with a different name, or reselect the file you want to replace.")
         case .passwordRequiresFlattening:
             String(localized: "New password protection requires explicitly flattening this PDF. Flattening turns pages into images and removes searchable text. Existing protection can be retained without flattening.")
         case .outputPasswordRequired:
@@ -168,6 +171,7 @@ enum AtomicFileWriter {
     private struct StagedFile {
         let destination: URL
         let destinationExists: Bool
+        let destinationIdentity: FileSystemIdentity.Identity?
         let replacementDirectory: URL
         let url: URL
 
@@ -191,6 +195,10 @@ enum AtomicFileWriter {
                 }
             }
 
+            let destinationIdentity = FileSystemIdentity.entryIdentity(at: destination)
+            guard !destinationExists || destinationIdentity != nil else {
+                throw PDFwringerError.destinationChanged
+            }
             let replacementDirectory = try fileManager.url(
                 for: .itemReplacementDirectory,
                 in: .userDomainMask,
@@ -204,16 +212,26 @@ enum AtomicFileWriter {
 
             self.destination = destination
             self.destinationExists = destinationExists
+            self.destinationIdentity = destinationIdentity
             self.replacementDirectory = replacementDirectory
             self.url = url
         }
 
         func commit() throws {
+            try Task.checkCancellation()
             let fileManager = FileManager.default
             if destinationExists {
+                // A save can yield while preparing its output. Do not replace a
+                // different file installed by another save during that interval.
+                guard let destinationIdentity,
+                      FileSystemIdentity.entryIdentity(at: destination) == destinationIdentity else {
+                    throw PDFwringerError.destinationChanged
+                }
                 _ = try fileManager.replaceItemAt(destination, withItemAt: url)
             } else {
-                try fileManager.moveItem(at: url, to: destination)
+                guard try ExclusiveFilePublisher.renameExclusively(from: url, to: destination) else {
+                    throw PDFwringerError.destinationChanged
+                }
             }
         }
 

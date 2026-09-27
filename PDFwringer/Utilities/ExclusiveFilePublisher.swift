@@ -58,6 +58,7 @@ enum ExclusiveFilePublisher {
         var suffix = 0
 
         while true {
+            try Task.checkCancellation()
             let collisionSuffix = suffix == 0 ? "" : "_\(suffix)"
             let extensionSuffix = stagedFile.pathExtension.isEmpty
                 ? ""
@@ -129,7 +130,7 @@ enum ExclusiveFilePublisher {
 
     /// `FileManager.moveItem` may overwrite in a check-then-move race. Darwin's
     /// exclusive rename makes the no-clobber guarantee a single filesystem step.
-    private static func renameExclusively(from source: URL, to destination: URL) throws -> Bool {
+    static func renameExclusively(from source: URL, to destination: URL) throws -> Bool {
         let result: Int32 = try source.withUnsafeFileSystemRepresentation { sourcePath in
             guard let sourcePath else { throw PDFwringerError.cannotWriteOutput }
             return try destination.withUnsafeFileSystemRepresentation { destinationPath in
