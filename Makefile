@@ -223,8 +223,9 @@ app-store-check: verify-app-store-metadata
 	test "$$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$$app/Contents/Info.plist")" = "$$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' $(INFO_PLIST))"; \
 	test "$$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$$app/Contents/Info.plist")" = '$(BUNDLE_VERSION)'; \
 	test "$$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$$app/Contents/Info.plist")" = '$(BUNDLE_BUILD)'; \
-	lipo "$$app/Contents/MacOS/$(APP_NAME)" -verify_arch arm64; \
-		lipo "$$app/Contents/MacOS/$(APP_NAME)" -verify_arch x86_64; \
+	test "$$(lipo -archs "$$app/Contents/MacOS/$(APP_NAME)")" = arm64 || { \
+		echo "Release archive must contain only Apple silicon (arm64) code." >&2; exit 1; \
+	}; \
 	if find "$$app" -xattrname com.apple.quarantine -print | grep -q .; then \
 		echo "Archive contains a forbidden com.apple.quarantine attribute." >&2; exit 1; \
 	fi; \
@@ -247,6 +248,9 @@ app-store-archive: verify-app-store-tag verify-app-store-team
 		DEVELOPMENT_TEAM='$(APP_STORE_TEAM_ID)' \
 		-allowProvisioningUpdates archive; \
 	app="$$archive_work/$(APP_NAME).xcarchive/Products/Applications/$(APP_NAME).app"; \
+	test "$$(lipo -archs "$$app/Contents/MacOS/$(APP_NAME)")" = arm64 || { \
+		echo "Release archive must contain only Apple silicon (arm64) code." >&2; exit 1; \
+	}; \
 	codesign --verify --deep --strict "$$app"; \
 	actual_team=$$(codesign -dvv "$$app" 2>&1 | awk -F= '/^TeamIdentifier=/ { print $$2 }'); \
 	if [ "$$actual_team" != '$(APP_STORE_TEAM_ID)' ]; then \

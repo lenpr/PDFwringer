@@ -37,9 +37,9 @@ make test
 make app-store-check
 ```
 
-`app-store-check` performs a credential-free Release archive, checks both
-architectures, verifies the bundled privacy manifest and property lists, and
-rejects quarantine attributes. Its temporary archive is removed afterward.
+`app-store-check` performs a credential-free Release archive, requires exactly
+the Apple silicon (`arm64`) architecture, verifies the bundled privacy manifest
+and property lists, and rejects quarantine attributes. Its temporary archive is removed afterward.
 
 Commit the release inputs, then tag that exact commit with both version values:
 
@@ -141,7 +141,7 @@ separate user choice, never an automatic fallback.
 Before an actual submission, record results for the exact signed candidate:
 
 - [ ] Full `make test` (fast, checksum-verified corpus, performance/lifecycle).
-- [ ] Universal Release archive via `make app-store-check`.
+- [ ] Apple silicon Release archive via `make app-store-check`.
 - [ ] App Store signing, provisioning, export and Organizer validation.
 - [ ] Run on the minimum supported macOS 26, as well as the current macOS.
 - [ ] Cold and warm Finder/Open With/Dock opens, system open/save panels,
@@ -175,7 +175,8 @@ Connect:
 
 The current app has no login, server dependency, in-app purchase, temporary
 sandbox exception, or review account to configure. Its deployment target is
-macOS 26.0; lowering that target would require a separate compatibility audit.
+macOS 26.0 on Apple silicon; Intel Macs are not supported. Lowering that target
+would require a separate compatibility audit.
 
 ## Local verification — 2026-09-25
 
@@ -205,6 +206,31 @@ Not completed by this local validation: macOS 26 execution, Intel execution,
 App Store distribution signing/provisioning, Organizer validation, TestFlight,
 and the account-side submission/privacy/export-compliance responses. Complete
 those gates for the actual submission candidate; no upload was performed.
+
+## Apple silicon scope and local verification — 2026-09-27
+
+The supported hardware scope is now Apple silicon only. Both Xcode build
+configurations explicitly use `arm64`, matching the Makefile default. The
+unsigned archive check and signed archive target reject binaries with any other
+architecture. The earlier universal-archive result above is historical; Intel
+execution is no longer a release gate.
+
+On Apple silicon with macOS 27.0 (26A428):
+
+- Full `make test` passed: 300 fast tests, 61 checksum-verified corpus tests,
+  and 6 performance tests. These test the service/model/viewmodel layers and
+  do not substitute for testing the signed app through its UI.
+- `make app-store-check` passed with an Apple silicon-only Release archive,
+  including bundle metadata, privacy manifest, icon, and release symbols.
+- `make release` passed. The optimized app contains only `arm64` code; strict
+  ad-hoc signature verification passed with sandbox, user-selected read/write,
+  and app-scoped bookmark entitlements intact.
+
+macOS 26 execution remains unverified. No macOS 26 test environment was
+available in this session. App Store signing/provisioning, export, Organizer
+validation, and the candidate-specific native UI checks remain release gates.
+The available local signing identity is Developer ID, not an App Store
+distribution identity. No release tag, upload, or notarization was performed.
 
 ## References
 

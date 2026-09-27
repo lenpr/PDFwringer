@@ -110,8 +110,7 @@ Used in Split / Extract, Rotate, and Crop operations:
 ### Requirements
 
 - macOS 26.0+ (Tahoe)
-- Apple Silicon for Makefile builds; Xcode Store archives are universal
-  (`arm64` and `x86_64`)
+- Apple silicon Mac (Intel Macs are not supported)
 - Xcode 26 with its command-line tools selected
 
 ### Build & Run
