@@ -122,11 +122,18 @@ struct PageThumbnailStripView: View {
                 if size.width > 0, size.height > 0,
                    previewSize.width.isFinite, previewSize.height.isFinite,
                    previewSize.width > 0, previewSize.height > 0 {
-                    Image(nsImage: page.thumbnail(of: previewSize, for: .cropBox))
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: 400, maxHeight: 500)
-                        .padding(8)
+                    let _ = cache.generation
+                    Group {
+                        if let image = cache.thumbnail(for: index, document: document, size: previewSize) {
+                            Image(nsImage: image)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                        } else {
+                            ProgressView()
+                        }
+                    }
+                    .frame(width: previewSize.width, height: previewSize.height)
+                    .padding(8)
                 } else {
                     Text(String(localized: "Preview unavailable for this page."))
                         .padding()

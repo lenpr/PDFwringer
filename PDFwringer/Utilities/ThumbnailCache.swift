@@ -32,10 +32,18 @@ final class ThumbnailCache {
               bounds.width > 0, bounds.height > 0 else { return nil }
         let key = "\(index)|\(ObjectIdentifier(page))|\(page.rotation)|\(bounds)|\(page.bounds(for: .mediaBox))|\(size)"
         if let image = cache.object(forKey: key as NSString) { return image }
-        guard pending[key] == nil, let pageData = page.dataRepresentation else { return nil }
+        guard pending[key] == nil else { return nil }
         let requestRevision = revision
 
         pending[key] = Task { [weak self] in
+            defer {
+                if let self, self.revision == requestRevision {
+                    self.pending.removeValue(forKey: key)
+                }
+            }
+            // View construction only queues work. Leaving the view can cancel
+            // it before PDFKit serializes the authoritative page on MainActor.
+            guard !Task.isCancelled, let pageData = page.dataRepresentation else { return }
             let imageData = try? await PDFPageWorker.run(pageData: pageData) { isolatedPage in
                 let image = isolatedPage.thumbnail(of: size, for: .cropBox)
                 guard let data = image.tiffRepresentation else {
@@ -44,7 +52,6 @@ final class ThumbnailCache {
                 return data
             }
             guard let self, self.revision == requestRevision else { return }
-            self.pending.removeValue(forKey: key)
             guard !Task.isCancelled, let imageData, let image = NSImage(data: imageData) else { return }
             self.cache.setObject(image, forKey: key as NSString, cost: imageData.count)
             self.generation += 1

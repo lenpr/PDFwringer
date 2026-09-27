@@ -5,6 +5,30 @@ import Testing
 @Suite("Preview lifecycle")
 @MainActor
 struct PreviewLifecycleTests {
+    @Test("Thumbnail requests defer snapshots and cancellation skips discarded pages")
+    func deferredThumbnailSnapshots() async throws {
+        let document = PDFDocument()
+        let pages = (0..<80).map { _ in SnapshotCountingPage() }
+        for (index, page) in pages.enumerated() {
+            page.setBounds(CGRect(x: 0, y: 0, width: 200, height: 300), for: .mediaBox)
+            document.insert(page, at: index)
+        }
+        let cache = ThumbnailCache()
+        defer { cache.cancel() }
+        let size = CGSize(width: 48, height: 64)
+        let start = ContinuousClock.now
+        for index in pages.indices {
+            _ = cache.thumbnail(for: index, document: document, size: size)
+        }
+        print("80 thumbnail requests: \(ContinuousClock.now - start), synchronous snapshots: \(pages.reduce(0) { $0 + $1.snapshotCount })")
+        #expect(pages.allSatisfy { $0.snapshotCount == 0 })
+        cache.cancel()
+        // A fresh render proves the actor has processed queued work as well.
+        _ = try await waitForThumbnail(cache, document: document, size: size)
+        #expect(pages[0].snapshotCount == 1)
+        #expect(pages.dropFirst().allSatisfy { $0.snapshotCount == 0 })
+    }
+
     @Test("Cancelled preview requests do not access PDF pages before debounce")
     func debounceBeforeSnapshot() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
@@ -143,5 +167,14 @@ private final class PageAccessCountingDocument: PDFDocument {
     override func page(at index: Int) -> PDFPage? {
         pageAccessCount += 1
         return super.page(at: index)
+    }
+}
+
+private final class SnapshotCountingPage: PDFPage {
+    var snapshotCount = 0
+
+    override var dataRepresentation: Data? {
+        snapshotCount += 1
+        return super.dataRepresentation
     }
 }
