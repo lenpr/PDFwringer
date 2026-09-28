@@ -5,6 +5,30 @@ import Testing
 @Suite("Preview lifecycle")
 @MainActor
 struct PreviewLifecycleTests {
+    @Test("Thumbnail requests keep only one page snapshot in flight", .timeLimit(.minutes(1)))
+    func boundedThumbnailWork() async throws {
+        let document = PDFDocument()
+        let pages = (0..<24).map { _ in SnapshotCountingPage() }
+        for (index, page) in pages.enumerated() {
+            page.setBounds(CGRect(x: 0, y: 0, width: 200, height: 300), for: .mediaBox)
+            document.insert(page, at: index)
+        }
+        let cache = ThumbnailCache()
+        defer { cache.cancel() }
+        for index in pages.indices {
+            _ = cache.thumbnail(for: index, document: document, size: CGSize(width: 300, height: 400))
+        }
+        var maximumInFlight = 0
+        while cache.generation < pages.count {
+            let snapshots = pages.reduce(0) { $0 + $1.snapshotCount }
+            maximumInFlight = max(maximumInFlight, snapshots - cache.generation)
+            await Task.yield()
+        }
+        print("Maximum in-flight thumbnail snapshots: \(maximumInFlight)")
+        #expect(maximumInFlight <= 1)
+        #expect(pages.allSatisfy { $0.snapshotCount == 1 })
+    }
+
     @Test("Thumbnail requests defer snapshots and cancellation skips discarded pages")
     func deferredThumbnailSnapshots() async throws {
         let document = PDFDocument()

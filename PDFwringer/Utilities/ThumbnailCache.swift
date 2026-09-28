@@ -9,6 +9,9 @@ final class ThumbnailCache {
     @ObservationIgnored private let cache = NSCache<NSString, NSImage>()
     @ObservationIgnored private weak var document: PDFDocument?
     @ObservationIgnored private var pending: [String: Task<Void, Never>] = [:]
+    // Keep the tail across cancellation: a non-interruptible PDFKit render must
+    // finish before a replacement request allocates another page snapshot.
+    @ObservationIgnored private var renderTail: Task<Void, Never>?
     @ObservationIgnored private var revision = 0
     private(set) var generation = 0
 
@@ -35,7 +38,8 @@ final class ThumbnailCache {
         guard pending[key] == nil else { return nil }
         let requestRevision = revision
 
-        pending[key] = Task { [weak self] in
+        let task = Task { [weak self, previous = renderTail] in
+            await previous?.value
             defer {
                 if let self, self.revision == requestRevision {
                     self.pending.removeValue(forKey: key)
@@ -56,6 +60,8 @@ final class ThumbnailCache {
             self.cache.setObject(image, forKey: key as NSString, cost: imageData.count)
             self.generation += 1
         }
+        pending[key] = task
+        renderTail = task
         return nil
     }
 
