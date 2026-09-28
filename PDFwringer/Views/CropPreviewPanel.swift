@@ -18,6 +18,7 @@ class CropOverlayView: NSView {
               let page = document.page(at: currentPageIndex) else { return }
 
         let pageBounds = page.bounds(for: .cropBox)
+        guard PDFCropGeometry.isValid(pageBounds) else { return }
 
         let hasCrop = cropInsets.top > 0 || cropInsets.bottom > 0 || cropInsets.left > 0 || cropInsets.right > 0
 
@@ -41,10 +42,12 @@ class CropOverlayView: NSView {
             left: cropInsets.left,
             right: cropInsets.right
         )
-        guard croppedBounds.width > 0, croppedBounds.height > 0 else { return }
+        guard PDFCropGeometry.isValid(croppedBounds) else { return }
 
         let localPageBounds = convert(pdfView.convert(pageBounds, from: page), from: pdfView).standardized
         let localCropBounds = convert(pdfView.convert(croppedBounds, from: page), from: pdfView).standardized
+        guard PDFCropGeometry.isValid(localPageBounds),
+              PDFCropGeometry.isValid(localCropBounds) else { return }
         let fillPath = NSBezierPath(rect: localPageBounds)
         fillPath.appendRect(localCropBounds)
         fillPath.windingRule = .evenOdd
@@ -65,7 +68,9 @@ class CropOverlayView: NSView {
             rotation: page.rotation,
             displayTargetSize: targetSize
         )
+        guard PDFCropGeometry.isValid(targetBounds) else { return }
         let localRect = convert(pdfView.convert(targetBounds, from: page), from: pdfView).standardized
+        guard PDFCropGeometry.isValid(localRect) else { return }
         let path = NSBezierPath(rect: localRect)
         path.lineWidth = 1.5
         let pattern: [CGFloat] = [6, 4]

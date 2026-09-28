@@ -8,6 +8,41 @@ struct PDFCropperTests {
 
     private let cropper = PDFCropper()
 
+    @Test("Crop and resize skip non-finite page origins and overflowing edges")
+    func invalidPageGeometryDoesNotMutatePages() throws {
+        let invalidBounds = [
+            CGRect(x: CGFloat.infinity, y: 0, width: 300, height: 400),
+            CGRect(x: CGFloat.nan, y: 0, width: 300, height: 400),
+            CGRect(x: CGFloat.greatestFiniteMagnitude, y: 0, width: CGFloat.greatestFiniteMagnitude, height: 400)
+        ]
+        for bounds in invalidBounds {
+            let document = PDFDocument()
+            let page = GeometryProbePage()
+            document.insert(page, at: 0)
+            page.suppliedBounds = bounds
+            page.boundsWriteCount = 0
+            let cropped = try cropper.crop(document: document, indices: [0], top: 1, bottom: 1, left: 1, right: 1)
+            #expect(cropped.pagesModified == 0)
+            #expect(cropped.pagesSkipped == 1)
+            let resized = try cropper.resize(document: document, indices: [0], targetSize: CGSize(width: 200, height: 300))
+            #expect(resized.pagesModified == 0)
+            #expect(resized.pagesSkipped == 1)
+            #expect(page.boundsWriteCount == 0)
+        }
+    }
+
+    @Test("Non-finite crop controls fail before modifying a valid page", arguments: [CGFloat.nan, CGFloat.infinity, -CGFloat.infinity])
+    func invalidCropControls(value: CGFloat) throws {
+        let document = PDFDocument()
+        let page = GeometryProbePage()
+        document.insert(page, at: 0)
+        page.boundsWriteCount = 0
+        #expect(throws: PDFwringerError.self) {
+            _ = try cropper.crop(document: document, indices: [0], top: value, bottom: 0, left: 0, right: 0)
+        }
+        #expect(page.boundsWriteCount == 0)
+    }
+
     @Test("Crop reduces page dimensions by specified insets")
     func cropReducesDimensions() throws {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "crop.pdf")
@@ -171,5 +206,16 @@ struct PDFCropperTests {
         for paper in PaperSize.allCases {
             #expect(paper.size.width < paper.size.height)
         }
+    }
+}
+
+/// Supply malformed PDF geometry without asking PDFKit to store invalid bounds.
+private final class GeometryProbePage: PDFPage {
+    var suppliedBounds = CGRect(x: 0, y: 0, width: 300, height: 400)
+    var boundsWriteCount = 0
+
+    override func bounds(for box: PDFDisplayBox) -> CGRect { suppliedBounds }
+    override func setBounds(_ bounds: CGRect, for box: PDFDisplayBox) {
+        boundsWriteCount += 1
     }
 }

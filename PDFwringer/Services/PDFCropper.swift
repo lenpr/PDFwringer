@@ -3,6 +3,13 @@ import PDFKit
 
 /// Converts display-oriented crop controls into the unrotated page coordinate space.
 enum PDFCropGeometry {
+    static func isValid(_ bounds: CGRect) -> Bool {
+        bounds.origin.x.isFinite && bounds.origin.y.isFinite
+            && bounds.size.width.isFinite && bounds.size.height.isFinite
+            && bounds.size.width > 0 && bounds.size.height > 0
+            && bounds.maxX.isFinite && bounds.maxY.isFinite
+    }
+
     static func cropBounds(
         in bounds: CGRect,
         rotation: Int,
@@ -74,6 +81,9 @@ struct PDFCropper {
 
     func crop(document: PDFDocument, indices: [Int], top: CGFloat, bottom: CGFloat, left: CGFloat, right: CGFloat) throws -> CropResult {
         try PDFPermissionPolicy.require(.changeDocument, for: document)
+        guard [top, bottom, left, right].allSatisfy(\.isFinite) else {
+            throw PDFwringerError.cannotCreateOutput
+        }
         Log.crop.info("Starting crop: \(indices.count) pages, insets T=\(top) B=\(bottom) L=\(left) R=\(right)")
         var modified = 0
         var skipped = 0
@@ -92,7 +102,7 @@ struct PDFCropper {
                 left: left,
                 right: right
             )
-            guard newBounds.size.width > 0 && newBounds.size.height > 0 else {
+            guard PDFCropGeometry.isValid(bounds), PDFCropGeometry.isValid(newBounds) else {
                 skipped += 1
                 continue
             }
@@ -113,13 +123,13 @@ struct PDFCropper {
                 skipped += 1
                 continue
             }
+            let bounds = page.bounds(for: .cropBox)
             let targetBounds = PDFCropGeometry.resizeBounds(
-                in: page.bounds(for: .cropBox),
+                in: bounds,
                 rotation: page.rotation,
                 displayTargetSize: targetSize
             )
-            guard targetBounds.width > 0, targetBounds.height > 0,
-                  targetBounds.width.isFinite, targetBounds.height.isFinite else {
+            guard PDFCropGeometry.isValid(bounds), PDFCropGeometry.isValid(targetBounds) else {
                 skipped += 1
                 continue
             }
