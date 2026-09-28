@@ -148,6 +148,9 @@ Before an actual submission, record results for the exact signed candidate:
       drag-and-drop, and Open Recent after relaunch in the sandbox.
 - [ ] Cancel long operations, retry a failed save, and save over an existing
       destination without altering the source.
+- [ ] While a save/output-folder panel is open, attempt Finder Open and Quit;
+      the current workflow must remain intact. Cancel the panel and verify that
+      opening another document works again.
 - [ ] Reject and accept unsaved-work prompts for Back, replacement Open/drop,
       Start Over, native Close, and Quit; verify saved work does not prompt.
 - [ ] Keyboard navigation, VoiceOver, narrow windows and light/dark appearances;

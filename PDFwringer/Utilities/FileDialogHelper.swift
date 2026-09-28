@@ -5,6 +5,17 @@ import UniformTypeIdentifiers
 /// All methods run modally and return nil if the user cancels.
 @MainActor
 struct FileDialogHelper {
+    private(set) static var isPresentingFilePanel = false
+
+    /// AppKit modal panels run a nested event loop. Finder Open and other app
+    /// callbacks must not replace the workflow while it is choosing a destination.
+    static func withFilePanel<Result>(_ present: () -> Result) -> Result? {
+        guard !isPresentingFilePanel else { return nil }
+        isPresentingFilePanel = true
+        defer { isPresentingFilePanel = false }
+        return present()
+    }
+
     static func confirmDiscardChanges() -> Bool {
         let alert = NSAlert()
         alert.messageText = String(localized: "Discard unsaved changes?")
@@ -24,7 +35,7 @@ struct FileDialogHelper {
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
         panel.nameFieldLabel = "Save As:"
-        guard panel.runModal() == .OK else { return nil }
+        guard withFilePanel({ panel.runModal() }) == .OK else { return nil }
         return panel.url
     }
 
@@ -35,7 +46,7 @@ struct FileDialogHelper {
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
         panel.allowedContentTypes = [.pdf]
-        guard panel.runModal() == .OK else { return nil }
+        guard withFilePanel({ panel.runModal() }) == .OK else { return nil }
         return panel.urls
     }
 
@@ -46,7 +57,7 @@ struct FileDialogHelper {
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
         panel.prompt = "Select Output Folder"
-        guard panel.runModal() == .OK else { return nil }
+        guard withFilePanel({ panel.runModal() }) == .OK else { return nil }
         return panel.url
     }
 }

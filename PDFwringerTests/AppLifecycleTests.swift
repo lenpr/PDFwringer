@@ -65,4 +65,62 @@ struct AppLifecycleTests {
         #expect(vm.isLanding)
         #expect(!vm.hasUnsavedChanges)
     }
+    @Test("File panels preserve the workflow against reentrant application events")
+    func filePanelBlocksReplacement() throws {
+        let first = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
+        let second = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
+        defer { TestPDFGenerator.cleanup(first); TestPDFGenerator.cleanup(second) }
+        var prompts = 0
+        let vm = AppViewModel(confirmDiscard: { prompts += 1; return true })
+        vm.loadSingleFile(first)
+        vm.selectCompress()
+        guard case .compressing(_, let originalDocument) = vm.state else { return }
+        vm.hasUnsavedChanges = true
+        let delegate = AppDelegate()
+        delegate.configure(with: vm)
+
+        let response = FileDialogHelper.withFilePanel {
+            delegate.application(NSApplication.shared, open: [second])
+            vm.openRecentDocument(second)
+            vm.handleDrop([first, second])
+            vm.goBack()
+            vm.startOver()
+            #expect(!vm.closeWorkflow())
+            #expect(delegate.applicationShouldTerminate(NSApplication.shared) == .terminateCancel)
+            if case .compressing(let url, let document) = vm.state {
+                #expect(url == first)
+                #expect(document === originalDocument)
+            } else {
+                Issue.record("The file panel allowed the active workflow to be replaced")
+            }
+            #expect(vm.hasUnsavedChanges)
+            #expect(prompts == 0)
+            #expect(!vm.showErrorAlert)
+            return NSApplication.ModalResponse.cancel
+        }
+        #expect(response == .cancel)
+        #expect(!FileDialogHelper.isPresentingFilePanel)
+        // The guard must be released after cancellation: a subsequent open works.
+        delegate.application(NSApplication.shared, open: [second])
+        #expect(vm.currentPageCount == 2)
+    }
+
+    @Test("Nested file panels are rejected and either response releases the guard")
+    func nestedFilePanels() {
+        for response in [NSApplication.ModalResponse.OK, .cancel] {
+            let result = FileDialogHelper.withFilePanel {
+                #expect(FileDialogHelper.isPresentingFilePanel)
+                let nested = FileDialogHelper.withFilePanel {
+                    Issue.record("A second panel was presented during an active panel")
+                    return NSApplication.ModalResponse.OK
+                }
+                #expect(nested == nil)
+                #expect(FileDialogHelper.isPresentingFilePanel)
+                return response
+            }
+            #expect(result == response)
+            #expect(!FileDialogHelper.isPresentingFilePanel)
+        }
+    }
+
 }

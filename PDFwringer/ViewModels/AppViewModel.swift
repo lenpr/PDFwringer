@@ -42,6 +42,9 @@ class AppViewModel {
     /// Navigation and termination share the same gate. Running operations must finish
     /// or be cancelled through their view before releasing document/file access.
     func canLeaveWorkflow() -> Bool {
+        // The active file panel owns the workflow until it returns. Do not open
+        // a discard/error alert underneath it or release its source-file access.
+        guard !FileDialogHelper.isPresentingFilePanel else { return false }
         if operationIsRunning() {
             errorMessage = String(localized: "An operation is still running. Wait for it to finish, or cancel it before leaving this document.")
             showErrorAlert = true
@@ -230,6 +233,7 @@ class AppViewModel {
 
     @discardableResult
     func loadMultipleFiles(_ urls: [URL]) -> Task<Void, Never> {
+        guard !FileDialogHelper.isPresentingFilePanel else { return Task {} }
         guard !operationIsRunning() else {
             _ = canLeaveWorkflow()
             return Task {}
