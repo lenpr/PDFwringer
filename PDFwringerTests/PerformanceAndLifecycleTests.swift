@@ -256,7 +256,7 @@ struct ViewModelLifecycleTests {
         #expect(vm.pageOrder == [0, 2, 1, 3])
     }
 
-    @Test("ColorAdjustViewModel preview cancellation on rapid changes")
+    @Test("ColorAdjustViewModel preview cancellation on rapid changes", .timeLimit(.minutes(1)))
     func colorAdjustPreviewCancellation() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "vm_preview.pdf")
         defer { TestPDFGenerator.cleanup(source) }
@@ -272,9 +272,10 @@ struct ViewModelLifecycleTests {
         }
 
         let expectedSettings = PDFColorAdjuster.Settings(brightness: 1)
-        let deadline = ContinuousClock.now + .seconds(5)
-        while vm.lastPublishedPreviewSettings != expectedSettings,
-              ContinuousClock.now < deadline {
+        // This checks lifecycle correctness, not render speed. Wait for the
+        // operation rather than charging other concurrent tests to a five-second
+        // deadline; the framework time limit still detects a stuck operation.
+        while vm.isRendering {
             try await Task.sleep(for: .milliseconds(20))
         }
 
