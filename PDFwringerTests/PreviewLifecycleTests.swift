@@ -20,6 +20,7 @@ struct PreviewLifecycleTests {
         }
         var maximumInFlight = 0
         while cache.generation < pages.count {
+            try Task.checkCancellation()
             let snapshots = pages.reduce(0) { $0 + $1.snapshotCount }
             maximumInFlight = max(maximumInFlight, snapshots - cache.generation)
             await Task.yield()
