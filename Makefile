@@ -16,7 +16,8 @@ BUNDLE_BUILD := $(shell /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" $(IN
 NOTARY_PROFILE ?= notarytool-profile
 SOURCES := $(shell find PDFwringer -name '*.swift' | LC_ALL=C sort)
 TEST_SOURCES := $(shell find PDFwringerTests -name '*.swift' | LC_ALL=C sort)
-TESTABLE_SOURCES := $(shell find PDFwringer/Services PDFwringer/Models PDFwringer/Utilities PDFwringer/ViewModels -name '*.swift' | LC_ALL=C sort)
+# Include the native PDF bridge so queued navigation and teardown can be tested.
+TESTABLE_SOURCES := $(shell find PDFwringer/Services PDFwringer/Models PDFwringer/Utilities PDFwringer/ViewModels -name '*.swift' | LC_ALL=C sort) PDFwringer/Views/PDFPreviewView.swift
 BUILD_DIR := .build
 APP_NAME := PDFwringer
 APP_BUNDLE := $(BUILD_DIR)/$(APP_NAME).app

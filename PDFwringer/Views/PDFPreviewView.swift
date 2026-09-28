@@ -48,38 +48,17 @@ struct PDFPreviewView: NSViewRepresentable {
     }
 
     func updateNSView(_ pdfView: PDFView, context: Context) {
-        if pdfView.document !== document || context.coordinator.lastGeneration != generation {
-            pdfView.document = document
-            context.coordinator.lastGeneration = generation
-            pdfView.autoScales = true
-            pdfView.layoutDocumentView()
+        context.coordinator.update(pdfView, parent: self)
+    }
+
+    static func dismantleNSView(_ pdfView: PDFView, coordinator: Coordinator) {
+        coordinator.pendingNavigation?.cancel()
+        coordinator.pendingNavigation = nil
+        NotificationCenter.default.removeObserver(coordinator)
+        if coordinator.parent.proxy?.pdfView === pdfView {
+            coordinator.parent.proxy?.pdfView = nil
         }
-
-        proxy?.pdfView = pdfView
-
-        let currentIndex: Int? = {
-            guard let page = pdfView.currentPage else { return nil }
-            return pdfView.document?.index(for: page)
-        }()
-
-        if currentIndex != currentPage,
-           let page = document.page(at: currentPage) {
-            context.coordinator.pendingNavigation?.cancel()
-            let item = DispatchWorkItem {
-                CATransaction.begin()
-                CATransaction.setDisableActions(true)
-                pdfView.go(to: page)
-                pdfView.autoScales = true
-                CATransaction.commit()
-            }
-            context.coordinator.pendingNavigation = item
-            DispatchQueue.main.async(execute: item)
-        }
-
-        if let overlay = context.coordinator.overlay {
-            overlay.frame = pdfView.bounds
-            overlay.needsDisplay = true
-        }
+        pdfView.document = nil
     }
 
     @MainActor
@@ -88,15 +67,64 @@ struct PDFPreviewView: NSViewRepresentable {
         var lastGeneration = 0
         var pendingNavigation: DispatchWorkItem?
         weak var overlay: NSView?
+        private var isUpdating = false
 
         init(parent: PDFPreviewView) {
             self.parent = parent
         }
 
+        /// Refresh bindings on every SwiftUI update and supersede queued navigation,
+        /// including when the latest request is already the visible page.
+        func update(_ pdfView: PDFView, parent: PDFPreviewView) {
+            self.parent = parent
+            pendingNavigation?.cancel()
+            pendingNavigation = nil
+            let document = parent.document
+            let generation = parent.generation
+            let currentPage = parent.currentPage
+            isUpdating = true
+            defer { isUpdating = false }
+            if pdfView.document !== document || lastGeneration != generation {
+                pdfView.document = document
+                lastGeneration = generation
+                pdfView.autoScales = true
+                pdfView.layoutDocumentView()
+            }
+
+            parent.proxy?.pdfView = pdfView
+
+            let currentIndex: Int? = {
+                guard let page = pdfView.currentPage else { return nil }
+                return pdfView.document?.index(for: page)
+            }()
+
+            if currentIndex != currentPage,
+               let page = document.page(at: currentPage) {
+                let item = DispatchWorkItem { [weak pdfView] in
+                    guard let pdfView, pdfView.document === document else { return }
+                    CATransaction.begin()
+                    CATransaction.setDisableActions(true)
+                    pdfView.go(to: page)
+                    pdfView.autoScales = true
+                    CATransaction.commit()
+                }
+                pendingNavigation = item
+                DispatchQueue.main.async(execute: item)
+            }
+
+            if let overlay = overlay {
+                overlay.frame = pdfView.bounds
+                overlay.needsDisplay = true
+            }
+        }
+
         @objc func pageChanged(_ notification: Notification) {
-            guard let pdfView = notification.object as? PDFView,
-                  let page = pdfView.currentPage,
-                  let index = pdfView.document?.index(for: page) else { return }
+            guard !isUpdating,
+                  let pdfView = notification.object as? PDFView,
+                  pdfView.document === parent.document,
+                  let page = pdfView.currentPage else { return }
+            let index = parent.document.index(for: page)
+            guard (0..<parent.document.pageCount).contains(index) else { return }
             if parent.currentPage != index {
                 parent.currentPage = index
             }
