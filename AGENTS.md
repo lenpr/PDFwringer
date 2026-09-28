@@ -3,7 +3,7 @@
 ## Build
 
 ```bash
-make build      # swiftc → .build/PDFwringer (arm64, macOS 26)
+make build      # swiftc → .build/PDFwringer (arm64, macOS 27)
 make app        # build + .app bundle at .build/PDFwringer.app (ad-hoc codesigned)
 make release    # optimized build (-O -whole-module-optimization) + app bundle
 make sign       # release + codesign with Developer ID (hardened runtime)
@@ -88,6 +88,6 @@ landing → singleFile / multiFile → compressing / splitting / rotating / edit
 
 `make app` creates `.build/PDFwringer.app` with proper `Info.plist` (bundle ID, icon reference, activation) and ad-hoc codesigning. `make release` adds `-O -whole-module-optimization` for distribution builds. `make sign` codesigns with a Developer ID certificate and hardened runtime (clears extended attributes before signing). `make notarize` submits to Apple's notary service and staples the ticket. `make dmg` wraps the app in a notarized disk image with an Applications symlink for drag-to-install UX. The `init()` in `PDFwringerApp` also sets `.regular` activation policy so the app works correctly when launched as a bare executable via `make run`.
 
-Both Makefile and Xcode builds support Apple silicon only (macOS 26.0+). See
+Both Makefile and Xcode builds support Apple silicon only (macOS 27.0+). See
 `APP_STORE.md` for the separate App Store archive/export path and outstanding
 release gates; a passing ad-hoc build is not App Store signing validation.

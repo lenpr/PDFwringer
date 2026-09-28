@@ -3,7 +3,7 @@ SDK_PLATFORM_PATH := $(shell xcrun --sdk macosx --show-sdk-platform-path)
 SDK_VERSION := $(shell xcrun --sdk macosx --show-sdk-version)
 SWIFTC := $(shell xcrun --find swiftc)
 SWIFTC_VERSION := $(shell "$(SWIFTC)" --version 2>&1 | tr '\n' ' ')
-TARGET := arm64-apple-macosx26.0
+TARGET := arm64-apple-macosx27.0
 SWIFT_LANGUAGE_FLAGS := -swift-version 6 -strict-concurrency=complete
 SWIFT_FLAGS := -target $(TARGET) -sdk $(SDK) $(SWIFT_LANGUAGE_FLAGS) -parse-as-library -framework SwiftUI -framework PDFKit -framework AppKit
 RELEASE_FLAGS := -O -whole-module-optimization

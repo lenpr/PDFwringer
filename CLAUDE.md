@@ -3,7 +3,7 @@
 ## Build
 
 ```bash
-make build      # swiftc → .build/PDFwringer (arm64, macOS 26)
+make build      # swiftc → .build/PDFwringer (arm64, macOS 27)
 make app        # sandboxed/hardened .app bundle (ad-hoc codesigned)
 make release    # optimized build (-O -whole-module-optimization) + app bundle
 make sign       # release + codesign with Developer ID (hardened runtime)

@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/platform-macOS_26+-blue?logo=apple" alt="Platform">
+  <img src="https://img.shields.io/badge/platform-macOS_27+-blue?logo=apple" alt="Platform">
   <img src="https://img.shields.io/badge/swift-6.0-orange?logo=swift" alt="Swift">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
 </p>
@@ -109,9 +109,9 @@ Used in Split / Extract, Rotate, and Crop operations:
 
 ### Requirements
 
-- macOS 26.0+ (Tahoe)
+- macOS 27.0+
 - Apple silicon Mac (Intel Macs are not supported)
-- Xcode 26 with its command-line tools selected
+- Xcode 27 with its command-line tools selected
 
 ### Build & Run
 

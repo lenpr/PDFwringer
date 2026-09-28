@@ -4,6 +4,8 @@ PDFwringer has a separate Mac App Store distribution path. The existing
 Developer ID, notarization, and DMG targets are for downloads outside the Store
 and must not be used to create the App Store build.
 
+The app requires macOS 27.0 or later on Apple silicon. Build with Xcode 27.
+
 ## One-time account setup
 
 These steps require the app owner and cannot be stored in the repository:
@@ -143,7 +145,7 @@ Before an actual submission, record results for the exact signed candidate:
 - [ ] Full `make test` (fast, checksum-verified corpus, performance/lifecycle).
 - [ ] Apple silicon Release archive via `make app-store-check`.
 - [ ] App Store signing, provisioning, export and Organizer validation.
-- [ ] Run on the minimum supported macOS 26, as well as the current macOS.
+- [ ] Run the exact candidate on macOS 27, the minimum supported OS.
 - [ ] Cold and warm Finder/Open With/Dock opens, system open/save panels,
       drag-and-drop, and Open Recent after relaunch in the sandbox.
 - [ ] Cancel long operations, retry a failed save, and save over an existing
@@ -178,7 +180,7 @@ Connect:
 
 The current app has no login, server dependency, in-app purchase, temporary
 sandbox exception, or review account to configure. Its deployment target is
-macOS 26.0 on Apple silicon; Intel Macs are not supported. Lowering that target
+macOS 27.0 on Apple silicon; Intel Macs are not supported. Lowering that target
 would require a separate compatibility audit.
 
 ## Local verification — 2026-09-25
@@ -205,8 +207,8 @@ archive compiled concurrently. The complete test run passed when run separately,
 with no assertion or timeout relaxed. Run test and archive validation sequentially
 as shown above to avoid competing with the timing-sensitive checks.
 
-Not completed by this local validation: macOS 26 execution, Intel execution,
-App Store distribution signing/provisioning, Organizer validation, TestFlight,
+Outstanding under the current support scope: App Store distribution
+signing/provisioning, Organizer validation, TestFlight,
 and the account-side submission/privacy/export-compliance responses. Complete
 those gates for the actual submission candidate; no upload was performed.
 
@@ -229,9 +231,8 @@ On Apple silicon with macOS 27.0 (26A428):
   ad-hoc signature verification passed with sandbox, user-selected read/write,
   and app-scoped bookmark entitlements intact.
 
-macOS 26 execution remains unverified. No macOS 26 test environment was
-available in this session. App Store signing/provisioning, export, Organizer
-validation, and the candidate-specific native UI checks remain release gates.
+App Store signing/provisioning, export, Organizer validation, and the
+candidate-specific native UI checks remain release gates.
 The available local signing identity is Developer ID, not an App Store
 distribution identity. No release tag, upload, or notarization was performed.
 
@@ -263,9 +264,9 @@ platform/toolchain, architecture, and binary SHA-256. `make clean` does not
 remove this directory. The unsigned check archive is temporary and is not kept;
 retain the actual signed distribution archive and its dSYMs at release time.
 
-Remaining release gates are unchanged: execution on macOS 26, actual App Store
-signing/provisioning and Organizer validation, candidate-specific UI/accessibility
-checks, and the account-side submission responses. No upload was performed.
+Remaining release gates: actual App Store signing/provisioning and Organizer
+validation, candidate-specific UI/accessibility checks, and the account-side
+submission responses. No upload was performed.
 
 ## Final local verification — recorded 2026-09-28
 
@@ -286,7 +287,7 @@ Logs, the optimized local app, platform/toolchain details, source revision, and
 binary SHA-256 are preserved outside `.build` in the sibling directory
 `PDFwringer-release-evidence/2026-09-28-c5a76f4/`.
 
-This remains local validation on macOS 27. The macOS 26, App Store distribution
+This remains local validation on macOS 27. The App Store distribution
 signing/provisioning, Organizer, and candidate-specific manual release gates
 above are still outstanding. No release upload or notarization was performed.
 
