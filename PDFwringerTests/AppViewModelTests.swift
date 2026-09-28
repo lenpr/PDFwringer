@@ -140,6 +140,32 @@ struct AppViewModelTests {
         }
     }
 
+    @Test("Failed batch intake keeps the current document and reports the unreadable file")
+    func failedBatchPreservesCurrentDocument() async throws {
+        let current = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
+        let directory = TestPDFGenerator.makeTempDirectory()
+        defer {
+            TestPDFGenerator.cleanup(current)
+            TestPDFGenerator.cleanup(directory)
+        }
+        let missing = directory.appending(component: "missing.pdf")
+        let vm = AppViewModel(confirmDiscard: { true })
+        vm.loadSingleFile(current)
+        guard case .singleFile(_, let previousDocument) = vm.state else {
+            Issue.record("Expected the initial document to open")
+            return
+        }
+        await vm.loadMultipleFiles([current, missing]).value
+        guard case .singleFile(let loadedURL, let loadedDocument) = vm.state else {
+            Issue.record("Failed intake replaced the current workflow")
+            return
+        }
+        #expect(loadedURL == current)
+        #expect(loadedDocument === previousDocument)
+        #expect(vm.showErrorAlert)
+        #expect(vm.errorMessage.contains("missing.pdf"))
+    }
+
     @Test("newer single-file intake cannot be overwritten by older parsing")
     func newerSingleFileWins() async {
         let old1 = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "old-1.pdf")

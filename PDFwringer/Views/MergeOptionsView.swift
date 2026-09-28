@@ -236,7 +236,10 @@ struct MergeOptionsView: View {
             } catch is CancellationError {
                 // A newer selection or navigation transition superseded this batch.
             } catch {
-                // Invalid files are filtered by the loader; other failures add nothing.
+                guard fileIntakeID == requestID else { return }
+                vm.resultMessage = PDFwringerError.userMessage(for: error)
+                vm.isError = true
+                vm.lastOutputURL = nil
             }
         }
     }

@@ -456,7 +456,7 @@ struct FailureModeTests {
         await intake.value
 
         #expect(vm.showErrorAlert)
-        #expect(vm.errorMessage == PDFwringerError.cannotOpenDocument.localizedDescription)
+        #expect(vm.errorMessage == PDFwringerError.fileNotReadable(corrupt1.lastPathComponent).localizedDescription)
         #expect(vm.isLanding)
     }
 
@@ -474,7 +474,7 @@ struct FailureModeTests {
         #expect(vm.isLanding)
     }
 
-    @Test("handleDrop with mix of valid and invalid drops valid only")
+    @Test("handleDrop rejects a mixed valid and corrupt PDF batch")
     func handleDropMixedValidity() async throws {
         let valid = TestPDFGenerator.makeRenderedPDF(pageCount: 2, filename: "valid_mix.pdf")
         let corrupt = URL.temporaryDirectory.appending(component: UUID().uuidString + "_corrupt.pdf")
@@ -487,20 +487,14 @@ struct FailureModeTests {
         let vm = AppViewModel()
         vm.handleDrop([valid, corrupt])
 
-        // Wait for async loadMultipleFiles to complete
+        // Intake fails visibly; it must not silently open only the valid subset.
         for _ in 0..<100 {
-            if case .landing = vm.state {
-                try await Task.sleep(for: .milliseconds(50))
-            } else { break }
+            if vm.showErrorAlert { break }
+            try await Task.sleep(for: .milliseconds(50))
         }
-
-        // Routing happens after validation, so the one readable PDF opens normally.
-        if case .singleFile(let loadedURL, let document) = vm.state {
-            #expect(loadedURL == valid)
-            #expect(document.pageCount == 2)
-        } else {
-            Issue.record("Expected singleFile state, got \(vm.state)")
-        }
+        #expect(vm.showErrorAlert)
+        #expect(vm.errorMessage.contains(corrupt.lastPathComponent))
+        #expect(vm.isLanding)
     }
 
     @Test("handleDrop with non-PDF extension files is ignored")
@@ -515,7 +509,7 @@ struct FailureModeTests {
         #expect(vm.isLanding)
     }
 
-    @Test("PDFFileItem batch loading filters out non-loadable URLs")
+    @Test("PDFFileItem batch loading rejects non-loadable PDFs")
     func fileItemLoadingFiltersCorrupt() async throws {
         let valid = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
         let corrupt = URL.temporaryDirectory.appending(component: UUID().uuidString + "_corrupt.pdf")
@@ -525,8 +519,16 @@ struct FailureModeTests {
             TestPDFGenerator.cleanup(corrupt)
         }
 
-        let items = try await PDFFileItem.load(urls: [valid, corrupt])
-        #expect(items.count == 1)
+        do {
+            _ = try await PDFFileItem.load(urls: [valid, corrupt])
+            Issue.record("Expected rejection rather than a partial file list")
+        } catch let error as PDFwringerError {
+            guard case .fileNotReadable(let name) = error else {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+            #expect(name == corrupt.lastPathComponent)
+        }
     }
 
     // MARK: - Helpers

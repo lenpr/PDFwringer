@@ -18,7 +18,7 @@ struct PDFFileItem: Identifiable, Sendable {
     /// Returns nil if the URL is not a PDF.
     static func from(url: URL) -> PDFFileItem? {
         guard url.pathExtension.lowercased() == "pdf" else { return nil }
-        guard let doc = PDFDocument(url: url), doc.pageCount > 0 else { return nil }
+        guard let doc = PDFDocument(url: url), !doc.isLocked, doc.pageCount > 0 else { return nil }
         return PDFFileItem(url: url, pageCount: doc.pageCount)
     }
 
@@ -28,7 +28,12 @@ struct PDFFileItem: Identifiable, Sendable {
         items.reserveCapacity(urls.count)
         for (index, url) in urls.enumerated() {
             try Task.checkCancellation()
-            if let item = from(url: url) {
+            // Ignore unrelated dropped files, but never silently omit a selected
+            // PDF from a merge because it is missing, corrupt, or locked.
+            if url.pathExtension.lowercased() == "pdf" {
+                guard let item = from(url: url) else {
+                    throw PDFwringerError.fileNotReadable(url.lastPathComponent)
+                }
                 items.append(item)
             }
             if (index + 1).isMultiple(of: 10) {

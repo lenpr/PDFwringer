@@ -80,7 +80,7 @@ enum PDFwringerError: LocalizedError {
         case .noSourceFile: String(localized: "No source file selected.")
         case .emptyFileList: String(localized: "No files to process.")
         case .accessDenied: String(localized: "Cannot access the file. Try selecting it again.")
-        case .fileNotReadable(let name): String(localized: "Cannot read '\(name)'. The file may have been moved or deleted.")
+        case .fileNotReadable(let name): String(localized: "Cannot read '\(name)'. It may be damaged, password-protected, moved, or unavailable. Open it individually to check.")
         case .insufficientDiskSpace(let needed, let available):
             String(localized: "Not enough disk space. Need \(Formatting.fileSize(needed)), only \(Formatting.fileSize(available)) available.")
         case .sourceEqualsDestination:

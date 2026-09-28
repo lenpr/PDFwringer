@@ -246,7 +246,7 @@ class AppViewModel {
             } catch is CancellationError {
                 // A newer intake or navigation transition superseded this batch.
             } catch {
-                await self?.completeFileIntake([], requestID: requestID)
+                await self?.failFileIntake(error, requestID: requestID)
             }
         }
         fileIntakeTask = task
@@ -349,6 +349,13 @@ class AppViewModel {
         currentFileSize = 0
         navigationDirection = .trailing
         hasUnsavedChanges = false
+    }
+
+    private func failFileIntake(_ error: Error, requestID: UUID) {
+        guard fileIntakeID == requestID else { return }
+        cancelPendingIntake()
+        errorMessage = PDFwringerError.userMessage(for: error)
+        showErrorAlert = true
     }
 
     private func completeFileIntake(_ items: [PDFFileItem], requestID: UUID) {

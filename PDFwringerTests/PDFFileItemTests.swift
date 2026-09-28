@@ -82,6 +82,34 @@ struct PDFFileItemTests {
         #expect(items.count == 20)
     }
 
+    @Test("Batch loading rejects unreadable PDFs instead of returning a partial list", arguments: ["corrupt", "missing", "locked"])
+    func batchRejectsUnreadablePDF(kind: String) async throws {
+        let directory = TestPDFGenerator.makeTempDirectory()
+        let valid = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
+        defer {
+            TestPDFGenerator.cleanup(directory)
+            TestPDFGenerator.cleanup(valid)
+        }
+        let invalid = directory.appending(component: "\(kind).pdf")
+        if kind == "corrupt" {
+            try Data("not a PDF".utf8).write(to: invalid)
+        } else if kind == "locked" {
+            let document = try #require(PDFDocument(url: valid))
+            #expect(document.write(to: invalid, withOptions: [.userPasswordOption: "secret", .ownerPasswordOption: "owner"]))
+            #expect(PDFDocument(url: invalid)?.isLocked == true)
+        }
+        do {
+            _ = try await PDFFileItem.load(urls: [valid, invalid, valid])
+            Issue.record("A partial merge list must not be accepted")
+        } catch let error as PDFwringerError {
+            guard case .fileNotReadable(let name) = error else {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+            #expect(name == invalid.lastPathComponent)
+        }
+    }
+
     @Test("Each item gets a unique ID")
     func uniqueIDs() {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "dup.pdf")
