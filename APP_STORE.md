@@ -264,6 +264,29 @@ Remaining release gates are unchanged: execution on macOS 26, actual App Store
 signing/provisioning and Organizer validation, candidate-specific UI/accessibility
 checks, and the account-side submission responses. No upload was performed.
 
+## Final local verification — recorded 2026-09-28
+
+Validated source commit `c5a76f4` after native preview navigation, thumbnail
+concurrency, and crop-geometry hardening:
+
+- Full `make test`: 313 fast tests, 61 corpus tests, and 6 performance tests
+  passed (380 total). The external fixture checksums passed.
+- Optimized `make release`, strict ad-hoc signature verification, and the
+  Apple silicon-only unsigned `make app-store-check` all passed.
+- Native preview regression tests cover superseded navigation, document/binding
+  replacement, and teardown. A 24-request thumbnail regression measured 24
+  simultaneous snapshots before the fix and one afterward.
+- Crop/resize tests reject non-finite origins, overflowing rectangle edges, and
+  non-finite crop controls without mutating the affected page.
+
+Logs, the optimized local app, platform/toolchain details, source revision, and
+binary SHA-256 are preserved outside `.build` in the sibling directory
+`PDFwringer-release-evidence/2026-09-28-c5a76f4/`.
+
+This remains local validation on macOS 27. The macOS 26, App Store distribution
+signing/provisioning, Organizer, and candidate-specific manual release gates
+above are still outstanding. No release upload or notarization was performed.
+
 ## References
 
 - [Distributing an app with Xcode](https://developer.apple.com/documentation/xcode/distributing-your-app-for-beta-testing-and-releases)
