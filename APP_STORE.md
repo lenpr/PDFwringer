@@ -232,6 +232,38 @@ validation, and the candidate-specific native UI checks remain release gates.
 The available local signing identity is Developer ID, not an App Store
 distribution identity. No release tag, upload, or notarization was performed.
 
+## Follow-up hardening verification — 2026-09-27
+
+Validated source commit `96c1390` on the same Apple silicon/macOS 27 environment:
+
+- Full `make test`: 307 fast tests, 61 checksum-verified corpus tests, and
+  6 performance tests passed.
+- `make release` and strict signature verification passed. This optimized local
+  app is ad-hoc signed, sandboxed, and Apple silicon only.
+- `make app-store-check` passed for the unsigned Release archive.
+- Live UI checks confirmed Tab/Space thumbnail activation, the accessible
+  Show Preview action, selected-page movement using Option–Up Arrow, and the
+  accessible Move Later button. Boundary button state and restoration of the
+  original page order were also verified. This is not a complete VoiceOver or
+  minimum-OS certification.
+- Regression tests now cover cancelled synchronous saves, staging cleanup,
+  successful retries, destinations replaced during preparation, and rejection
+  of unreadable/missing/locked PDFs without accepting a partial merge list.
+- The preview lifecycle test now waits for operation completion and retains its
+  image/settings assertions, with a one-minute framework timeout for hangs.
+  It no longer mistakes time spent on other concurrent tests for render failure.
+
+Local evidence is retained outside `.build`, in the sibling directory
+`PDFwringer-release-evidence/2026-09-27-96c1390/`: test/build/archive logs, the
+optimized local app, and an `evidence.json` containing the source revision,
+platform/toolchain, architecture, and binary SHA-256. `make clean` does not
+remove this directory. The unsigned check archive is temporary and is not kept;
+retain the actual signed distribution archive and its dSYMs at release time.
+
+Remaining release gates are unchanged: execution on macOS 26, actual App Store
+signing/provisioning and Organizer validation, candidate-specific UI/accessibility
+checks, and the account-side submission responses. No upload was performed.
+
 ## References
 
 - [Distributing an app with Xcode](https://developer.apple.com/documentation/xcode/distributing-your-app-for-beta-testing-and-releases)
