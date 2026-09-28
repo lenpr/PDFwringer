@@ -6,6 +6,28 @@ and must not be used to create the App Store build.
 
 The app requires macOS 27.0 or later on Apple silicon. Build with Xcode 27.
 
+## Signed candidate validation — 2026-09-28
+
+Candidate `0.1.16 (1)`, source commit `55093a9`, tagged
+`appstore-v0.1.16-build.1`, passed the actual App Store signing/export path:
+
+- Xcode automatic provisioning created a signed Apple silicon archive.
+- App Store Connect export produced a package with an Apple Distribution-signed
+  app and a Mac App Store installer signature. Strict signature verification passed.
+- The exported app requires macOS 27.0 and retains the sandbox, user-selected
+  read/write, and app-scoped bookmark entitlements, without debugging access.
+- Xcode Organizer reported: “Your app successfully passed all validation checks.”
+- The App Store Connect record now exists for `PDFwringer`, bundle ID and SKU
+  `com.pdfwringer.app`, primary language English (United States). Xcode initially
+  reported an error after record creation; repeating validation succeeded.
+
+The archive, dSYMs, exported package, SHA-256, and validation logs are retained
+outside `.build` in `../PDFwringer-release-evidence/appstore-0.1.16-build.1-55093a9/`.
+No app was submitted for review or published. Signed-candidate interaction tests
+and the App Store Connect listing, privacy, and compliance responses remain.
+The older unsigned-validation entries below are historical; their signing and
+Organizer limitations have been resolved for this candidate only.
+
 ## One-time account setup
 
 These steps require the app owner and cannot be stored in the repository:
