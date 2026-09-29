@@ -340,3 +340,12 @@ above are still outstanding. No release upload or notarization was performed.
 - [Mac App Store provisioning profiles](https://developer.apple.com/help/account/provisioning-profiles/create-an-app-store-provisioning-profile/)
 - [Privacy manifests](https://developer.apple.com/documentation/bundleresources/privacy-manifest-files)
 - [Export compliance](https://developer.apple.com/help/app-store-connect/manage-app-information/overview-of-export-compliance)
+
+## Signed save rejection and retry — 2026-09-29
+
+On the development-signed archive for `55093a9`, selecting the source PDF in
+Save and accepting the system Replace prompt was rejected by the app with the
+source/destination error. The source SHA-256 remained unchanged. Try Again
+successfully replaced a separate disposable output; independent PDFKit checks
+confirmed three pages and the updated title. No code changes were needed.
+Further native testing was stopped at the usage-budget threshold.
