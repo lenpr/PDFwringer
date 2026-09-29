@@ -28,6 +28,26 @@ and the App Store Connect listing, privacy, and compliance responses remain.
 The older unsigned-validation entries below are historical; their signing and
 Organizer limitations have been resolved for this candidate only.
 
+## Signed archive interaction checks — 2026-09-29
+
+Tested the preserved Apple Development-signed archive app for commit `55093a9`
+on macOS 27. These checks do not certify an App Store-installed or
+TestFlight-delivered copy.
+
+Passed native launch/Open, unsaved metadata protection for Close and Quit,
+Keep Editing preserving the edit, Quit while the save panel is active,
+save-panel cancellation and retry, and successful metadata saving. The output
+was independently reopened and verified to contain three pages and the expected
+title; the source SHA-256 remained unchanged. Quit after saving exited without
+a discard prompt. Relaunch and Open Recent reopened the fixture successfully.
+
+Evidence and the disposable saved PDF are retained alongside the signed archive
+as `native-smoke-20260929.json` and `signed-smoke-output-20260929.pdf`.
+Remaining native checks include Finder/Dock replacement while a save panel is
+active, drag-and-drop, save failure/overwrite, long-operation cancellation,
+protected PDFs, and the full accessibility/layout pass. No code changes were
+needed for the checks completed here.
+
 ## One-time account setup
 
 These steps require the app owner and cannot be stored in the repository:
