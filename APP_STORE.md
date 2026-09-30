@@ -15,11 +15,36 @@ and discard protection, separate thumbnail navigation/inclusion, inline range
 errors, ordinary text-arrow editing, spoken compression estimates/warnings,
 prepare-before-publication, Command-S saving, and metadata receipt invalidation.
 
-Signed distribution and archive validation for this new candidate are being
-prepared. The earlier 0.2.0 evidence below does not validate this build. Store
-listing/privacy/compliance responses, the complete accessibility pass, and
+Source commit `30daa06` is tagged `v0.2.1` and `appstore-v0.2.1-build.5`.
+The unsigned structure check, signed archive, App Store export, strict signatures,
+and Xcode Organizer validation passed. Organizer reported: “Your app successfully
+passed all validation checks.” The exported app is Apple Distribution-signed,
+arm64-only, requires macOS 27, and retains sandbox/user-selected read-write/
+app-scoped bookmarks without a debugging entitlement. The installer signature
+was verified. Package SHA-256:
+`d3abca374e21c163c6b46c0eda3ac127e5d1fefb850490b4f88e7be812714e41`.
+
+The [GitHub 0.2.1 release](https://github.com/lenpr/PDFwringer/releases/tag/v0.2.1)
+provides the separately Developer ID-signed app in a signed, notarized, stapled
+DMG. The app also passed notarization and has its own stapled ticket. The downloaded
+GitHub asset matches SHA-256
+`cbf97b61068461d4cd9ce2a4602717e55a834c14ffa6dee60b1e6c3534fd4df1`.
+The Homebrew cask names the same version and checksum, with Apple silicon and
+macOS 27 requirements. Homebrew upgraded the local receipt and installed app to
+0.2.1; the installed About panel shows `Version 0.2.1 (5)`. Strict signature,
+Gatekeeper, and stapled-ticket checks passed. Its executable matches the
+download payload exactly. The download UUID is
+`4F17E877-6F23-31A5-8610-0F9EBFBA378E`; the separate Xcode archive UUID is
+`905990A9-9CEF-3968-A318-067C4D551359`. Both use the same tagged source/version;
+the two build paths are not asserted to produce identical executables.
+
+Evidence is preserved outside `.build` in
+`../PDFwringer-release-evidence/appstore-0.2.1-build.5-30daa06/` and
+`../PDFwringer-release-evidence/download-0.2.1-build.5-30daa06/`.
+Historical evidence below retains its original identity. Store listing/privacy/
+compliance responses, complete accessibility/contrast/minimum-window QA, and
 Store/TestFlight-installed checks remain submission gates. Nothing was uploaded
-or submitted for review by this increment.
+as an App Store release or submitted for review by this increment.
 
 ## Previous validated candidate: 0.2.0 (build 4) — 2026-09-30
 
