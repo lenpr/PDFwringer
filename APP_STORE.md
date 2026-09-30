@@ -72,7 +72,30 @@ it was repeated against a restored destination and observed to report “Cancell
 Build 2 includes the prompt fix and supersedes build 1 as the release candidate.
 Full validation passed: 316 fast tests, 61 checksum-verified corpus tests, and
 6 performance tests (383 total), plus the unsigned App Store archive check.
-Its signing/export and Organizer result must be recorded separately from build 1.
+Its signing/export and Organizer result are recorded separately below.
+
+## Build 2 signed candidate validation — 2026-09-29
+
+Candidate `0.1.16 (2)`, source commit `df32247`, tagged
+`appstore-v0.1.16-build.2`, passed automatic provisioning, signed archive,
+App Store export, and Xcode Organizer validation. Organizer reported:
+“Your app successfully passed all validation checks.”
+
+Independent checks of the exported package confirmed the Apple Distribution app
+signature, Mac App Store installer signature, arm64-only executable, macOS 27.0
+minimum, sandbox, user-selected read/write and app-scoped bookmarks, with no
+debugging entitlement. The package SHA-256 is
+`efe2bfee9cff3ba964debcea4c99b86380268d8888251e03ae64e51f717030a1`.
+
+The archive, dSYMs, package, signatures, test/build/validation logs, and synthetic
+protected-document fixtures are retained outside `.build` in
+`../PDFwringer-release-evidence/appstore-0.1.16-build.2-df32247/`.
+The native password and cancellation evidence is recorded in
+`native-protected-workflows-20260929.json`. The earlier interaction-check list
+is historical: protected PDFs and long-operation cancellation are now covered.
+Finder/Dock replacement during a save panel, drag-and-drop, save failure/overwrite,
+the full accessibility/layout pass, and an App Store-installed or TestFlight copy
+remain unverified. No review submission or publication was performed.
 
 ## One-time account setup
 
