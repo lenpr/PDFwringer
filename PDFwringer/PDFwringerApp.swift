@@ -17,6 +17,13 @@ struct PDFwringerApp: App {
         .windowResizability(.contentMinSize)
         .defaultSize(width: 800, height: 520)
         .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button(String(localized: "About PDFwringer")) {
+                    // Let AppKit read the marketing version from the bundle;
+                    // suppress its optional parenthesized internal build number.
+                    NSApp.orderFrontStandardAboutPanel(options: [.version: ""])
+                }
+            }
             // File menu
             CommandGroup(replacing: .newItem) {
                 Button(String(localized: "Open...")) {

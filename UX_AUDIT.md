@@ -1,6 +1,6 @@
 # UI and UX release refinement backlog
 
-Reviewed 2026-09-30 against 0.2.0 (4). The initial review was analysis only. The user subsequently authorized
+Reviewed 2026-09-30 against 0.2.0. The initial review was analysis only. The user subsequently authorized
 implementation of the high-value fixes; the implementation record follows. No additional PDF operations, services, accounts, or modes are proposed.
 
 ## Scope and confidence
@@ -229,7 +229,7 @@ protected inputs, cancellation, failed operations, and resumed editing after Sav
 Use focused tests for behavioral changes; use native visual inspection for spacing
 and appearance. Then create one new signed candidate and repeat the release gates.
 
-## Implementation — 0.2.1 (build 5)
+## Implementation — 0.2.1
 
 Implemented the high-value interaction, accessibility, consistency, and visual
 refinements above. Crop blocks saving pending inputs and guards navigation; color
@@ -255,7 +255,7 @@ Exact 650×420 sizing and a complete VoiceOver/Increase Contrast certification
 remain explicit final QA gates; do not infer them from the source/layout fixes.
 See `APP_STORE.md` for signed candidate and distribution evidence.
 
-## Task-flow follow-up — 0.2.2 (build 6)
+## Task-flow follow-up — 0.2.2
 
 User feedback exposed the Back chevron's inadequate hit target, fixed pane widths,
 ambiguous Security wording, and the lack of Merge entry from a single PDF. This
@@ -285,3 +285,7 @@ empty-list recovery, discard protection, Back-chevron clicks, loaded-preview
 divider dragging, and password consent/cancellation. Exact minimum-window and
 complete assistive-technology certification remain final QA gates. Validation
 evidence and remaining release gates are in `APP_STORE.md`.
+
+The final download is 0.2.3, which also removes the parenthesized build suffix
+from About and public release descriptions. Technical archive identities retain
+separate build identifiers for signing provenance.

@@ -25,7 +25,7 @@
 ## Current Status
 
 The default branch contains the latest hardening work and compression review
-flow for **Apple silicon on macOS 27.0+**. Version **0.2.2 (build 6)** refines
+flow for **Apple silicon on macOS 27.0+**. Version **0.2.3** refines
 preview accuracy, page selection, pending/apply/save clarity, accessibility, and
 visual consistency while retaining target-size compression and original/result
 comparison. Navigation controls now stay visible, the divider is adjustable, and

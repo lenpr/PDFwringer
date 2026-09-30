@@ -6,9 +6,10 @@ and must not be used to create the App Store build.
 
 The app requires macOS 27.0 or later on Apple silicon. Build with Xcode 27.
 
-## Current candidate: 0.2.2 (build 6) — 2026-09-30
+## Current candidate: 0.2.3 — 2026-09-30
 
-This task-flow refinement enlarges and pins navigation, enables native divider
+About now shows only the public version; the required signing build identifier
+is stored separately in the bundle. This task-flow refinement enlarges and pins navigation, enables native divider
 adjustment, adds single-document entry to existing Merge, and clarifies password
 protection with consent for the current image-copy requirement. The landing screen
 keeps only neutral file intake. No PDF operations, permissions, services, or
@@ -21,7 +22,7 @@ previous evidence below does not validate this candidate. Full accessibility/
 contrast/minimum-window QA, listing/privacy/compliance responses, and
 Store/TestFlight-installed tests remain submission gates.
 
-## Previous validated candidate: 0.2.1 (build 5) — 2026-09-30
+## Previous validated candidate: 0.2.1 — 2026-09-30
 
 This candidate implements the high-value UI/UX refinements recorded in
 `UX_AUDIT.md`, preserving the existing feature set. All 402 tests passed
@@ -46,7 +47,7 @@ GitHub asset matches SHA-256
 `cbf97b61068461d4cd9ce2a4602717e55a834c14ffa6dee60b1e6c3534fd4df1`.
 The Homebrew cask names the same version and checksum, with Apple silicon and
 macOS 27 requirements. Homebrew upgraded the local receipt and installed app to
-0.2.1; the installed About panel shows `Version 0.2.1 (5)`. Strict signature,
+0.2.1; the installed About panel was verified against version `0.2.1`. Strict signature,
 Gatekeeper, and stapled-ticket checks passed. Its executable matches the
 download payload exactly. The download UUID is
 `4F17E877-6F23-31A5-8610-0F9EBFBA378E`; the separate Xcode archive UUID is
@@ -61,7 +62,7 @@ compliance responses, complete accessibility/contrast/minimum-window QA, and
 Store/TestFlight-installed checks remain submission gates. Nothing was uploaded
 as an App Store release or submitted for review by this increment.
 
-## Previous validated candidate: 0.2.0 (build 4) — 2026-09-30
+## Previous validated candidate: 0.2.0 — 2026-09-30
 
 This version consolidates the September hardening and compression increments
 under a new visible version. `PDFwringer/Info.plist` contains version `0.2.0`
@@ -83,7 +84,7 @@ DMG. Both the app and DMG passed notarization; the downloaded GitHub asset match
 SHA-256 `42f2fc513cda7f64e9beb327dd5c33a9d3a910cdfbea7e84d31b8e79c86d5beb`.
 The Homebrew cask points to that version/checksum and requires Apple silicon and
 macOS 27.0+. Homebrew upgraded the local receipt and installed app to `0.2.0`;
-the installed About panel visibly shows `Version 0.2.0 (4)`. Strict signature and
+the installed About panel was verified against version `0.2.0`. Strict signature and
 Gatekeeper checks passed. The installed executable matches the download exactly
 and shares the archive UUID `0FFC18EC-47AF-3411-8EFB-230440893920`.
 
@@ -97,7 +98,7 @@ pass, and Store/TestFlight-installed checks remain submission gates.
 
 ## Build 3 compression implementation — 2026-09-30
 
-Build `0.1.16 (3)` implements only the two increments retained in
+Build `0.1.16` implements only the two increments retained in
 `COMPRESSION_PLAN.md`: target-size compression and comparison of the original
 with the exact prepared result. Both manual and target modes use Prepare, review,
 then Save Result. Image-based target attempts require explicit consent. Limits
@@ -123,7 +124,7 @@ needed to reopen destination selection after that failure.
 
 The unsigned App Store archive structure check passed, including arm64-only code,
 bundle version, privacy manifest, icon, and release symbols.
-Candidate `0.1.16 (3)`, source `1962331`, tagged `appstore-v0.1.16-build.3`, also
+Candidate `0.1.16`, source `1962331`, tagged `appstore-v0.1.16-build.3`, also
 passed the signed archive, App Store export, strict app-signature checks, and Xcode
 Organizer validation. Organizer reported: “Your app successfully passed all
 validation checks.” The exported package contains an Apple Distribution-signed
@@ -154,7 +155,7 @@ not certify a Store/TestFlight-installed copy. Evidence is retained in
 
 ## Signed candidate validation — 2026-09-28
 
-Candidate `0.1.16 (1)`, source commit `55093a9`, tagged
+Candidate `0.1.16`, source commit `55093a9`, tagged
 `appstore-v0.1.16-build.1`, passed the actual App Store signing/export path:
 
 - Xcode automatic provisioning created a signed Apple silicon archive.
@@ -222,7 +223,7 @@ Its signing/export and Organizer result are recorded separately below.
 
 ## Build 2 signed candidate validation — 2026-09-29
 
-Candidate `0.1.16 (2)`, source commit `df32247`, tagged
+Candidate `0.1.16`, source commit `df32247`, tagged
 `appstore-v0.1.16-build.2`, passed automatic provisioning, signed archive,
 App Store export, and Xcode Organizer validation. Organizer reported:
 “Your app successfully passed all validation checks.”
@@ -284,7 +285,7 @@ and property lists, and rejects quarantine attributes. Its temporary archive is 
 Commit the release inputs, then tag that exact commit with both version values:
 
 ```bash
-git tag appstore-v0.2.2-build.6
+git tag appstore-v0.2.3-build.7
 ```
 
 The archive target refuses a dirty input tree or a mismatched tag. The separate
@@ -311,7 +312,7 @@ the archive is kept under `.build/app-store/` instead of Xcode's default archive
 directory, open or double-click the `.xcarchive` first, for example:
 
 ```bash
-open .build/app-store/PDFwringer-0.2.2-build.6/PDFwringer.xcarchive
+open .build/app-store/PDFwringer-0.2.3-build.7/PDFwringer.xcarchive
 ```
 
 Store builds are signed locally by Xcode with the team's App Store distribution

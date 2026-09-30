@@ -1,6 +1,14 @@
 # Release progression
 
-## 0.2.2 (build 6) — 2026-09-30
+## 0.2.3 — 2026-09-30
+
+Includes the task-flow refinements below and shows only the public version in
+About, documentation, and release descriptions. The required internal build
+identifier remains in signing metadata. No PDF operations or dependencies added.
+
+## 0.2.2 — 2026-09-30
+
+Internal candidate; these changes ship in the 0.2.3 download.
 
 Makes existing task flows more consistent, without new PDF operations.
 
@@ -20,7 +28,7 @@ Makes existing task flows more consistent, without new PDF operations.
 
 Validation and distribution evidence are tracked in `APP_STORE.md`.
 
-## 0.2.1 (build 5) — 2026-09-30
+## 0.2.1 — 2026-09-30
 
 Refines existing workflows after the adversarial UI/UX review. No new PDF
 operations, permissions, services, or dependencies.
@@ -43,7 +51,7 @@ operations, permissions, services, or dependencies.
 
 Validation and distribution evidence are tracked in `APP_STORE.md`.
 
-## 0.2.0 (build 4) — 2026-09-30
+## 0.2.0 — 2026-09-30
 
 The first downloadable release of the production hardening and compression
 review work completed in September. This version replaces the May 0.1.16
@@ -72,11 +80,11 @@ These are the actual earlier build identities, recorded retrospectively to make
 the progression visible. Their archived binaries and signed tags are preserved;
 they were not separate public downloads and are not renumbered.
 
-| Version / build | Date | Milestone | Source tag |
+| Version | Date | Milestone | Source tag |
 |---|---|---|---|
-| 0.1.16 (3) | 2026-09-30 | Target-size compression and original/result review; 399 tests and Organizer validation passed | [`appstore-v0.1.16-build.3`](https://github.com/lenpr/PDFwringer/tree/appstore-v0.1.16-build.3) |
-| 0.1.16 (2) | 2026-09-29 | Persistent password retry prompt and protected-document/cancellation validation; 383 tests and Organizer validation passed | [`appstore-v0.1.16-build.2`](https://github.com/lenpr/PDFwringer/tree/appstore-v0.1.16-build.2) |
-| 0.1.16 (1) | 2026-09-28 | Hardened file operations, isolated PDF workers, lifecycle fixes, macOS 27/Apple silicon scope, and first signed App Store validation | [`appstore-v0.1.16-build.1`](https://github.com/lenpr/PDFwringer/tree/appstore-v0.1.16-build.1) |
+| 0.1.16 | 2026-09-30 | Target-size compression and original/result review; 399 tests and Organizer validation passed | [Source checkpoint](https://github.com/lenpr/PDFwringer/tree/appstore-v0.1.16-build.3) |
+| 0.1.16 | 2026-09-29 | Persistent password retry prompt and protected-document/cancellation validation; 383 tests and Organizer validation passed | [Source checkpoint](https://github.com/lenpr/PDFwringer/tree/appstore-v0.1.16-build.2) |
+| 0.1.16 | 2026-09-28 | Hardened file operations, isolated PDF workers, lifecycle fixes, macOS 27/Apple silicon scope, and first signed App Store validation | [Source checkpoint](https://github.com/lenpr/PDFwringer/tree/appstore-v0.1.16-build.1) |
 
 ## 0.1.16 — 2026-05-16
 
