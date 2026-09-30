@@ -28,8 +28,12 @@ struct FileDialogHelper {
 
 
     /// Shows a save dialog pre-filled with a suggested filename. Returns the chosen URL or nil on cancel.
-    static func showSavePanel(suggestedName: String) -> URL? {
+    static func showSavePanel(suggestedName: String, title: String? = nil,
+                              prompt: String? = nil, message: String? = nil) -> URL? {
         let panel = NSSavePanel()
+        if let title { panel.title = title }
+        if let prompt { panel.prompt = prompt }
+        if let message { panel.message = message }
         panel.allowedContentTypes = [.pdf]
         panel.nameFieldStringValue = suggestedName
         panel.canCreateDirectories = true

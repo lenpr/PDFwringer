@@ -6,6 +6,73 @@ import Testing
 @Suite("PDF preview navigation", .serialized)
 @MainActor
 struct PDFPreviewNavigationTests {
+    @Test("Comparison preserves zoom and visible location across crop origins and rotations", arguments: [0, 90, 180, 270])
+    func comparisonViewport(rotation: Int) async throws {
+        let source = TestPDFGenerator.makeCroppedRasterFixture(cropOrigin: CGPoint(x: 70, y: 90), rotation: rotation)
+        let directory = TestPDFGenerator.makeTempDirectory()
+        defer { TestPDFGenerator.cleanup(source); try? FileManager.default.removeItem(at: directory) }
+        let original = try #require(PDFDocument(url: source))
+        let candidate = try await PDFCompressor().prepare(document: original, source: source,
+            destination: directory.appending(component: "result.pdf"), level: .medium,
+            quality: .good, grayscale: false, progress: { _ in })
+        let result = try #require(candidate.previewDocument)
+        let originalPage = try #require(original.page(at: 0))
+        let pdfView = makeView(original)
+        pdfView.autoScales = true
+        pdfView.layoutDocumentView()
+        pdfView.autoScales = false
+        pdfView.scaleFactor = pdfView.scaleFactorForSizeToFit * 2.5
+        let point = try #require(PDFPreviewViewport.pagePoint(CGPoint(x: 0.3, y: 0.7), on: originalPage))
+        let destination = PDFDestination(page: originalPage, at: point)
+        destination.zoom = pdfView.scaleFactor
+        pdfView.go(to: destination)
+        await drainMainQueue()
+        let before = try #require(PDFPreviewViewport.capture(pdfView))
+        let centerBefore = try #require(PDFPreviewViewport.normalized(
+            pdfView.convert(CGPoint(x: pdfView.bounds.midX, y: pdfView.bounds.midY), to: originalPage), on: originalPage))
+        let first = PDFPreviewView(document: original, currentPage: .constant(0), preserveViewport: true)
+        let coordinator = first.makeCoordinator()
+        let replacement = PDFPreviewView(document: result, currentPage: .constant(0), preserveViewport: true)
+        coordinator.update(pdfView, parent: replacement)
+        // SwiftUI can update again before the queued navigation runs.
+        coordinator.update(pdfView, parent: replacement)
+        await drainMainQueue()
+        let after = try #require(PDFPreviewViewport.capture(pdfView))
+        let resultPage = try #require(result.page(at: 0))
+        let centerAfter = try #require(PDFPreviewViewport.normalized(
+            pdfView.convert(CGPoint(x: pdfView.bounds.midX, y: pdfView.bounds.midY), to: resultPage), on: resultPage))
+        #expect(!pdfView.autoScales)
+        #expect(abs(before.relativeZoom - after.relativeZoom) < 0.01)
+        #expect(abs(centerBefore.x - centerAfter.x) < 0.04)
+        #expect(abs(centerBefore.y - centerAfter.y) < 0.04)
+        coordinator.update(pdfView, parent: first)
+        await drainMainQueue()
+        let returned = try #require(PDFPreviewViewport.capture(pdfView))
+        #expect(abs(before.relativeZoom - returned.relativeZoom) < 0.01)
+        #expect(pdfView.document === original)
+    }
+
+    @Test("Rapid comparison toggles preserve the requested page and fit mode")
+    func rapidComparison() async throws {
+        let first = makeDocument()
+        let second = makeDocument()
+        let view = makeView(first)
+        view.autoScales = true
+        view.go(to: try #require(first.page(at: 2)))
+        let firstParent = PDFPreviewView(document: first, currentPage: .constant(2), preserveViewport: true)
+        let secondParent = PDFPreviewView(document: second, currentPage: .constant(2), preserveViewport: true)
+        let coordinator = firstParent.makeCoordinator()
+        coordinator.update(view, parent: secondParent)
+        let queued = try #require(coordinator.pendingNavigation)
+        coordinator.update(view, parent: firstParent)
+        coordinator.update(view, parent: secondParent)
+        await drainMainQueue()
+        #expect(queued.isCancelled)
+        #expect(view.currentPage === second.page(at: 2))
+        #expect(view.autoScales)
+        PDFPreviewView.dismantleNSView(view, coordinator: coordinator)
+    }
+
     @Test("Returning to the visible page cancels an older queued navigation")
     func supersededNavigation() async throws {
         let document = makeDocument()

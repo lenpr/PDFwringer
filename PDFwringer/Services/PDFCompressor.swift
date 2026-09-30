@@ -26,6 +26,105 @@ struct PDFCompressor {
         var outputSize: Int64
     }
 
+    @MainActor
+    final class PreparedCompression {
+        private let stagedFile: AtomicFileWriter.StagedFile
+        private let source: URL
+        private let sourceDocument: PDFDocument
+        let level: CompressionLevel
+        let outputSize: Int64
+        let previewDocument: PDFDocument?
+        var destination: URL { stagedFile.destination }
+        var url: URL { stagedFile.url }
+
+        fileprivate init(stagedFile: AtomicFileWriter.StagedFile, source: URL,
+                         document: PDFDocument, level: CompressionLevel, outputSize: Int64) throws {
+            guard let output = PDFDocument(url: stagedFile.url) else {
+                throw PDFwringerError.cannotWriteOutput
+            }
+            self.stagedFile = stagedFile
+            self.source = source
+            sourceDocument = document
+            self.level = level
+            self.outputSize = outputSize
+            previewDocument = output.isLocked ? nil : output
+        }
+
+        func commit() throws {
+            try Task.checkCancellation()
+            try FileSystemIdentity.requireDistinct(source, destination)
+            guard let size = try FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false))[.size] as? Int64,
+                  size == outputSize, let output = PDFDocument(url: url) else {
+                throw PDFwringerError.cannotWriteOutput
+            }
+            if !level.isRasterize {
+                try PDFEncryptionPolicy.requirePreservedProtection(from: sourceDocument, in: output)
+            }
+            if !output.isLocked {
+                try PDFCompressor.validateOutput(output, expectedPageCount: sourceDocument.pageCount,
+                                                 requireNoAnnotations: level.isRasterize)
+            }
+            try stagedFile.commit()
+        }
+    }
+
+    enum TargetResult {
+        case alreadyUnderLimit(Int64)
+        case prepared(PreparedCompression)
+        case unattainable(smallestSize: Int64)
+    }
+
+    /// Renders into a retained staging file without publishing to the chosen path.
+    func prepare(document: PDFDocument, source: URL, destination: URL,
+                 level: CompressionLevel, quality: JPEGQuality, grayscale: Bool,
+                 removeAnnotations: Bool = false, progress: (Double) -> Void) async throws -> PreparedCompression {
+        try FileSystemIdentity.requireDistinct(source, destination)
+        let staged = try AtomicFileWriter.StagedFile(destination: destination)
+        let result = try await compress(document: document, source: source, destination: staged.url,
+                                        level: level, quality: quality, grayscale: grayscale,
+                                        removeAnnotations: removeAnnotations, progress: progress)
+        try Task.checkCancellation()
+        return try PreparedCompression(stagedFile: staged, source: source, document: document,
+                                       level: level, outputSize: result.outputSize)
+    }
+
+    /// Lossless plus at most three existing raster presets. Errors fail closed;
+    /// only a successfully validated, oversized result advances to another preset.
+    func prepareToFit(document: PDFDocument, source: URL, destination: URL,
+                      limitBytes: Int64, allowRasterization: Bool, grayscale: Bool,
+                      progress: (Double) -> Void) async throws -> TargetResult {
+        try Task.checkCancellation()
+        try FileSystemIdentity.requireDistinct(source, destination)
+        guard limitBytes > 0 else { throw PDFwringerError.cannotCreateOutput }
+        guard !document.isLocked, document.pageCount > 0 else {
+            throw PDFwringerError.cannotOpenDocument
+        }
+        let sourceSize = try FileManager.default.attributesOfItem(atPath: source.path(percentEncoded: false))[.size] as? Int64 ?? 0
+        guard sourceSize > 0 else { throw PDFwringerError.cannotOpenDocument }
+        if sourceSize < limitBytes { return .alreadyUnderLimit(sourceSize) }
+
+        let staged = try AtomicFileWriter.StagedFile(destination: destination)
+        let levels: [CompressionLevel] = allowRasterization ? [.lossless, .high, .medium, .low] : [.lossless]
+        var smallestSize = Int64.max
+        for (index, level) in levels.enumerated() {
+            try Task.checkCancellation()
+            let result = try await compress(document: document, source: source, destination: staged.url,
+                                            level: level, quality: .good, grayscale: grayscale,
+                                            progress: { progress((Double(index) + $0) / Double(levels.count)) })
+            try Task.checkCancellation()
+            smallestSize = min(smallestSize, result.outputSize)
+            if result.outputSize < limitBytes {
+                let prepared = try PreparedCompression(stagedFile: staged, source: source, document: document,
+                                                        level: level, outputSize: result.outputSize)
+                progress(1)
+                return .prepared(prepared)
+            }
+            try FileManager.default.removeItem(at: staged.url)
+        }
+        progress(1)
+        return .unattainable(smallestSize: smallestSize)
+    }
+
     /// Compresses a PDF from `source` to `destination` using the selected strategy.
     @discardableResult
     func compress(

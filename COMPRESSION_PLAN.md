@@ -1,7 +1,8 @@
 # Compression: target size and original/result comparison
 
-Design prepared on 2026-09-29. **Not implemented.** The current validated release
-candidate remains `0.1.16 (2)` at `df32247`.
+Design prepared on 2026-09-29; implemented on 2026-09-30 in **0.1.16 (3)**.
+Release evidence and remaining submission gates are recorded in `APP_STORE.md`.
+Build 2 at `df32247` remains preserved as the previous validated candidate.
 
 Only these two increments are in scope. The other brainstormed ideas are dropped.
 

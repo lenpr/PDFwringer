@@ -6,6 +6,39 @@ and must not be used to create the App Store build.
 
 The app requires macOS 27.0 or later on Apple silicon. Build with Xcode 27.
 
+## Build 3 compression implementation — 2026-09-30
+
+Build `0.1.16 (3)` implements only the two increments retained in
+`COMPRESSION_PLAN.md`: target-size compression and comparison of the original
+with the exact prepared result. Both manual and target modes use Prepare, review,
+then Save Result. Image-based target attempts require explicit consent. Limits
+use decimal MB and success requires the measured complete file to be strictly
+below the requested limit. No permissions, entitlements, services, or network
+dependencies were added.
+
+Full validation passed: 332 fast tests, 61 checksum-verified corpus tests, and
+6 performance tests (399 total). New tests cover localized byte boundaries,
+every bounded compression attempt, permission errors, cancellation, exact-byte
+publication, destination changes, candidate cleanup, stale results, retained
+encryption, and rotated/cropped-page viewport preservation.
+
+Native checks in the development-signed implementation build passed: already-small
+input, unattainable lossless target, explicit raster consent, page/zoom comparison,
+unsaved-result navigation with Keep Editing, settings invalidation, native
+overwrite selection, refusal of a destination replaced during review, cancellation
+of a prepared result, and Command-S publication. The saved output independently
+reopened with two pages and 82,314 bytes, below its 100,000-byte limit. The existing
+destination remained unchanged during preparation and a concurrent replacement
+remained intact after a refused save. Testing found and fixed a retry action that
+needed to reopen destination selection after that failure.
+
+The unsigned App Store archive structure check passed, including arm64-only code,
+bundle version, privacy manifest, icon, and release symbols.
+Signed archive/export and Organizer validation for build 3 are pending. Build 2's
+results below are historical and do not validate this implementation. Remaining
+submission gates include the account-side listing/privacy/compliance responses
+and the complete accessibility/layout and distribution-installed interaction pass.
+
 ## Signed candidate validation — 2026-09-28
 
 Candidate `0.1.16 (1)`, source commit `55093a9`, tagged

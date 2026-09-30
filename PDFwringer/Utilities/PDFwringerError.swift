@@ -189,12 +189,16 @@ enum AtomicFileWriter {
         try stagedFile.commit()
     }
 
-    private struct StagedFile {
+    /// A destination-volume write that may be retained for review before commit.
+    /// The destination identity is captured at creation, not at the later save.
+    final class StagedFile {
         let destination: URL
         let destinationExists: Bool
         let destinationIdentity: FileSystemIdentity.Identity?
         let replacementDirectory: URL
         let url: URL
+
+        deinit { cleanup() }
 
         init(destination: URL) throws {
             let fileManager = FileManager.default

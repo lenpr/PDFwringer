@@ -24,11 +24,11 @@
 
 ## Current Status
 
-The default branch contains the latest hardening work for **Apple silicon on
-macOS 27.0+**. Candidate **0.1.16 (2)** passed all 383 tests, signed App Store
-archive/export checks, and Xcode Organizer validation. It has not been submitted
-for review or published on the App Store; remaining release checks are tracked
-in [APP_STORE.md](APP_STORE.md).
+The default branch contains the latest hardening work and compression review
+flow for **Apple silicon on macOS 27.0+**. Build **0.1.16 (3)** adds target-size
+compression and original/result comparison. Release validation and remaining
+App Store checks are tracked in [APP_STORE.md](APP_STORE.md). The app has not
+been submitted for review or published on the App Store.
 
 The downloadable **v0.1.16 release and Homebrew cask are the May 2026 build**.
 They do not include the subsequent hardening or the password-retry fix. Build
@@ -52,7 +52,23 @@ Most PDF tools are either bloated Electron apps, subscription-gated web services
 
 ### Compress
 
-Squeeze bloated PDFs down to size. Choose lossless rewriting with standard document-info fields cleared for a quick trim, or lossy rasterization at configurable DPI (72-300) and JPEG quality for dramatic reductions. Rasterization removes searchable text, accessibility tags, interactive fields, and links. Clearing document-info fields does not remove embedded XMP or sanitize private content. Live size estimates let you compare options *before* committing — no guesswork. Oversized pages (common in scanned PDFs and iPhone photos) are automatically capped to prevent file inflation.
+Choose **Manual** compression with lossless rewriting or configurable image
+resolution and JPEG quality, or **Fit under…** for an upload limit of 0.1–1,000 MB.
+Target-size compression tries lossless first, then at most three image resolutions
+if you explicitly allow image-based compression. Success requires the complete
+output file to be strictly below the limit; estimates never decide success.
+
+Select **Prepare…** to choose a destination and generate the result. Compare
+**Original / Result** on the same page and at the same relative zoom before
+selecting **Save Result**. Preparation leaves the source and existing destination
+unchanged. Cancel or changing settings discards the prepared copy. Protected
+lossless results retain their protection; comparison is unavailable when that
+prepared copy reopens locked.
+
+Rasterization removes searchable text, accessibility tags, interactive fields,
+links, digital signatures, and existing password protection. Lossless rewriting
+clears standard document-info fields; embedded XMP and private content can remain.
+Oversized pages are capped to prevent bitmap inflation.
 
 <p align="center">
   <img src="screenshots/compress.png" width="720" alt="Compression options with live size estimates">

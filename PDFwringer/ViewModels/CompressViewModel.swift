@@ -10,10 +10,16 @@ class CompressViewModel {
     var sourceURL: URL?
     var sourcePageCount: Int = 0
     var sourceFileSize: Int64 = 0
-    var selectedLevel: CompressionLevel = .medium
-    var selectedQuality: JPEGQuality = .good
-    var grayscale: Bool = false
-    var removeAnnotations: Bool = false
+    var mode: CompressionMode = .manual { didSet { if mode != oldValue { settingsChanged() } } }
+    var targetMegabytes = "10" { didSet { if targetMegabytes != oldValue { settingsChanged() } } }
+    var allowRasterization = false { didSet { if allowRasterization != oldValue { settingsChanged() } } }
+    var selectedLevel: CompressionLevel = .medium { didSet { if selectedLevel != oldValue { settingsChanged() } } }
+    var selectedQuality: JPEGQuality = .good { didSet { if selectedQuality != oldValue { settingsChanged() } } }
+    var grayscale = false { didSet { if grayscale != oldValue { settingsChanged() } } }
+    var removeAnnotations = false { didSet { if removeAnnotations != oldValue { settingsChanged() } } }
+    private(set) var prepared: PDFCompressor.PreparedCompression?
+    var comparisonShowsResult = false
+    private var operationGeneration = 0
     var isProcessing = false
     var progress: Double = 0
     var resultMessage: String?
@@ -31,19 +37,28 @@ class CompressViewModel {
     private let compressor = PDFCompressor()
 
     var canCompress: Bool {
-        sourceURL != nil && !isProcessing
+        sourceURL != nil && !isProcessing && (mode == .manual || targetBytes != nil)
+    }
+
+    var targetBytes: Int64? { CompressionTarget.bytes(from: targetMegabytes) }
+    var hasPreparedResult: Bool { prepared != nil }
+    var canCompare: Bool { prepared?.previewDocument != nil }
+    var rasterizationAllowed: Bool {
+        mode == .manual ? selectedLevel.isRasterize : allowRasterization
     }
 
     private static let largeFileThreshold: Int64 = 500_000_000 // 500 MB
 
     var largeFileWarning: String? {
-        guard sourceFileSize > Self.largeFileThreshold, selectedLevel.isRasterize else { return nil }
+        guard sourceFileSize > Self.largeFileThreshold, rasterizationAllowed else { return nil }
         return "Large file (\(Formatting.fileSize(sourceFileSize))). Rasterization may use significant memory and take a while."
     }
 
     /// Convenience for non-interactive callers. Production flows should pass the
     /// already-loaded document so an unlocked encrypted source is not reopened.
     func setSource(_ url: URL) {
+        discardPreparedResult()
+        allowRasterization = false
         guard let document = PDFDocument(url: url), !document.isLocked else {
             invalidateEstimation()
             sourceURL = nil
@@ -58,6 +73,8 @@ class CompressViewModel {
     }
 
     func setSource(_ url: URL, document: PDFDocument) {
+        discardPreparedResult()
+        allowRasterization = false
         invalidateEstimation()
         sourceURL = url
         resultMessage = nil
@@ -196,72 +213,140 @@ class CompressViewModel {
     }
 
     func performCompression() async {
-        guard let source = sourceURL, let document = pdfDocument, !isProcessing else { return }
-
+        guard canCompress, let source = sourceURL else { return }
+        if mode == .targetSize, let targetBytes {
+            do {
+                let size = try FileManager.default.attributesOfItem(atPath: source.path(percentEncoded: false))[.size] as? Int64 ?? 0
+                guard size > 0 else { throw PDFwringerError.cannotOpenDocument }
+                if size < targetBytes {
+                    discardPreparedResult()
+                    isError = false
+                    resultMessage = "Already below \(Formatting.fileSize(targetBytes)). No compression needed."
+                    return
+                }
+            } catch {
+                resultMessage = PDFwringerError.userMessage(for: error)
+                isError = true
+                return
+            }
+        }
         let suggestedName = source.deletingPathExtension().lastPathComponent + "_compressed.pdf"
-        guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
+        guard let destination = FileDialogHelper.showSavePanel(
+            suggestedName: suggestedName,
+            title: String(localized: "Choose where to save the result"),
+            prompt: String(localized: "Prepare"),
+            message: String(localized: "Your destination will not change until you review the result and select Save Result.")
+        ) else { return }
+        await prepare(to: destination)
+    }
 
+    /// Also used by tests without presenting a native file panel.
+    func prepare(to destination: URL) async {
+        guard canCompress, let source = sourceURL, let document = pdfDocument else { return }
+        let operationMode = mode
+        let operationLimit = targetBytes
+        let operationAllowRasterization = allowRasterization
         let operationLevel = selectedLevel
         let operationQuality = selectedQuality
         let operationGrayscale = grayscale
         let operationRemoveAnnotations = removeAnnotations
-        let operationSourceSize = sourceFileSize
-        let sourceWasEncrypted = document.isEncrypted
 
+        discardPreparedResult()
         invalidateEstimation()
+        let generation = operationGeneration
         isProcessing = true
         progress = 0
         resultMessage = nil
         isError = false
         lastOutputURL = nil
 
-        operationTask = Task {
-            defer { operationTask = nil }
+        operationTask = Task { [weak self] in
+            guard let self else { return }
+            defer { self.operationTask = nil; self.isProcessing = false }
             do {
-                let result = try await compressor.compress(
-                    document: document,
-                    source: source,
-                    destination: destination,
-                    level: operationLevel,
-                    quality: operationQuality,
-                    grayscale: operationGrayscale,
-                    removeAnnotations: operationRemoveAnnotations,
-                    progress: { [weak self] p in self?.progress = p }
-                )
-
-                let newSize = result.outputSize
-
-                let protectionNote = sourceWasEncrypted && operationLevel.isRasterize
-                    ? " Password protection was removed."
-                    : ""
-
-                if newSize >= operationSourceSize && operationSourceSize > 0 {
-                    resultMessage = "Result (\(Formatting.fileSize(newSize))) is not smaller than original (\(Formatting.fileSize(operationSourceSize))). File saved.\(protectionNote)"
-                    isError = false
-                    lastOutputURL = destination
-                } else {
-                    let ratio = operationSourceSize > 0
-                        ? Int((1.0 - Double(newSize) / Double(operationSourceSize)) * 100)
-                        : 0
-                    resultMessage = "Done! \(ratio)% smaller (\(Formatting.fileSize(operationSourceSize)) → \(Formatting.fileSize(newSize))).\(protectionNote)"
-                    isError = false
-                    lastOutputURL = destination
+                let reportProgress: (Double) -> Void = { [weak self] value in
+                    guard let self, self.operationGeneration == generation else { return }
+                    self.progress = value
                 }
-            } catch is CancellationError {
-                resultMessage = "Cancelled."
-                isError = false
+                let result: PDFCompressor.TargetResult
+                if operationMode == .targetSize, let operationLimit {
+                    result = try await self.compressor.prepareToFit(
+                        document: document, source: source, destination: destination,
+                        limitBytes: operationLimit, allowRasterization: operationAllowRasterization,
+                        grayscale: operationGrayscale, progress: reportProgress)
+                } else {
+                    result = .prepared(try await self.compressor.prepare(
+                        document: document, source: source, destination: destination,
+                        level: operationLevel, quality: operationQuality, grayscale: operationGrayscale,
+                        removeAnnotations: operationRemoveAnnotations, progress: reportProgress))
+                }
+                try Task.checkCancellation()
+                guard self.operationGeneration == generation else { return }
+                switch result {
+                case .prepared(let candidate):
+                    self.prepared = candidate
+                    self.comparisonShowsResult = candidate.previewDocument != nil
+                    let protectionNote = document.isEncrypted && candidate.level.isRasterize
+                        ? " This copy is not password-protected." : ""
+                    self.resultMessage = "Prepared \(Formatting.fileSize(candidate.outputSize)) using \(candidate.level.title). Review it before saving.\(protectionNote)"
+                case .alreadyUnderLimit:
+                    self.resultMessage = "Already below \(Formatting.fileSize(operationLimit ?? 0)). No compression needed."
+                case .unattainable(let smallest):
+                    self.resultMessage = "Couldn't get below \(Formatting.fileSize(operationLimit ?? 0)) with these settings. Smallest result: \(Formatting.fileSize(smallest)). Nothing saved. Try a larger limit or Manual compression."
+                    self.isError = true
+                }
             } catch {
-                resultMessage = PDFwringerError.userMessage(for: error)
-                isError = true
+                guard self.operationGeneration == generation else { return }
+                if error is CancellationError {
+                    self.resultMessage = "Cancelled. Nothing saved."
+                } else {
+                    self.resultMessage = PDFwringerError.userMessage(for: error)
+                    self.isError = true
+                }
             }
-
-            isProcessing = false
         }
         await operationTask?.value
     }
 
+    func savePreparedResult() {
+        guard !isProcessing, let candidate = prepared else { return }
+        comparisonShowsResult = false
+        do {
+            try candidate.commit()
+            lastOutputURL = candidate.destination
+            let protectionNote = pdfDocument?.isEncrypted == true && candidate.level.isRasterize
+                ? " This copy is not password-protected." : ""
+            resultMessage = "Saved \(Formatting.fileSize(candidate.outputSize)) using \(candidate.level.title).\(protectionNote)"
+            isError = false
+            prepared = nil
+        } catch {
+            resultMessage = PDFwringerError.userMessage(for: error)
+            isError = true
+        }
+    }
+
+    private func settingsChanged() {
+        discardPreparedResult()
+        resultMessage = nil
+        isError = false
+        lastOutputURL = nil
+    }
+
+    func discardPreparedResult() {
+        operationGeneration += 1
+        operationTask?.cancel()
+        comparisonShowsResult = false
+        prepared = nil
+        lastOutputURL = nil
+    }
+
     func cancel() {
         operationTask?.cancel()
+        if prepared != nil {
+            discardPreparedResult()
+            resultMessage = "Cancelled. Nothing saved."
+            isError = false
+        }
     }
 
     private var operationTask: Task<Void, Never>?
