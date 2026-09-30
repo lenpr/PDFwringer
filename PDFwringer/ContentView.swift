@@ -239,16 +239,11 @@ struct ContentView: View {
                 .padding(.trailing, 8)
                 .padding(.bottom, 4)
         }
-        .alert(String(localized: "Password Required"), isPresented: $appVM.showPasswordPrompt) {
-            SecureField(String(localized: "Password"), text: $appVM.passwordText)
-            Button(String(localized: "Unlock")) { appVM.unlockDocument() }
-            Button(String(localized: "Cancel"), role: .cancel) { appVM.cancelPassword() }
-        } message: {
-            if appVM.wrongPasswordAttempt {
-                Text(String(localized: "Incorrect password. Please try again."))
-            } else {
-                Text(String(localized: "This PDF is password-protected."))
-            }
+        .sheet(isPresented: Binding(
+            get: { appVM.showPasswordPrompt },
+            set: { if !$0 { appVM.cancelPassword() } }
+        )) {
+            PasswordPromptView(appVM: appVM)
         }
         .alert(String(localized: "PDFwringer"), isPresented: $appVM.showErrorAlert) {
             Button(String(localized: "OK"), role: .cancel) {}
@@ -282,4 +277,40 @@ struct ContentView: View {
         )
     }
 
+}
+
+/// Alert buttons dismiss automatically, even when unlocking fails. A sheet keeps
+/// the same input focused until the document unlocks or the user cancels.
+private struct PasswordPromptView: View {
+    @Bindable var appVM: AppViewModel
+    @FocusState private var passwordIsFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(String(localized: "Password Required"))
+                .font(.headline)
+            Text(appVM.wrongPasswordAttempt
+                 ? String(localized: "Incorrect password. Please try again.")
+                 : String(localized: "This PDF is password-protected."))
+                .foregroundStyle(appVM.wrongPasswordAttempt ? Color.red : Color.secondary)
+            SecureField(String(localized: "Password"), text: $appVM.passwordText)
+                .textFieldStyle(.roundedBorder)
+                .focused($passwordIsFocused)
+                .onSubmit { appVM.unlockDocument() }
+            HStack {
+                Spacer()
+                Button(String(localized: "Cancel")) { appVM.cancelPassword() }
+                    .keyboardShortcut(.cancelAction)
+                Button(String(localized: "Unlock")) { appVM.unlockDocument() }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(24)
+        .frame(width: 360)
+        .interactiveDismissDisabled()
+        .onAppear { passwordIsFocused = true }
+        .onChange(of: appVM.wrongPasswordAttempt) { _, failed in
+            if failed { passwordIsFocused = true }
+        }
+    }
 }

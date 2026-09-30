@@ -48,6 +48,32 @@ active, drag-and-drop, save failure/overwrite, long-operation cancellation,
 protected PDFs, and the full accessibility/layout pass. No code changes were
 needed for the checks completed here.
 
+## Protected-document validation and prompt fix — 2026-09-29
+
+Native testing of build 1 found that an incorrect opening password dismissed
+its SwiftUI alert without retry guidance. The prompt now uses a persistent sheet:
+incorrect attempts clear the input, show the error, and retain keyboard focus;
+Return retries, and Cancel/Escape clears pending password state.
+
+Verified in the rebuilt Apple Development-signed app: repeated incorrect attempts,
+correct-password retry, and Escape preserving the current document. All 316 fast
+tests passed, including retry/cancellation state coverage. Native tests on build 1
+also verified ordinary saves retaining existing protection, incorrect verification
+passwords publishing no output, explicit removal producing an unencrypted copy,
+and explicit flattening producing AES-128 output. Outputs were independently
+reopened, tested with wrong/correct passwords, and checked for page count and the
+AESV2/128-bit security dictionary. The protected source checksum remained unchanged.
+
+In the rebuilt app, a 200-page flattening operation was cancelled at about 20%
+while targeting an existing disposable output. Both source and destination retained
+their original SHA-256. The earlier attempt finished before the cancellation click;
+it was repeated against a restored destination and observed to report “Cancelled.”
+
+Build 2 includes the prompt fix and supersedes build 1 as the release candidate.
+Full validation passed: 316 fast tests, 61 checksum-verified corpus tests, and
+6 performance tests (383 total), plus the unsigned App Store archive check.
+Its signing/export and Organizer result must be recorded separately from build 1.
+
 ## One-time account setup
 
 These steps require the app owner and cannot be stored in the repository:

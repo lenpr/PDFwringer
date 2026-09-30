@@ -59,6 +59,28 @@ struct EncryptedWorkflowTests {
         #expect(actionDocument === document)
     }
 
+    @Test("Incorrect password preserves retry state and cancellation clears it")
+    func incorrectPasswordRetryAndCancel() throws {
+        let source = try makeEncryptedPDF(pageCount: 2, filename: "retry-password.pdf")
+        defer { TestPDFGenerator.cleanup(source) }
+        let vm = AppViewModel()
+        vm.loadSingleFile(source)
+        for _ in 0..<2 {
+            vm.passwordText = "wrong-password"
+            vm.unlockDocument()
+            #expect(vm.isLanding)
+            #expect(vm.showPasswordPrompt)
+            #expect(vm.wrongPasswordAttempt)
+            #expect(vm.passwordText.isEmpty)
+        }
+        vm.cancelPassword()
+        #expect(!vm.showPasswordPrompt)
+        #expect(!vm.wrongPasswordAttempt)
+        #expect(vm.passwordText.isEmpty)
+        #expect(vm.isLanding)
+        assertSourceIsStillLocked(source)
+    }
+
     @Test("Loading a newer document clears a stale password prompt")
     func newerDocumentClearsPasswordPrompt() throws {
         let locked = try makeEncryptedPDF(pageCount: 1, filename: "stale-prompt.pdf")
