@@ -6,7 +6,22 @@ and must not be used to create the App Store build.
 
 The app requires macOS 27.0 or later on Apple silicon. Build with Xcode 27.
 
-## Current candidate: 0.2.0 (build 4) — 2026-09-30
+## Current candidate: 0.2.1 (build 5) — 2026-09-30
+
+This candidate implements the high-value UI/UX refinements recorded in
+`UX_AUDIT.md`, preserving the existing feature set. All 402 tests passed
+(335 fast, 61 corpus, 6 performance). Native checks verified crop pending-save
+and discard protection, separate thumbnail navigation/inclusion, inline range
+errors, ordinary text-arrow editing, spoken compression estimates/warnings,
+prepare-before-publication, Command-S saving, and metadata receipt invalidation.
+
+Signed distribution and archive validation for this new candidate are being
+prepared. The earlier 0.2.0 evidence below does not validate this build. Store
+listing/privacy/compliance responses, the complete accessibility pass, and
+Store/TestFlight-installed checks remain submission gates. Nothing was uploaded
+or submitted for review by this increment.
+
+## Previous validated candidate: 0.2.0 (build 4) — 2026-09-30
 
 This version consolidates the September hardening and compression increments
 under a new visible version. `PDFwringer/Info.plist` contains version `0.2.0`
@@ -229,7 +244,7 @@ and property lists, and rejects quarantine attributes. Its temporary archive is 
 Commit the release inputs, then tag that exact commit with both version values:
 
 ```bash
-git tag appstore-v0.2.0-build.4
+git tag appstore-v0.2.1-build.5
 ```
 
 The archive target refuses a dirty input tree or a mismatched tag. The separate
@@ -256,7 +271,7 @@ the archive is kept under `.build/app-store/` instead of Xcode's default archive
 directory, open or double-click the `.xcarchive` first, for example:
 
 ```bash
-open .build/app-store/PDFwringer-0.2.0-build.4/PDFwringer.xcarchive
+open .build/app-store/PDFwringer-0.2.1-build.5/PDFwringer.xcarchive
 ```
 
 Store builds are signed locally by Xcode with the team's App Store distribution

@@ -4,7 +4,13 @@ import PDFKit
 /// Owns page-order state and the cancellable reordered-document save operation.
 @MainActor @Observable
 final class ReorderPagesViewModel {
-    var pageOrder: [Int] = []
+    var pageOrder: [Int] = [] {
+        didSet {
+            if pageOrder != oldValue && !isSaving {
+                resultMessage = nil; lastOutputURL = nil; isError = false
+            }
+        }
+    }
     var resultMessage: String?
     var isError = false
     var lastOutputURL: URL?

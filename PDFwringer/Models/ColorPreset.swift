@@ -16,6 +16,15 @@ enum ColorPreset: String, CaseIterable {
         }
     }
 
+    var help: String {
+        switch self {
+        case .vivid: String(localized: "Increase contrast and saturation")
+        case .muted: String(localized: "Reduce contrast and saturation")
+        case .blackAndWhite: String(localized: "Black and white")
+        case .highContrast: String(localized: "High contrast")
+        }
+    }
+
     var settings: PDFColorAdjuster.Settings {
         switch self {
         case .vivid: .init(brightness: 0.05, contrast: 1.2, saturation: 1.5)

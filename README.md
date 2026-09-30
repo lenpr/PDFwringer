@@ -25,12 +25,14 @@
 ## Current Status
 
 The default branch contains the latest hardening work and compression review
-flow for **Apple silicon on macOS 27.0+**. Version **0.2.0 (build 4)** includes
-target-size compression and original/result comparison. Release validation and
+flow for **Apple silicon on macOS 27.0+**. Version **0.2.1 (build 5)** refines
+preview accuracy, page selection, pending/apply/save clarity, accessibility, and
+visual consistency while retaining target-size compression and original/result
+comparison. Release validation and
 remaining App Store checks are tracked in [APP_STORE.md](APP_STORE.md). The app
 has not been submitted for review or published on the App Store.
 
-The [0.2.0 download](https://github.com/lenpr/PDFwringer/releases/tag/v0.2.0) is
+The previous validated [0.2.0 download](https://github.com/lenpr/PDFwringer/releases/tag/v0.2.0) is
 signed, notarized, and available through Homebrew. All 399 tests passed; the
 matching App Store candidate passed signed archive/export and Organizer validation.
 

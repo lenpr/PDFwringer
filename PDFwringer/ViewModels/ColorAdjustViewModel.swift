@@ -9,6 +9,9 @@ class ColorAdjustViewModel {
     var saturation: Float = 1
 
     var previewImage: NSImage?
+    private(set) var previewUnavailable = false
+    private(set) var isPreviewUpdating = false
+    private(set) var lastPublishedPreviewPage: Int?
     @ObservationIgnored private(set) var lastPublishedPreviewSettings: PDFColorAdjuster.Settings?
     var resultMessage: String?
     var isError = false
@@ -22,6 +25,7 @@ class ColorAdjustViewModel {
     @ObservationIgnored private var previewGeneration = 0
     @ObservationIgnored private weak var pendingPreviewDocument: PDFDocument?
     @ObservationIgnored private var pendingPreviewPage = 0
+    @ObservationIgnored private var pendingPreviewSettings = PDFColorAdjuster.Settings(brightness: 0, contrast: 1, saturation: 1)
     /// Single-flight guard: prevents concurrent preview renders from exhausting resources.
     @ObservationIgnored private(set) var isRendering = false
     @ObservationIgnored private let adjuster = PDFColorAdjuster()
@@ -49,7 +53,12 @@ class ColorAdjustViewModel {
 
     // MARK: - Preview
 
-    func updatePreview(document: PDFDocument, page: Int) {
+    func updatePreview(document: PDFDocument, page: Int, selection: PageSelection? = nil) {
+        if lastPublishedPreviewPage != page { previewImage = nil }
+        previewUnavailable = false
+        isPreviewUpdating = true
+        let includesPage = selection.map { $0.includes(page) } ?? true
+        pendingPreviewSettings = includesPage ? settings : .init(brightness: 0, contrast: 1, saturation: 1)
         previewTask?.cancel()
         previewGeneration += 1
         pendingPreviewDocument = document
@@ -62,7 +71,7 @@ class ColorAdjustViewModel {
               let document = pendingPreviewDocument else { return }
 
         let gen = previewGeneration
-        let currentSettings = settings
+        let currentSettings = pendingPreviewSettings
 
         let pageIndex = pendingPreviewPage
 
@@ -76,9 +85,10 @@ class ColorAdjustViewModel {
             // Debounce before serializing a potentially expensive page. Cancelled
             // slider changes must not perform this work on the UI thread.
             // PDFKit access stays on MainActor; the worker receives only Data.
-            guard let pageData = document.page(at: pageIndex)?.dataRepresentation else { return }
-
             do {
+                guard let pageData = document.page(at: pageIndex)?.dataRepresentation else {
+                    throw PDFwringerError.cannotCreateOutput
+                }
                 let previewData = try await PDFPageWorker.run(pageData: pageData) { page in
                     guard let (rendered, _) = PDFRasterizer.render(
                         page,
@@ -88,10 +98,10 @@ class ColorAdjustViewModel {
                         throw PDFwringerError.cannotCreateOutput
                     }
 
-                    let adjusted = PDFColorAdjuster.adjustImage(
+                    guard let adjusted = PDFColorAdjuster.adjustImage(
                         rendered,
                         settings: currentSettings
-                    ) ?? rendered
+                    ) else { throw PDFwringerError.cannotCreateOutput }
                     guard let data = PDFRasterizer.jpegData(for: adjusted, quality: 0.9) else {
                         throw PDFwringerError.cannotCreateOutput
                     }
@@ -99,13 +109,17 @@ class ColorAdjustViewModel {
                 }
                 try Task.checkCancellation()
 
-                guard let self,
-                      self.previewGeneration == gen,
-                      let preview = NSImage(data: previewData) else { return }
+                guard let self, self.previewGeneration == gen else { return }
+                guard let preview = NSImage(data: previewData) else {
+                    throw PDFwringerError.cannotCreateOutput
+                }
+                self.lastPublishedPreviewPage = pageIndex
                 self.lastPublishedPreviewSettings = currentSettings
                 self.previewImage = preview
             } catch {
-                // Preview generation is best-effort; a subsequent change retries it.
+                guard let self, self.previewGeneration == gen, !(error is CancellationError) else { return }
+                self.previewImage = nil
+                self.previewUnavailable = true
             }
         }
     }
@@ -114,10 +128,13 @@ class ColorAdjustViewModel {
         isRendering = false
         if previewGeneration != generation {
             startPendingPreviewIfNeeded()
+        } else {
+            isPreviewUpdating = false
         }
     }
 
     func cancelPreview() {
+        isPreviewUpdating = false
         pendingPreviewDocument = nil
         previewGeneration += 1
         previewTask?.cancel()

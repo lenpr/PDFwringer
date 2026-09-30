@@ -30,6 +30,21 @@ struct DropReceiverView: NSViewRepresentable {
 class DropNSView: NSView {
     var onDrop: (([URL]) -> Void)?
     var onTargetChanged: ((Bool) -> Void)?
+    private var isDropTargeted = false
+
+    private func setTargeted(_ targeted: Bool) {
+        isDropTargeted = targeted
+        needsDisplay = true
+        onTargetChanged?(targeted)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard isDropTargeted else { return }
+        NSColor(red: 0.91, green: 0.39, blue: 0.30, alpha: 1).setStroke()
+        let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 4, dy: 4), xRadius: 10, yRadius: 10)
+        path.lineWidth = 2
+        path.stroke()
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -48,7 +63,7 @@ class DropNSView: NSView {
 
     override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
         let dominated = hasPDFFiles(in: sender)
-        onTargetChanged?(dominated)
+        setTargeted(dominated)
         return dominated ? .copy : []
     }
 
@@ -57,7 +72,7 @@ class DropNSView: NSView {
     }
 
     override func draggingExited(_ sender: (any NSDraggingInfo)?) {
-        onTargetChanged?(false)
+        setTargeted(false)
     }
 
     override func prepareForDragOperation(_ sender: any NSDraggingInfo) -> Bool {
@@ -65,7 +80,7 @@ class DropNSView: NSView {
     }
 
     override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
-        onTargetChanged?(false)
+        setTargeted(false)
         guard let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [
             .urlReadingContentsConformToTypes: [UTType.pdf.identifier]
         ]) as? [URL], !urls.isEmpty else {

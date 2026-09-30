@@ -77,9 +77,18 @@ struct PageSelection: Equatable {
     var appliesToAll = true
     var selectedPages: Set<Int> = []
 
-    mutating func update(from rangeText: String, pageCount: Int) {
-        selectedPages = Set((try? PageRangeParser.parse(rangeText, pageCount: pageCount)) ?? [])
+    @discardableResult
+    mutating func update(from rangeText: String, pageCount: Int) -> String? {
+        do {
+            selectedPages = Set(try PageRangeParser.parse(rangeText, pageCount: pageCount))
+            return selectedPages.isEmpty ? String(localized: "Choose at least one page.") : nil
+        } catch {
+            selectedPages = []
+            return PDFwringerError.userMessage(for: error)
+        }
     }
+
+    func includes(_ page: Int) -> Bool { appliesToAll || selectedPages.contains(page) }
 
     func resolvedIndices(pageCount: Int) -> [Int]? {
         guard pageCount > 0 else { return nil }

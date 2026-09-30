@@ -11,6 +11,7 @@ struct ColorAdjustOptionsView: View {
     let onFilesDropped: ([URL]) -> Void
     @Binding var currentPage: Int
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var vm = ColorAdjustViewModel()
     @State private var pageSelection = PageSelection()
     @State private var savedPageSelection = PageSelection()
@@ -23,86 +24,95 @@ struct ColorAdjustOptionsView: View {
 
             Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    OptionsHeaderView(url: url, onBack: onBack)
+            ScrollViewReader { scroll in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        OptionsHeaderView(url: url, onBack: onBack, allowsEscapeBack: !vm.isSaving)
 
-                    HStack {
-                        Text(String(localized: "Adjust Colors"))
-                            .font(.title3.weight(.semibold))
-                        Spacer()
-                        Text("\(document.pageCount) pages")
+                        HStack {
+                            Text(String(localized: "Adjust Colors"))
+                                .font(.title3.weight(.semibold))
+                            Spacer()
+                            Text("\(document.pageCount) pages")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Divider()
+
+                        if document.isEncrypted {
+                            Text(String(localized: "The saved copy will not be password-protected."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    }
-
-                    Divider()
-
-                    if document.isEncrypted {
-                        Text(String(localized: "The saved copy will not be password-protected."))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    }
-
-                    Text(String(localized: "Adjusted pages become images. Searchable text, accessibility tags, interactive forms, links, and digital signatures on those pages are not preserved."))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    PageSelectionView(
-                        pageCount: document.pageCount,
-                        selection: $pageSelection,
-                        shakeOffset: $shakeOffset,
-                        label: String(localized: "Adjust all pages")
-                    )
-
-                    Divider()
-
-                    sliderSection
-                        .disabled(vm.isSaving)
-
-                    presetButtons
-                        .disabled(vm.isSaving)
-
-                    Spacer()
-
-                    HStack {
-                        Spacer()
-                        Button(String(localized: "Save")) {
-                            saveAdjustedPDF()
                         }
-                        .keyboardShortcut("s")
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .disabled(vm.isIdentity || vm.isSaving)
-                    }
 
-                    if vm.isSaving {
-                        HStack(spacing: 8) {
-                            ProgressView(value: vm.progress)
-                                .progressViewStyle(.linear)
-                            Button(String(localized: "Cancel")) { vm.cancel() }
-                                .buttonStyle(.plain)
-                                .foregroundStyle(.secondary)
-                                .font(.caption)
-                        }
-                    }
+                        Text(String(localized: "Adjusted pages become images. Searchable text, accessibility tags, interactive forms, links, and digital signatures on those pages are not preserved."))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
 
-                    if let msg = vm.resultMessage {
-                        ResultMessageView(
-                            message: msg,
-                            isError: vm.isError,
-                            outputURL: vm.lastOutputURL,
-                            onRetry: vm.isError ? { saveAdjustedPDF() } : nil
+                        PageSelectionView(
+                            pageCount: document.pageCount,
+                            selection: $pageSelection,
+                            shakeOffset: $shakeOffset,
+                            label: String(localized: "Adjust all pages")
                         )
+
+                        Divider()
+
+                        sliderSection
+                            .disabled(vm.isSaving)
+
+                        presetButtons
+                            .disabled(vm.isSaving)
+
+                        Spacer()
+
+                        HStack {
+                            Spacer()
+                            Button(String(localized: "Save Copy…")) {
+                                saveAdjustedPDF()
+                            }
+                            .keyboardShortcut("s")
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
+                            .disabled(vm.isIdentity || vm.isSaving)
+                        }
+
+                        if vm.isSaving {
+                            HStack(spacing: 8) {
+                                ProgressView(String(localized: "Saving adjusted copy…"), value: vm.progress)
+                                    .progressViewStyle(.linear)
+                                Button(String(localized: "Cancel")) { vm.cancel() }
+                                    .keyboardShortcut(.cancelAction)
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                            }
+                        }
+
+                        if let msg = vm.resultMessage {
+                            ResultMessageView(
+                                message: msg,
+                                isError: vm.isError,
+                                outputURL: vm.lastOutputURL,
+                                onRetry: vm.isError ? { saveAdjustedPDF() } : nil
+                            )
+                        }
                     }
+                    .padding(24)
+                    .frame(maxWidth: 520, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(24)
+                .onChange(of: vm.resultMessage) { _, message in
+                    if message != nil { scroll.scrollTo("operation-result", anchor: .bottom) }
+                }
             }
             .frame(minWidth: 300, idealWidth: 340)
             .tint(.coral)
         }
         .onChange(of: hasPendingChanges) { _, dirty in appVM.hasUnsavedChanges = dirty }
         .onChange(of: currentPage) { _, _ in refreshPreview() }
+        .onChange(of: pageSelection) { _, _ in refreshPreview(); clearResult() }
+        .onChange(of: vm.settings) { _, _ in clearResult() }
         .onChange(of: vm.brightness) { _, _ in refreshPreview() }
         .onChange(of: vm.contrast) { _, _ in refreshPreview() }
         .onChange(of: vm.saturation) { _, _ in refreshPreview() }
@@ -119,7 +129,14 @@ struct ColorAdjustOptionsView: View {
     }
 
     private func refreshPreview() {
-        vm.updatePreview(document: document, page: currentPage)
+        vm.updatePreview(document: document, page: currentPage, selection: pageSelection)
+    }
+
+    private func clearResult() {
+        guard !vm.isSaving else { return }
+        vm.resultMessage = nil
+        vm.lastOutputURL = nil
+        vm.isError = false
     }
 
     private func saveAdjustedPDF() {
@@ -175,11 +192,25 @@ struct ColorAdjustOptionsView: View {
                     .fill(Color(nsColor: .controlBackgroundColor))
                     .aspectRatio(0.707, contentMode: .fit)
                     .overlay {
-                        ProgressView()
+                        if vm.previewUnavailable {
+                            Label(String(localized: "Preview unavailable"), systemImage: "eye.slash")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ProgressView(String(localized: "Updating preview…"))
+                        }
                     }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .top) {
+            if vm.isPreviewUpdating && vm.previewImage != nil {
+                Text(String(localized: "Updating preview…"))
+                    .font(.caption)
+                    .padding(8)
+                    .background(.regularMaterial, in: Capsule())
+            }
+        }
+        .accessibilityLabel(String(localized: "Page \(currentPage + 1) preview"))
     }
 
     // MARK: - Sliders
@@ -198,32 +229,34 @@ struct ColorAdjustOptionsView: View {
                 Text(label)
                     .font(.callout)
                 Spacer()
-                Text(String(format: "%.2f", value.wrappedValue))
+                Text(value.wrappedValue.formatted(.number.precision(.fractionLength(2))))
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
             Slider(value: value, in: range)
                 .accessibilityLabel(label)
-                .accessibilityValue(String(format: "%.2f", value.wrappedValue))
+                .accessibilityValue(value.wrappedValue.formatted(.number.precision(.fractionLength(2))))
         }
     }
 
     // MARK: - Presets
 
     private var presetButtons: some View {
-        HStack(spacing: 8) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 60))], alignment: .leading, spacing: 8) {
             ForEach(ColorPreset.allCases, id: \.self) { preset in
                 Button(preset.title) {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                         vm.applyPreset(preset)
                     }
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                .help(preset.help)
+                .accessibilityLabel(preset.help)
             }
 
             Button(String(localized: "Reset")) {
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                     vm.reset()
                 }
             }

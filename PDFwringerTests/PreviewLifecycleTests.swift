@@ -102,6 +102,53 @@ struct PreviewLifecycleTests {
         #expect(vm.lastPublishedPreviewSettings == vm.settings)
     }
 
+    @Test("Color preview leaves excluded pages unchanged and refreshes selection")
+    func colorPreviewSelection() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
+        defer { TestPDFGenerator.cleanup(source) }
+        let document = try #require(PDFDocument(url: source))
+        let vm = ColorAdjustViewModel()
+        defer { vm.cancelPreview() }
+        vm.brightness = 0.4
+        let selection = PageSelection(appliesToAll: false, selectedPages: [1])
+        vm.updatePreview(document: document, page: 0, selection: selection)
+        try await waitUntil { !vm.isRendering }
+        #expect(vm.previewImage != nil)
+        #expect(vm.lastPublishedPreviewSettings?.isIdentity == true)
+        #expect(vm.lastPublishedPreviewPage == 0)
+        vm.updatePreview(document: document, page: 1, selection: selection)
+        #expect(vm.previewImage == nil)
+        try await waitUntil { !vm.isRendering }
+        #expect(vm.lastPublishedPreviewSettings == vm.settings)
+        #expect(vm.lastPublishedPreviewPage == 1)
+        vm.updatePreview(document: document, page: 1, selection: PageSelection(appliesToAll: false))
+        try await waitUntil { !vm.isRendering }
+        #expect(vm.lastPublishedPreviewSettings?.isIdentity == true)
+        #expect(!vm.isPreviewUpdating)
+    }
+
+    @Test("Failed color preview clears old imagery, settles, and can recover")
+    func failedColorPreview() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
+        defer { TestPDFGenerator.cleanup(source) }
+        let document = try #require(PDFDocument(url: source))
+        let vm = ColorAdjustViewModel()
+        defer { vm.cancelPreview() }
+        vm.updatePreview(document: document, page: 0)
+        try await waitUntil { !vm.isRendering }
+        #expect(vm.previewImage != nil)
+        vm.updatePreview(document: document, page: 4)
+        #expect(vm.previewImage == nil)
+        try await waitUntil { !vm.isRendering }
+        #expect(vm.previewUnavailable)
+        #expect(!vm.isPreviewUpdating)
+        #expect(vm.previewImage == nil)
+        vm.updatePreview(document: document, page: 0)
+        try await waitUntil { !vm.isRendering }
+        #expect(!vm.previewUnavailable)
+        #expect(vm.previewImage != nil)
+    }
+
     @Test("A new document cannot receive an older document's pending thumbnail")
     func switchingDocumentsDuringRender() async throws {
         let red = try coloredDocument(red: 1, blue: 0)

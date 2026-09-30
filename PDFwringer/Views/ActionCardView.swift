@@ -34,17 +34,17 @@ struct ActionCardView: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.tertiary)
             }
-            .padding(14)
+            .padding(11)
             .background {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(isHovered ? Self.iconColor.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
-                    .shadow(color: Color(nsColor: .shadowColor).opacity(isHovered ? 0.12 : 0.08), radius: isHovered ? 6 : 2, y: isHovered ? 2 : 1)
+
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 10)
                     .strokeBorder(isHovered ? Self.iconColor.opacity(0.3) : Color.primary.opacity(0.04), lineWidth: 0.5)
             }
-            .offset(y: isHovered ? -1 : 0)
+
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }

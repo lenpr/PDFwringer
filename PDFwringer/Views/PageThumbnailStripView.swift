@@ -10,6 +10,7 @@ struct PageThumbnailStripView: View {
     private let thumbWidth: CGFloat = 48
     private let thumbHeight: CGFloat = 64
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var cache = ThumbnailCache()
     @State private var zoomedPage: Int?
 
@@ -40,7 +41,7 @@ struct PageThumbnailStripView: View {
                 }
                 .onChange(of: currentPage?.wrappedValue) { _, newValue in
                     if let page = newValue {
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                             proxy.scrollTo(page, anchor: .center)
                         }
                     }
@@ -73,7 +74,7 @@ struct PageThumbnailStripView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                 } else {
-                    ShimmerPlaceholder()
+                    ThumbnailPlaceholder()
                 }
             }
             .frame(width: thumbWidth, height: thumbHeight)
@@ -88,8 +89,8 @@ struct PageThumbnailStripView: View {
             }
             .opacity(selectable && !isSelected && !isCurrent ? 0.7 : 1.0)
             .shadow(color: Color(nsColor: .shadowColor).opacity(isCurrent ? 0.2 : 0.1), radius: isCurrent ? 3 : 1, y: 1)
-            .scaleEffect(isCurrent ? 1.08 : 1.0)
-            .animation(.spring(duration: 0.25, bounce: 0.4), value: currentPage?.wrappedValue)
+            .scaleEffect(isCurrent && !reduceMotion ? 1.04 : 1.0)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: currentPage?.wrappedValue)
 
             Text("\(index + 1)")
                 .font(isSelected || isCurrent ? .caption2.bold() : .caption2)
@@ -100,10 +101,8 @@ struct PageThumbnailStripView: View {
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel("Page \(index + 1)")
-        .accessibilityValue(isSelected ? "Selected" : (isCurrent ? "Current" : ""))
-        .onTapGesture(count: 2) {
-            zoomedPage = index
-        }
+        .accessibilityValue([isCurrent ? "Current" : "", isSelected ? "Selected" : ""].filter { !$0.isEmpty }.joined(separator: ", "))
+        .onTapGesture(count: 2) { zoomedPage = index }
         .onTapGesture { activatePage(index) }
         .focusable()
         .onKeyPress(keys: [.space, .return], phases: .down) { _ in
@@ -112,6 +111,25 @@ struct PageThumbnailStripView: View {
         }
         .accessibilityAction { activatePage(index) }
         .accessibilityAction(named: Text("Show Preview")) { zoomedPage = index }
+        .accessibilityActions {
+            if selectable {
+                Button(String(localized: "Toggle Selection")) { toggleSelection(index) }
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if selectable {
+                Button { toggleSelection(index) } label: {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(isSelected ? Color.coralText : Color.primary)
+                        .padding(4)
+                        .background(.regularMaterial, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .help(isSelected ? String(localized: "Exclude this page") : String(localized: "Include this page"))
+                .accessibilityLabel("Select page \(index + 1)")
+                .accessibilityValue(isSelected ? "Selected" : "Not selected")
+            }
+        }
         .contextMenu {
             Button("Show Preview") { zoomedPage = index }
         }
@@ -145,12 +163,14 @@ struct PageThumbnailStripView: View {
 
     private func activatePage(_ index: Int) {
         currentPage?.wrappedValue = index
-        if let binding = selectedPages {
-            if binding.wrappedValue.contains(index) {
-                binding.wrappedValue.remove(index)
-            } else {
-                binding.wrappedValue.insert(index)
-            }
+    }
+
+    private func toggleSelection(_ index: Int) {
+        guard let binding = selectedPages else { return }
+        if binding.wrappedValue.contains(index) {
+            binding.wrappedValue.remove(index)
+        } else {
+            binding.wrappedValue.insert(index)
         }
     }
 
@@ -165,38 +185,16 @@ struct PageThumbnailStripView: View {
     }
 
     private func toggleCurrentPageSelection() {
-        guard let pageBinding = currentPage, let selBinding = selectedPages else { return }
-        let index = pageBinding.wrappedValue
-        if selBinding.wrappedValue.contains(index) {
-            selBinding.wrappedValue.remove(index)
-        } else {
-            selBinding.wrappedValue.insert(index)
-        }
+        guard let pageBinding = currentPage else { return }
+        toggleSelection(pageBinding.wrappedValue)
     }
 }
 
-private struct ShimmerPlaceholder: View {
-    @State private var phase: CGFloat = -1
-
+private struct ThumbnailPlaceholder: View {
     var body: some View {
         Rectangle()
             .fill(Color(nsColor: .controlBackgroundColor))
-            .overlay {
-                Rectangle()
-                    .fill(
-                        LinearGradient(
-                            colors: [.clear, Color.white.opacity(0.15), .clear],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .offset(x: phase * 60)
-            }
-            .clipShape(Rectangle())
-            .onAppear {
-                withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: false)) {
-                    phase = 1
-                }
-            }
+            .overlay { Image(systemName: "doc").foregroundStyle(.tertiary) }
+            .accessibilityHidden(true)
     }
 }

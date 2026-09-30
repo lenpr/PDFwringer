@@ -104,80 +104,89 @@ struct ReorderPagesView: View {
             Divider()
 
             // Right: controls
-            VStack(alignment: .leading, spacing: 16) {
-                OptionsHeaderView(url: url, onBack: onBack)
+            ScrollViewReader { scroll in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        OptionsHeaderView(url: url, onBack: onBack, allowsEscapeBack: !vm.isSaving)
 
-                HStack {
-                    Text(String(localized: "Reorder Pages"))
-                        .font(.title3.weight(.semibold))
-                    Spacer()
-                    Text("\(document.pageCount) pages")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                        HStack {
+                            Text(String(localized: "Reorder Pages"))
+                                .font(.title3.weight(.semibold))
+                            Spacer()
+                            Text("\(document.pageCount) pages")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
 
-                Divider()
+                        Divider()
 
-                if document.isEncrypted {
-                    Text(String(localized: "The reordered copy will not be password-protected."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-
-                Text(String(localized: "Drag pages to rearrange them, or select a page and use Move Earlier or Move Later (Option–Up/Down Arrow). Changes are saved to a new file."))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-
-                Divider()
-
-                // Quick actions
-                HStack(spacing: 8) {
-                    Button(String(localized: "Reverse")) {
-                        withAnimation { vm.pageOrder.reverse() }
-                    }
-                    .controlSize(.small)
-                    .disabled(vm.isSaving)
-
-                    Button(String(localized: "Reset")) {
-                        withAnimation { vm.reset() }
-                    }
-                    .controlSize(.small)
-                    .disabled(vm.isSaving)
-                }
-
-                Spacer()
-
-                HStack {
-                    Spacer()
-                    Button(String(localized: "Save")) {
-                        Task { await vm.save(source: url, document: document) }
-                    }
-                    .keyboardShortcut("s")
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .disabled(!vm.canSave)
-                }
-
-                if vm.isSaving {
-                    HStack(spacing: 8) {
-                        ProgressView(value: vm.progress)
-                            .progressViewStyle(.linear)
-                        Button(String(localized: "Cancel")) { vm.cancel() }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.secondary)
+                        if document.isEncrypted {
+                            Text(String(localized: "The reordered copy will not be password-protected."))
                             .font(.caption)
-                    }
-                }
+                            .foregroundStyle(.secondary)
+                        }
 
-                if let msg = vm.resultMessage {
-                    ResultMessageView(
-                        message: msg,
-                        isError: vm.isError,
-                        outputURL: vm.lastOutputURL
-                    )
+                        Text(String(localized: "Drag pages to rearrange them, or select a page and use Move Earlier or Move Later (Option–Up/Down Arrow). Changes are saved to a new file."))
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+
+                        Divider()
+
+                        // Quick actions
+                        HStack(spacing: 8) {
+                            Button(String(localized: "Reverse")) {
+                                withAnimation { vm.pageOrder.reverse() }
+                            }
+                            .controlSize(.small)
+                            .disabled(vm.isSaving)
+
+                            Button(String(localized: "Reset")) {
+                                withAnimation { vm.reset() }
+                            }
+                            .controlSize(.small)
+                            .disabled(vm.isSaving)
+                        }
+
+                        Spacer()
+
+                        HStack {
+                            Spacer()
+                            Button(String(localized: "Save Copy…")) {
+                                Task { await vm.save(source: url, document: document) }
+                            }
+                            .keyboardShortcut("s")
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
+                            .disabled(!vm.canSave)
+                        }
+
+                        if vm.isSaving {
+                            HStack(spacing: 8) {
+                                ProgressView(String(localized: "Saving reordered copy…"), value: vm.progress)
+                                    .progressViewStyle(.linear)
+                                Button(String(localized: "Cancel")) { vm.cancel() }
+                                        .keyboardShortcut(.cancelAction)
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.small)
+                            }
+                        }
+
+                        if let msg = vm.resultMessage {
+                            ResultMessageView(
+                                message: msg,
+                                isError: vm.isError,
+                                outputURL: vm.lastOutputURL
+                            )
+                        }
+                    }
+                    .padding(24)
+                    .frame(maxWidth: 520, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .onChange(of: vm.resultMessage) { _, message in
+                    if message != nil { scroll.scrollTo("operation-result", anchor: .bottom) }
                 }
             }
-            .padding(24)
             .frame(minWidth: 280, idealWidth: 320)
             .tint(.coral)
         }

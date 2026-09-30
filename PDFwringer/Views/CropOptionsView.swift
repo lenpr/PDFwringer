@@ -25,6 +25,16 @@ struct CropOptionsView: View {
     @State private var lastOutputURL: URL?
     @State private var isDropTargeted = false
     @State private var documentGeneration = 0
+    @State private var workingCopyHasChanges = false
+    @State private var resizePending = false
+    @State private var showingResizeGuide = false
+    @State private var isWarning = false
+
+    private var hasPendingCrop: Bool {
+        [cropTop, cropBottom, cropLeft, cropRight].contains { $0 != 0 }
+    }
+    private var hasPendingSettings: Bool { hasPendingCrop || resizePending }
+    private var hasUnsavedChanges: Bool { workingCopyHasChanges || hasPendingSettings }
 
     private let cropper = PDFCropper()
 
@@ -36,12 +46,12 @@ struct CropOptionsView: View {
                     currentPage: $currentPage,
                     generation: documentGeneration,
                     cropInsets: NSEdgeInsets(
-                        top: max(0, cropTop),
-                        left: max(0, cropLeft),
-                        bottom: max(0, cropBottom),
-                        right: max(0, cropRight)
+                        top: !pageSelection.includes(currentPage) || showingResizeGuide ? 0 : max(0, cropTop),
+                        left: !pageSelection.includes(currentPage) || showingResizeGuide ? 0 : max(0, cropLeft),
+                        bottom: !pageSelection.includes(currentPage) || showingResizeGuide ? 0 : max(0, cropBottom),
+                        right: !pageSelection.includes(currentPage) || showingResizeGuide ? 0 : max(0, cropRight)
                     ),
-                    resizeTarget: computedResizeTarget
+                    resizeTarget: pageSelection.includes(currentPage) && showingResizeGuide && resizePending ? computedResizeTarget : nil
                 )
 
                 PageThumbnailStripView(
@@ -61,125 +71,149 @@ struct CropOptionsView: View {
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 16) {
-                OptionsHeaderView(url: url, onBack: onBack)
+            ScrollViewReader { scroll in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        OptionsHeaderView(url: url, onBack: onBack)
 
-                HStack {
-                    Text(String(localized: "Crop / Resize"))
-                        .font(.title3.weight(.semibold))
-                    Spacer()
-                    Text("\(document.pageCount) pages")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .contentTransition(.numericText())
-                }
-
-                Divider()
-
-                PageSelectionView(
-                    pageCount: document.pageCount,
-                    selection: $pageSelection,
-                    shakeOffset: $shakeOffset
-                )
-
-                Divider()
-
-                // Crop margins section
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(String(localized: "Crop margins (points)"))
-                        .font(.callout.weight(.medium))
-
-                    HStack(spacing: 12) {
-                        VStack(spacing: 2) {
-                            Text(String(localized: "Top")).font(.caption2).foregroundStyle(.secondary)
-                            TextField("0", value: $cropTop, format: .number)
-                                .frame(width: 50)
-                                .textFieldStyle(.roundedBorder)
-                                .accessibilityLabel(String(localized: "Top margin"))
+                        HStack {
+                            Text(String(localized: "Crop / Resize"))
+                                .font(.title3.weight(.semibold))
+                            Spacer()
+                            Text("\(document.pageCount) pages")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .contentTransition(.numericText())
                         }
-                        VStack(spacing: 2) {
-                            Text(String(localized: "Bottom")).font(.caption2).foregroundStyle(.secondary)
-                            TextField("0", value: $cropBottom, format: .number)
-                                .frame(width: 50)
-                                .textFieldStyle(.roundedBorder)
-                                .accessibilityLabel(String(localized: "Bottom margin"))
-                        }
-                        VStack(spacing: 2) {
-                            Text(String(localized: "Left")).font(.caption2).foregroundStyle(.secondary)
-                            TextField("0", value: $cropLeft, format: .number)
-                                .frame(width: 50)
-                                .textFieldStyle(.roundedBorder)
-                                .accessibilityLabel(String(localized: "Left margin"))
-                        }
-                        VStack(spacing: 2) {
-                            Text(String(localized: "Right")).font(.caption2).foregroundStyle(.secondary)
-                            TextField("0", value: $cropRight, format: .number)
-                                .frame(width: 50)
-                                .textFieldStyle(.roundedBorder)
-                                .accessibilityLabel(String(localized: "Right margin"))
-                        }
-                        Spacer()
-                        Button(String(localized: "Crop")) { applyCrop() }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(cropTop == 0 && cropBottom == 0 && cropLeft == 0 && cropRight == 0)
-                    }
-                }
 
-                Divider()
+                        Divider()
 
-                // Resize section
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(String(localized: "Set page size"))
-                        .font(.callout.weight(.medium))
+                        PageSelectionView(
+                            pageCount: document.pageCount,
+                            selection: $pageSelection,
+                            shakeOffset: $shakeOffset
+                        )
 
-                    HStack(spacing: 12) {
-                        Picker("", selection: $selectedPaperSize) {
-                            ForEach(PaperSize.allCases) { size in
-                                Text(size.rawValue).tag(size)
+                        Divider()
+
+                        // Crop margins section
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(String(localized: "Crop margins (points)"))
+                                .font(.callout.weight(.medium))
+
+                            Grid(horizontalSpacing: 16, verticalSpacing: 8) {
+                                GridRow {
+                                    marginField(String(localized: "Top"), value: $cropTop)
+                                    marginField(String(localized: "Bottom"), value: $cropBottom)
+                                }
+                                GridRow {
+                                    marginField(String(localized: "Left"), value: $cropLeft)
+                                    marginField(String(localized: "Right"), value: $cropRight)
+                                }
                             }
-                        }
-                        .labelsHidden()
-                        .frame(width: 80)
+                            Button(String(localized: "Apply Crop")) { applyCrop() }
+                                .buttonStyle(.bordered)
+                                .disabled(!hasPendingCrop)
 
-                        Toggle(String(localized: "Landscape"), isOn: $landscape)
-                            .toggleStyle(.checkbox)
-                            .font(.caption)
+                        }
+
+                        Divider()
+
+                        // Resize section
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(String(localized: "Set page size"))
+                                .font(.callout.weight(.medium))
+
+                            HStack(spacing: 12) {
+                                Picker(String(localized: "Page size"), selection: $selectedPaperSize) {
+                                    ForEach(PaperSize.allCases) { size in
+                                        Text(size.rawValue).tag(size)
+                                    }
+                                }
+                                .labelsHidden()
+                                .frame(width: 80)
+
+                                Toggle(String(localized: "Landscape"), isOn: $landscape)
+                                    .toggleStyle(.checkbox)
+                                    .font(.caption)
+
+                            }
+                            Button(String(localized: "Apply Page Size")) { applyResize() }
+                                .buttonStyle(.bordered)
+
+                            Text(String(localized: "Changes the page bounds without scaling content. Content outside the new bounds may be hidden."))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if hasPendingSettings {
+                            Text(String(localized: "Guide only — apply the pending changes before saving."))
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                            Button(String(localized: "Discard Pending Changes")) {
+                                cropTop = 0; cropBottom = 0; cropLeft = 0; cropRight = 0
+                                resizePending = false
+                                showingResizeGuide = false
+                                clearFeedback()
+                            }
+                            .buttonStyle(.bordered)
+                        }
+
+                        // Save button
+                        HStack {
+                            Spacer()
+                            Button(String(localized: "Save Copy…")) { saveCropped() }
+                                .keyboardShortcut("s")
+                                .controlSize(.large)
+                                .buttonStyle(.borderedProminent)
+                        }
+
+                        if let msg = resultMessage {
+                            ResultMessageView(
+                                message: msg,
+                                isError: isError,
+                                outputURL: lastOutputURL,
+                                onRetry: nil,
+                                isWarning: isWarning
+                            )
+                        }
 
                         Spacer()
-
-                        Button(String(localized: "Resize")) { applyResize() }
-                            .buttonStyle(.borderedProminent)
                     }
-
-                    Text(String(localized: "Centers the new page bounds without scaling the content."))
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                    .padding(24)
+                    .frame(maxWidth: 520, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-
-                // Save button
-                HStack {
-                    Spacer()
-                    Button(String(localized: "Save")) { saveCropped() }
-                        .keyboardShortcut("s")
-                        .controlSize(.large)
-                        .buttonStyle(.borderedProminent)
+                .onChange(of: resultMessage) { _, message in
+                    if message != nil { scroll.scrollTo("operation-result", anchor: .bottom) }
                 }
-
-                if let msg = resultMessage {
-                    ResultMessageView(
-                        message: msg,
-                        isError: isError,
-                        outputURL: lastOutputURL,
-                        onRetry: nil
-                    )
-                }
-
-                Spacer()
             }
-            .padding(24)
             .frame(minWidth: 300, idealWidth: 340)
             .tint(.coral)
         }
+        .onChange(of: [cropTop, cropBottom, cropLeft, cropRight]) { _, values in
+            if values.contains(where: { $0 != 0 }) { showingResizeGuide = false; clearFeedback() }
+        }
+        .onChange(of: selectedPaperSize) { _, _ in resizePending = true; showingResizeGuide = true; clearFeedback() }
+        .onChange(of: landscape) { _, _ in resizePending = true; showingResizeGuide = true; clearFeedback() }
+        .onChange(of: pageSelection) { _, _ in clearFeedback() }
+        .onChange(of: hasUnsavedChanges) { _, dirty in onDirtyChange?(dirty) }
+    }
+
+    private func marginField(_ label: String, value: Binding<Double>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            TextField("0", value: value, format: .number)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel("\(label) margin in points")
+        }
+    }
+
+    private func clearFeedback() {
+        resultMessage = nil
+        lastOutputURL = nil
+        isError = false
+        isWarning = false
     }
 
     private var computedResizeTarget: CGSize? {
@@ -201,6 +235,7 @@ struct CropOptionsView: View {
     }
 
     private func applyCrop() {
+        clearFeedback()
         guard let indices = targetIndices else {
             Formatting.triggerShake($shakeOffset)
             return
@@ -238,10 +273,12 @@ struct CropOptionsView: View {
             ? "Cropped \(result.pagesModified) pages (\(result.pagesSkipped) skipped — crop exceeds dimensions)."
             : nil
         isError = false
-        if result.pagesModified > 0 { onDirtyChange?(true) }
+        isWarning = result.pagesSkipped > 0
+        if result.pagesModified > 0 { workingCopyHasChanges = true }
     }
 
     private func applyResize() {
+        clearFeedback()
         guard let indices = targetIndices else {
             Formatting.triggerShake($shakeOffset)
             return
@@ -264,13 +301,22 @@ struct CropOptionsView: View {
             isError = true
             return
         }
+        resizePending = false
         documentGeneration += 1
         resultMessage = nil
         isError = false
-        if result.pagesModified > 0 { onDirtyChange?(true) }
+        isWarning = result.pagesSkipped > 0
+        if result.pagesModified > 0 { workingCopyHasChanges = true }
     }
 
     private func saveCropped() {
+        guard !hasPendingSettings else {
+            resultMessage = String(localized: "Apply or discard the pending changes before saving. Nothing saved.")
+            isError = false
+            isWarning = true
+            lastOutputURL = nil
+            return
+        }
         let suggestedName = url.deletingPathExtension().lastPathComponent + "_cropped.pdf"
         guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
 
@@ -281,6 +327,7 @@ struct CropOptionsView: View {
         resultMessage = result.message
         isError = result.isError
         lastOutputURL = result.outputURL
-        if !result.isError { onDirtyChange?(false) }
+        isWarning = false
+        if !result.isError { workingCopyHasChanges = false }
     }
 }

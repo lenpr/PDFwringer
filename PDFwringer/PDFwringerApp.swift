@@ -60,13 +60,13 @@ struct PDFwringerApp: App {
                 Button(String(localized: "Next Page")) {
                     appVM.nextPage()
                 }
-                .keyboardShortcut(.rightArrow, modifiers: [])
+                .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
                 .disabled(!appVM.hasDocument)
 
                 Button(String(localized: "Previous Page")) {
                     appVM.previousPage()
                 }
-                .keyboardShortcut(.leftArrow, modifiers: [])
+                .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
                 .disabled(!appVM.hasDocument)
 
                 Divider()
@@ -74,13 +74,13 @@ struct PDFwringerApp: App {
                 Button(String(localized: "First Page")) {
                     appVM.goToFirstPage()
                 }
-                .keyboardShortcut(.leftArrow, modifiers: .command)
+                .keyboardShortcut(.leftArrow, modifiers: [.command, .option, .shift])
                 .disabled(!appVM.hasDocument)
 
                 Button(String(localized: "Last Page")) {
                     appVM.goToLastPage()
                 }
-                .keyboardShortcut(.rightArrow, modifiers: .command)
+                .keyboardShortcut(.rightArrow, modifiers: [.command, .option, .shift])
                 .disabled(!appVM.hasDocument)
             }
 
@@ -98,16 +98,13 @@ struct PDFwringerApp: App {
                 .keyboardShortcut("2", modifiers: .command)
                 .disabled(!appVM.canSelectSingleFileAction)
 
+                Button(String(localized: "Reorder Pages")) { appVM.selectReorderPages() }
+                    .disabled(!appVM.canSelectSingleFileAction)
+
                 Button(String(localized: "Rotate Pages")) {
                     appVM.selectRotate()
                 }
                 .keyboardShortcut("3", modifiers: .command)
-                .disabled(!appVM.canSelectSingleFileAction)
-
-                Button(String(localized: "Edit Metadata")) {
-                    appVM.selectMetadata()
-                }
-                .keyboardShortcut("4", modifiers: .command)
                 .disabled(!appVM.canSelectSingleFileAction)
 
                 Button(String(localized: "Crop / Resize")) {
@@ -120,6 +117,15 @@ struct PDFwringerApp: App {
                     appVM.selectAdjustColor()
                 }
                 .keyboardShortcut("6", modifiers: .command)
+                .disabled(!appVM.canSelectSingleFileAction)
+
+                Button(String(localized: "Export as Images")) { appVM.selectExportImages() }
+                    .disabled(!appVM.canSelectSingleFileAction)
+
+                Button(String(localized: "Edit Metadata")) {
+                    appVM.selectMetadata()
+                }
+                .keyboardShortcut("4", modifiers: .command)
                 .disabled(!appVM.canSelectSingleFileAction)
 
                 Divider()

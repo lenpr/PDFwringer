@@ -152,6 +152,19 @@ struct PageRangeParserTests {
 
 @Suite("PageSelection")
 struct PageSelectionTests {
+    @Test("Invalid ranges explain failure, clear previous selection, and recover")
+    func selectionValidationFeedback() {
+        var selection = PageSelection(appliesToAll: false, selectedPages: [0, 1])
+        #expect(selection.update(from: "1, 99", pageCount: 5) != nil)
+        #expect(selection.selectedPages.isEmpty)
+        #expect(selection.resolvedIndices(pageCount: 5) == nil)
+        #expect(selection.update(from: "", pageCount: 5) != nil)
+        #expect(selection.update(from: "2-3", pageCount: 5) == nil)
+        #expect(selection.resolvedIndices(pageCount: 5) == [1, 2])
+        #expect(selection.includes(1))
+        #expect(!selection.includes(0))
+    }
+
 
     @Test("All-pages mode resolves the complete document")
     func resolvesAllPages() {

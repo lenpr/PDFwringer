@@ -18,7 +18,7 @@ struct DocumentView: View {
     @Binding var currentPage: Int
 
     @State private var isDropTargeted = false
-    @State private var pageCountScale: CGFloat = 1.0
+
 
     var body: some View {
         HStack(spacing: 0) {
@@ -40,26 +40,20 @@ struct DocumentView: View {
 
             // Right: File info + action cards
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 10) {
                     // File info header
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(url.lastPathComponent)
                                 .font(.headline)
                                 .lineLimit(1)
+                                .truncationMode(.middle)
+                                .help(url.path(percentEncoded: false))
                             Text("\(document.pageCount) pages \u{2022} \(Formatting.fileSize(fileSize))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .contentTransition(.numericText())
-                                .scaleEffect(pageCountScale)
-                                .onAppear {
-                                    withAnimation(.spring(duration: 0.3, bounce: 0.5).delay(0.15)) {
-                                        pageCountScale = 1.15
-                                    }
-                                    withAnimation(.spring(duration: 0.3, bounce: 0.3).delay(0.4)) {
-                                        pageCountScale = 1.0
-                                    }
-                                }
+
                         }
                         Spacer()
                         Button(action: onStartOver) {

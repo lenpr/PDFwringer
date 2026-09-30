@@ -1,8 +1,9 @@
 import SwiftUI
 
 struct OptionsHeaderView: View {
-    let url: URL
+    var url: URL? = nil
     let onBack: () -> Void
+    var allowsEscapeBack = true
 
     var body: some View {
         HStack {
@@ -12,17 +13,21 @@ struct OptionsHeaderView: View {
                     .padding(.vertical, 8)
                     .padding(.horizontal, 10)
             }
-            .keyboardShortcut(.escape, modifiers: [])
+            .keyboardShortcut(allowsEscapeBack ? KeyboardShortcut(.escape, modifiers: []) : nil)
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .contentShape(Rectangle())
 
             Spacer()
 
-            Text(url.lastPathComponent)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            if let url {
+                Text(url.lastPathComponent)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(url.path(percentEncoded: false))
+            }
         }
     }
 }

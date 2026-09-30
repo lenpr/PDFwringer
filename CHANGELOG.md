@@ -1,5 +1,28 @@
 # Release progression
 
+## 0.2.1 (build 5) — 2026-09-30
+
+Refines existing workflows after the adversarial UI/UX review. No new PDF
+operations, permissions, services, or dependencies.
+
+- Crop distinguishes pending guides, applied changes, and saved copies. Pending
+  edits receive unsaved-work protection and cannot be silently omitted on Save.
+- Color previews respect the chosen pages, identify updates, and recover from
+  unavailable previews without displaying a stale page.
+- Page navigation no longer toggles inclusion; separate checkmarks, keyboard
+  selection, inline range errors, and spoken state make selection explicit.
+- Compression comparison uses matching thumbnails and a stable control area.
+  Prepared/cancelled feedback is neutral; saved output alone gets a success check.
+- Options scroll and reflow, result messages wrap and reveal themselves, and
+  headers, primary actions, warnings, progress, and Cancel behave consistently.
+- Existing actions appear in the Actions menu. Page commands use Command–Option
+  arrows (add Shift for first/last), preserving ordinary text caret navigation.
+- Merge ordering has the same keyboard alternatives as page reordering.
+- Calmer cards/landing screen, comfortable zoom controls, adaptive small accent
+  text, and reduced decorative motion preserve the existing visual identity.
+
+Validation and distribution evidence are tracked in `APP_STORE.md`.
+
 ## 0.2.0 (build 4) — 2026-09-30
 
 The first downloadable release of the production hardening and compression

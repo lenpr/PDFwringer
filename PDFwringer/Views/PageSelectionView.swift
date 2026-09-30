@@ -1,4 +1,5 @@
 import SwiftUI
+import Accessibility
 
 struct PageSelectionView: View {
     let pageCount: Int
@@ -7,6 +8,7 @@ struct PageSelectionView: View {
 
     @State private var pageRangeText = ""
     @State private var selectionProducedByText: Set<Int>?
+    @State private var validationMessage: String?
 
     var label: String = String(localized: "Apply to all pages")
 
@@ -28,15 +30,24 @@ struct PageSelectionView: View {
                         .offset(x: shakeOffset)
                         .onChange(of: pageRangeText) {
                             var updatedSelection = selection
-                            updatedSelection.update(from: pageRangeText, pageCount: pageCount)
+                            validationMessage = updatedSelection.update(from: pageRangeText, pageCount: pageCount)
                             selectionProducedByText = updatedSelection.selectedPages
                             selection.selectedPages = updatedSelection.selectedPages
                         }
                 }
-                Text(String(localized: "Tap thumbnails or type page numbers"))
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                if let message = validationMessage ?? (selection.selectedPages.isEmpty ? String(localized: "Choose at least one page.") : nil) {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .accessibilityAddTraits(.updatesFrequently)
+                }
+                Text(String(localized: "Click a thumbnail to view it. Use its checkmark or type page numbers to select pages."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
+        }
+        .onChange(of: validationMessage) { _, message in
+            if let message, !selection.appliesToAll { AccessibilityNotification.Announcement(message).post() }
         }
         .onAppear {
             pageRangeText = PageSelection.formatted(selection.selectedPages)
@@ -47,6 +58,7 @@ struct PageSelectionView: View {
                 return
             }
             pageRangeText = PageSelection.formatted(selection.selectedPages)
+            validationMessage = selection.selectedPages.isEmpty ? String(localized: "Choose at least one page.") : nil
         }
     }
 }

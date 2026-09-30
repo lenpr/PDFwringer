@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @Bindable var appVM: AppViewModel
     let appDelegate: AppDelegate
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
@@ -230,6 +231,7 @@ struct ContentView: View {
             }
         }
         .environment(appVM)
+        .transaction { if reduceMotion { $0.animation = nil } }
         .frame(minWidth: 650, minHeight: 420)
         .background(WindowCloseGuard { appVM.closeWorkflow() })
         .overlay(alignment: .bottomTrailing) {

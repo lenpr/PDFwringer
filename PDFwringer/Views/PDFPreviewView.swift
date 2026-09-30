@@ -197,16 +197,25 @@ struct PDFPreviewPanel: View {
             HStack(spacing: 4) {
                 Button { proxy.zoomOut() } label: {
                     Image(systemName: "minus.magnifyingglass")
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
                 }
                 .accessibilityLabel(String(localized: "Zoom out"))
+                .help(String(localized: "Zoom out"))
                 Button { proxy.fitToView() } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
                 }
                 .accessibilityLabel(String(localized: "Fit to view"))
+                .help(String(localized: "Fit to view"))
                 Button { proxy.zoomIn() } label: {
                     Image(systemName: "plus.magnifyingglass")
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
                 }
                 .accessibilityLabel(String(localized: "Zoom in"))
+                .help(String(localized: "Zoom in"))
             }
             .buttonStyle(.plain)
             .font(.caption)

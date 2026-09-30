@@ -4,7 +4,6 @@ struct LandingView: View {
     let onFilesSelected: ([URL]) -> Void
 
     @State private var isDropTargeted = false
-    @State private var dashPhase: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -14,16 +13,15 @@ struct LandingView: View {
                 Image(systemName: "doc.richtext")
                     .font(.system(size: 56, weight: .thin))
                     .foregroundStyle(Color.coral)
-                    .symbolEffect(.pulse, options: .repeating.speed(0.3), value: isDropTargeted)
 
                 VStack(spacing: 6) {
                     Text(String(localized: "Drop PDF files here"))
                         .font(.title2.weight(.medium))
                         .foregroundStyle(.primary)
 
-                    Text(String(localized: "or click to select (\u{2318}O)"))
+                    Text(String(localized: "Choose files or press \u{2318}O"))
                         .font(.callout)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                 }
 
                 Button(action: selectFiles) {
@@ -48,7 +46,7 @@ struct LandingView: View {
                         if isDropTargeted {
                             RoundedRectangle(cornerRadius: 16)
                                 .strokeBorder(
-                                    style: StrokeStyle(lineWidth: 2, dash: [8, 4], dashPhase: dashPhase)
+                                    style: StrokeStyle(lineWidth: 2, dash: [8, 4], dashPhase: 0)
                                 )
                                 .foregroundStyle(Color.coral)
                         }
@@ -62,15 +60,7 @@ struct LandingView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.2), value: isDropTargeted)
-            .onChange(of: isDropTargeted) {
-                if isDropTargeted {
-                    withAnimation(.linear(duration: 0.8).repeatForever(autoreverses: false)) {
-                        dashPhase = 12
-                    }
-                } else {
-                    dashPhase = 0
-                }
-            }
+
 
             Spacer()
         }
@@ -80,9 +70,9 @@ struct LandingView: View {
         Image(nsImage: NSApplication.shared.applicationIconImage)
             .resizable()
             .aspectRatio(contentMode: .fit)
-            .frame(width: 500, height: 500)
+            .frame(width: 360, height: 360)
             .blur(radius: 4)
-            .opacity(0.15)
+            .opacity(0.06)
     }
 
     private func selectFiles() {

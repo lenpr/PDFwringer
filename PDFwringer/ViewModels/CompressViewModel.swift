@@ -288,7 +288,7 @@ class CompressViewModel {
                     self.comparisonShowsResult = candidate.previewDocument != nil
                     let protectionNote = document.isEncrypted && candidate.level.isRasterize
                         ? " This copy is not password-protected." : ""
-                    self.resultMessage = "Prepared \(Formatting.fileSize(candidate.outputSize)) using \(candidate.level.title). Review it before saving.\(protectionNote)"
+                    self.resultMessage = "Prepared \(Formatting.fileSize(candidate.outputSize)) using \(candidate.level.title). Not saved yet. Review it, then choose Save Result.\(protectionNote)"
                 case .alreadyUnderLimit:
                     self.resultMessage = "Already below \(Formatting.fileSize(operationLimit ?? 0)). No compression needed."
                 case .unattainable(let smallest):

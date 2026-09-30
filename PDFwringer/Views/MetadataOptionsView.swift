@@ -46,152 +46,159 @@ struct MetadataOptionsView: View {
             Divider()
 
             // Right: Metadata fields
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    OptionsHeaderView(url: url, onBack: onBack)
+            ScrollViewReader { scroll in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        OptionsHeaderView(url: url, onBack: onBack, allowsEscapeBack: !isSaving)
 
-                    HStack {
-                        Text(String(localized: "Edit Metadata"))
-                            .font(.title3.weight(.semibold))
-                        Spacer()
-                        Text("\(document.pageCount) pages")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .contentTransition(.numericText())
-                    }
-
-                    Divider()
-
-                    Text(String(localized: "These fields edit standard document information. Embedded XMP and other identifying content may remain; clearing fields does not sanitize the PDF."))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Group {
-                        metadataField(String(localized: "Title"), text: $metadata.title)
-                        metadataField(String(localized: "Author"), text: $metadata.author)
-                        metadataField(String(localized: "Subject"), text: $metadata.subject)
-                        metadataField(String(localized: "Keywords"), text: $metadata.keywords)
-                        metadataField(String(localized: "Creator"), text: $metadata.creator)
-                    }
-
-                    Text(String(localized: "Keywords should be comma-separated"))
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-
-                    Divider()
-
-                    Text(String(localized: "Annotations"))
-                        .font(.callout.weight(.medium))
-
-                    Toggle(String(localized: "Flatten annotations"), isOn: $flattenAnnotations)
-                        .toggleStyle(.checkbox)
-                        .disabled(isSaving)
-                        .font(.callout)
-
-                    Text(String(localized: "Turns every page into an image, including annotations and form appearances. Searchable text, accessibility tags, interactive fields, links, and digital signatures are not preserved."))
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-
-                    Divider()
-
-                    Text(String(localized: "Security"))
-                        .font(.callout.weight(.medium))
-
-                    if document.isEncrypted {
-                        HStack(spacing: 6) {
-                            Image(systemName: "lock.fill")
-                                .foregroundStyle(.orange)
-                                .font(.caption)
-                            Text(String(localized: "This document is encrypted"))
+                        HStack {
+                            Text(String(localized: "Edit Metadata"))
+                                .font(.title3.weight(.semibold))
+                            Spacer()
+                            Text("\(document.pageCount) pages")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                                .contentTransition(.numericText())
                         }
-                        Toggle(String(localized: "Remove protection on save"), isOn: $removeProtection)
+
+                        Divider()
+
+                        Text(String(localized: "These fields edit standard document information. Embedded XMP and other identifying content may remain; clearing fields does not sanitize the PDF."))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Group {
+                            metadataField(String(localized: "Title"), text: $metadata.title)
+                            metadataField(String(localized: "Author"), text: $metadata.author)
+                            metadataField(String(localized: "Subject"), text: $metadata.subject)
+                            metadataField(String(localized: "Keywords"), text: $metadata.keywords)
+                            metadataField(String(localized: "Creator"), text: $metadata.creator)
+                        }
+
+                        Text(String(localized: "Keywords should be comma-separated"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Divider()
+
+                        Text(String(localized: "Annotations"))
+                            .font(.callout.weight(.medium))
+
+                        Toggle(String(localized: "Flatten annotations"), isOn: $flattenAnnotations)
                             .toggleStyle(.checkbox)
                             .disabled(isSaving)
                             .font(.callout)
-                        if !removeProtection && (flattenAnnotations || requiresCurrentPassword) {
-                            SecureField(flattenAnnotations ? String(localized: "Password for flattened copy") : String(localized: "Current password (verification only)"), text: $passwordText)
-                                .textFieldStyle(.roundedBorder)
+
+                        Text(String(localized: "Turns every page into an image, including annotations and form appearances. Searchable text, accessibility tags, interactive fields, links, and digital signatures are not preserved."))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Divider()
+
+                        Text(String(localized: "Security"))
+                            .font(.callout.weight(.medium))
+
+                        if document.isEncrypted {
+                            HStack(spacing: 6) {
+                                Image(systemName: "lock.fill")
+                                    .foregroundStyle(.orange)
+                                    .font(.caption)
+                                Text(String(localized: "This document is encrypted"))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Toggle(String(localized: "Remove protection on save"), isOn: $removeProtection)
+                                .toggleStyle(.checkbox)
                                 .disabled(isSaving)
-                            if flattenAnnotations {
+                                .font(.callout)
+                            if !removeProtection && (flattenAnnotations || requiresCurrentPassword) {
+                                SecureField(flattenAnnotations ? String(localized: "Password for flattened copy") : String(localized: "Current password (verification only)"), text: $passwordText)
+                                    .textFieldStyle(.roundedBorder)
+                                    .disabled(isSaving)
+                                if flattenAnnotations {
+                                    SecureField(String(localized: "Confirm password"), text: $confirmPasswordText)
+                                        .textFieldStyle(.roundedBorder)
+                                        .disabled(isSaving)
+                                }
+                            }
+                        } else {
+                            Toggle(String(localized: "Set password for flattened copy"), isOn: $setPassword)
+                                .disabled(!flattenAnnotations || isSaving)
+                                .toggleStyle(.checkbox)
+                                .font(.callout)
+                            if setPassword {
+                                SecureField(String(localized: "Password"), text: $passwordText)
+                                    .textFieldStyle(.roundedBorder)
+                                    .disabled(isSaving)
                                 SecureField(String(localized: "Confirm password"), text: $confirmPasswordText)
                                     .textFieldStyle(.roundedBorder)
                                     .disabled(isSaving)
+                                if !confirmPasswordText.isEmpty && passwordText != confirmPasswordText {
+                                    Text(String(localized: "Passwords do not match"))
+                                        .font(.caption)
+                                        .foregroundStyle(.red)
+                                } else if !confirmPasswordText.isEmpty && passwordText == confirmPasswordText {
+                                    Text(String(localized: "Passwords match"))
+                                        .font(.caption)
+                                        .foregroundStyle(.green)
+                                }
                             }
                         }
-                    } else {
-                        Toggle(String(localized: "Set AES-128 password for flattened copy"), isOn: $setPassword)
-                            .disabled(!flattenAnnotations || isSaving)
-                            .toggleStyle(.checkbox)
-                            .font(.callout)
-                        if setPassword {
-                            SecureField(String(localized: "Password"), text: $passwordText)
-                                .textFieldStyle(.roundedBorder)
-                                .disabled(isSaving)
-                            SecureField(String(localized: "Confirm password"), text: $confirmPasswordText)
-                                .textFieldStyle(.roundedBorder)
-                                .disabled(isSaving)
-                            if !confirmPasswordText.isEmpty && passwordText != confirmPasswordText {
-                                Text(String(localized: "Passwords do not match"))
-                                    .font(.caption)
-                                    .foregroundStyle(.red)
-                            } else if !confirmPasswordText.isEmpty && passwordText == confirmPasswordText {
-                                Text(String(localized: "Passwords match"))
-                                    .font(.caption)
-                                    .foregroundStyle(.green)
-                            }
+
+                        Text(flattenAnnotations
+                             ? String(localized: "A new password uses AES-128 encryption. Use 1–32 printable ASCII characters.")
+                             : String(localized: "Existing protection is retained. To set a new password, first enable Flatten annotations above; this turns pages into images."))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        HStack {
+                            Spacer()
+                            Button(String(localized: "Save Copy…")) { startSaving() }
+                                .keyboardShortcut("s")
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.large)
+                                .disabled(isSaving
+                                    || (setPassword && (passwordText.isEmpty || passwordText != confirmPasswordText))
+                                    || (document.isEncrypted && !removeProtection
+                                        && ((requiresCurrentPassword || flattenAnnotations) && passwordText.isEmpty
+                                            || (flattenAnnotations && passwordText != confirmPasswordText)))
+                                )
                         }
-                    }
 
-                    Text(flattenAnnotations
-                         ? String(localized: "A new password uses AES-128 encryption. Use 1–32 printable ASCII characters.")
-                         : String(localized: "Existing protection is retained. New passwords require Flatten annotations; ordinary saves do not create legacy encryption."))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    HStack {
-                        Spacer()
-                        Button(String(localized: "Save Metadata")) { startSaving() }
-                            .keyboardShortcut("s")
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.large)
-                            .disabled(isSaving
-                                || (setPassword && (passwordText.isEmpty || passwordText != confirmPasswordText))
-                                || (document.isEncrypted && !removeProtection
-                                    && ((requiresCurrentPassword || flattenAnnotations) && passwordText.isEmpty
-                                        || (flattenAnnotations && passwordText != confirmPasswordText)))
-                            )
-                    }
-
-                    if isSaving {
-                        HStack(spacing: 8) {
-                            if let progress = saveProgress {
-                                ProgressView(value: progress)
-                                    .progressViewStyle(.linear)
-                            } else {
-                                ProgressView()
+                        if isSaving {
+                            HStack(spacing: 8) {
+                                if let progress = saveProgress {
+                                    ProgressView(String(localized: "Saving metadata copy…"), value: progress)
+                                        .progressViewStyle(.linear)
+                                } else {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                }
+                                Button(String(localized: "Cancel")) { saveTask?.cancel() }
+                                    .keyboardShortcut(.cancelAction)
+                                    .buttonStyle(.bordered)
                                     .controlSize(.small)
                             }
-                            Button(String(localized: "Cancel")) { saveTask?.cancel() }
-                                .buttonStyle(.plain)
-                                .foregroundStyle(.secondary)
-                                .font(.caption)
                         }
-                    }
 
-                    if let msg = resultMessage {
-                        ResultMessageView(
-                            message: msg,
-                            isError: isError,
-                            outputURL: lastOutputURL,
-                            onRetry: isError ? { startSaving() } : nil
-                        )
-                    }
+                        if let msg = resultMessage {
+                            ResultMessageView(
+                                message: msg,
+                                isError: isError,
+                                outputURL: lastOutputURL,
+                                onRetry: isError ? { startSaving() } : nil
+                            )
+                        }
 
-                    Spacer()
+                        Spacer()
+                    }
+                    .padding(24)
+                    .frame(maxWidth: 520, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(24)
+                .onChange(of: resultMessage) { _, message in
+                    if message != nil { scroll.scrollTo("operation-result", anchor: .bottom) }
+                }
             }
             .frame(minWidth: 300, idealWidth: 340)
             .tint(.coral)
@@ -203,12 +210,18 @@ struct MetadataOptionsView: View {
             requiresCurrentPassword = PDFDocument(url: url)?.isLocked ?? true
         }
         .onChange(of: hasPendingChanges) { _, dirty in appVM.hasUnsavedChanges = dirty }
+        .onChange(of: metadata) { _, _ in clearFeedback() }
+        .onChange(of: removeProtection) { _, _ in clearFeedback() }
+        .onChange(of: passwordText) { _, _ in clearFeedback() }
+        .onChange(of: confirmPasswordText) { _, _ in clearFeedback() }
         .onChange(of: flattenAnnotations) {
+            clearFeedback()
             setPassword = false
             passwordText = ""
             confirmPasswordText = ""
         }
         .onChange(of: setPassword) {
+            clearFeedback()
             if !setPassword {
                 passwordText = ""
                 confirmPasswordText = ""
@@ -239,6 +252,12 @@ struct MetadataOptionsView: View {
                     }
                 }
         }
+    }
+
+    private func clearFeedback() {
+        // Save completion clears the security fields together; retain its receipt.
+        guard !isSaving, hasPendingChanges else { return }
+        resultMessage = nil; lastOutputURL = nil; isError = false
     }
 
     private func startSaving() {

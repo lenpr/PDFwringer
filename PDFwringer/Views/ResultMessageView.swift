@@ -6,50 +6,57 @@ struct ResultMessageView: View {
     let isError: Bool
     var outputURL: URL?
     var onRetry: (() -> Void)?
+    var isWarning = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var iconName: String {
         if isError { return "xmark.circle.fill" }
-        return "checkmark.circle.fill"
+        if isWarning { return "exclamationmark.triangle.fill" }
+        return outputURL == nil ? "info.circle.fill" : "checkmark.circle.fill"
     }
 
     private var iconColor: Color {
         if isError { return Color(nsColor: .systemRed) }
-        return Color(nsColor: .systemGreen)
+        if isWarning { return Color(nsColor: .systemOrange) }
+        return outputURL == nil ? Color.secondary : Color(nsColor: .systemGreen)
     }
 
     private var bgColor: Color {
         if isError { return .red }
-        return .green
+        if isWarning { return .orange }
+        return outputURL == nil ? .secondary : .green
     }
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: iconName)
-                .foregroundStyle(iconColor)
-                .font(.body)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: iconName)
+                    .foregroundStyle(iconColor)
+                    .font(.body)
 
-            Text(message)
-                .font(.callout)
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
+                Text(message)
+                    .font(.callout)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
 
-            Spacer()
+            }
 
             if isError {
                 if let onRetry {
                     Button(String(localized: "Try Again"), action: onRetry)
                         .controlSize(.small)
                         .buttonStyle(.bordered)
-                }
-            } else if let outputURL {
+                  }
+              } else if let outputURL {
                 Button(String(localized: "Show in Finder")) {
                     NSWorkspace.shared.activateFileViewerSelecting([outputURL])
-                }
+                  }
                 .controlSize(.small)
                 .buttonStyle(.bordered)
-            }
+              }
         }
+        .id("operation-result")
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 10)
@@ -59,7 +66,7 @@ struct ResultMessageView: View {
                         .strokeBorder(bgColor.opacity(0.2), lineWidth: 0.5)
                 )
         )
-        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
         .onChange(of: message, initial: true) { _, updatedMessage in
             AccessibilityNotification.Announcement(updatedMessage).post()
         }

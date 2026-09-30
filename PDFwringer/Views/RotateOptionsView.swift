@@ -41,55 +41,66 @@ struct RotateOptionsView: View {
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 16) {
-                OptionsHeaderView(url: url, onBack: onBack)
+            ScrollViewReader { scroll in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        OptionsHeaderView(url: url, onBack: onBack)
 
-                HStack {
-                    Text(String(localized: "Rotate Pages"))
-                        .font(.title3.weight(.semibold))
-                    Spacer()
-                    Text("\(document.pageCount) pages")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .contentTransition(.numericText())
+                        HStack {
+                            Text(String(localized: "Rotate Pages"))
+                                .font(.title3.weight(.semibold))
+                            Spacer()
+                            Text("\(document.pageCount) pages")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .contentTransition(.numericText())
+                        }
+
+                        Divider()
+
+                        PageSelectionView(
+                            pageCount: document.pageCount,
+                            selection: $pageSelection,
+                            shakeOffset: $shakeOffset,
+                            label: String(localized: "Rotate all pages")
+                        )
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Button(String(localized: "Rotate 90° Clockwise")) { rotateInPlace(angle: .ninety) }
+                                .keyboardShortcut("r")
+                            Button(String(localized: "180°")) { rotateInPlace(angle: .oneEighty) }
+                            Button(String(localized: "Rotate 90° Counterclockwise")) { rotateInPlace(angle: .twoSeventy) }
+                                .keyboardShortcut("r", modifiers: [.command, .shift])
+
+                        }
+
+                        HStack {
+                            Spacer()
+                            Button(String(localized: "Save Copy…")) { saveRotated() }
+                                .keyboardShortcut("s")
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.large)
+                        }
+
+                        if let msg = resultMessage {
+                            ResultMessageView(
+                                message: msg,
+                                isError: isError,
+                                outputURL: lastOutputURL,
+                                onRetry: isError ? { saveRotated() } : nil
+                            )
+                        }
+
+                        Spacer()
+                    }
+                    .padding(24)
+                    .frame(maxWidth: 520, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-
-                Divider()
-
-                PageSelectionView(
-                    pageCount: document.pageCount,
-                    selection: $pageSelection,
-                    shakeOffset: $shakeOffset,
-                    label: String(localized: "Rotate all pages")
-                )
-
-                HStack(spacing: 12) {
-                    Button(String(localized: "90° CW")) { rotateInPlace(angle: .ninety) }
-                        .keyboardShortcut("r")
-                    Button(String(localized: "180°")) { rotateInPlace(angle: .oneEighty) }
-                    Button(String(localized: "90° CCW")) { rotateInPlace(angle: .twoSeventy) }
-                        .keyboardShortcut("r", modifiers: [.command, .shift])
-
-                    Spacer()
-
-                    Button(String(localized: "Save")) { saveRotated() }
-                        .keyboardShortcut("s")
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
+                .onChange(of: resultMessage) { _, message in
+                    if message != nil { scroll.scrollTo("operation-result", anchor: .bottom) }
                 }
-
-                if let msg = resultMessage {
-                    ResultMessageView(
-                        message: msg,
-                        isError: isError,
-                        outputURL: lastOutputURL,
-                        onRetry: isError ? { saveRotated() } : nil
-                    )
-                }
-
-                Spacer()
             }
-            .padding(24)
             .frame(minWidth: 300, idealWidth: 340)
             .tint(.coral)
         }
