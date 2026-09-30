@@ -22,6 +22,21 @@
 
 ---
 
+## Current Status
+
+The default branch contains the latest hardening work for **Apple silicon on
+macOS 27.0+**. Candidate **0.1.16 (2)** passed all 383 tests, signed App Store
+archive/export checks, and Xcode Organizer validation. It has not been submitted
+for review or published on the App Store; remaining release checks are tracked
+in [APP_STORE.md](APP_STORE.md).
+
+The downloadable **v0.1.16 release and Homebrew cask are the May 2026 build**.
+They do not include the subsequent hardening or the password-retry fix. Build
+from the current source for those changes. Screenshots below show that older
+release; current control labels and safety guidance may differ.
+
+---
+
 ## Why PDFwringer?
 
 Most PDF tools are either bloated Electron apps, subscription-gated web services, or privacy nightmares that upload your documents to someone else's server. PDFwringer is different:
@@ -128,23 +143,27 @@ make app-store-check # credential-free Mac App Store archive validation
 
 ### Install
 
-The recommended way to install is via Homebrew (signed + notarized + sandboxed):
+The published May 2026 release is available via Homebrew (signed, notarized,
+and sandboxed). It is older than the current source:
 
 ```bash
 brew tap lenpr/tap
 brew install --cask pdfwringer
 ```
 
-For developers building from source:
+For the latest source, create a local sandboxed development build:
 
 ```bash
-make sign      # builds + codesigns with Developer ID + sandbox entitlements
+make release
+mkdir -p ~/Applications
 cp -R .build/PDFwringer.app ~/Applications/
 ```
 
 `make app` and `make release` are sandboxed, hardened-runtime development builds
 with ad-hoc signatures. Use `make sign`, `make notarize`, or `make dmg` when the
 artifact needs a trusted Developer ID signature or notarization.
+Those signed-release targets require a new version and its exact release tag;
+do not move an existing public tag or replace its download with different code.
 
 ### Test
 
