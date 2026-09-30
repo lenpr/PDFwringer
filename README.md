@@ -27,7 +27,8 @@
 The default branch contains the latest hardening work and compression review
 flow for **Apple silicon on macOS 27.0+**. Build **0.1.16 (3)** adds target-size
 compression and original/result comparison. Release validation and remaining
-App Store checks are tracked in [APP_STORE.md](APP_STORE.md). The app has not
+App Store checks are tracked in [APP_STORE.md](APP_STORE.md). All 399 tests,
+signed archive/export checks, and Xcode Organizer validation passed. The app has not
 been submitted for review or published on the App Store.
 
 The downloadable **v0.1.16 release and Homebrew cask are the May 2026 build**.

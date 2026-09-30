@@ -34,10 +34,34 @@ needed to reopen destination selection after that failure.
 
 The unsigned App Store archive structure check passed, including arm64-only code,
 bundle version, privacy manifest, icon, and release symbols.
-Signed archive/export and Organizer validation for build 3 are pending. Build 2's
-results below are historical and do not validate this implementation. Remaining
-submission gates include the account-side listing/privacy/compliance responses
-and the complete accessibility/layout and distribution-installed interaction pass.
+Candidate `0.1.16 (3)`, source `1962331`, tagged `appstore-v0.1.16-build.3`, also
+passed the signed archive, App Store export, strict app-signature checks, and Xcode
+Organizer validation. Organizer reported: “Your app successfully passed all
+validation checks.” The exported package contains an Apple Distribution-signed
+arm64 app with the macOS 27 minimum, sandbox, user-selected read/write and
+app-scoped bookmarks, and no debugging entitlement. Its Mac App Store installer
+signature was verified. Package SHA-256:
+`b7a35dd065de3d348fbb148697333e062b01b243dff3e215e2a4c77176e69498`.
+
+The exact development-signed archive app additionally passed native manual
+prepare/review/save, destination-change refusal, corrected Try Again destination
+selection, and save-panel cancellation retaining the candidate. Reselecting a
+new destination and Command-S saved the result successfully.
+
+Evidence is preserved outside `.build` in
+`../PDFwringer-release-evidence/appstore-0.1.16-build.3-1962331/`.
+Build 2's results below are historical. Remaining submission gates include the
+account-side listing/privacy/compliance responses and the complete
+accessibility/layout and distribution-installed interaction pass. No App Store
+review submission or publication was performed.
+
+The same archive's app was separately signed with Developer ID, accepted by
+Apple notarization, stapled, and installed at `/Applications/PDFwringer.app`.
+Strict signature verification and Gatekeeper assessment passed. Its executable
+UUID matches the archive. Native installed-app launch, Open, Compress, target
+preflight and return to the landing screen passed. This local installation does
+not certify a Store/TestFlight-installed copy. Evidence is retained in
+`../PDFwringer-release-evidence/local-install-0.1.16-build.3-1962331/`.
 
 ## Signed candidate validation — 2026-09-28
 
