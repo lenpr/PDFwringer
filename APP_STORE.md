@@ -6,21 +6,53 @@ and must not be used to create the App Store build.
 
 The app requires macOS 27.0 or later on Apple silicon. Build with Xcode 27.
 
-## Current candidate: 0.2.3 — 2026-09-30
+## Current validated candidate: 0.2.3 — 2026-09-30
 
-About now shows only the public version; the required signing build identifier
-is stored separately in the bundle. This task-flow refinement enlarges and pins navigation, enables native divider
-adjustment, adds single-document entry to existing Merge, and clarifies password
-protection with consent for the current image-copy requirement. The landing screen
-keeps only neutral file intake. No PDF operations, permissions, services, or
-dependencies were added. All 406 tests passed (339 fast, 61 corpus, 6 performance).
-Native checks confirmed neutral landing, single-PDF Merge entry, empty-list
-recovery, discard protection and return to the original document, Back-chevron
-hit testing, mouse divider adjustment with a PDF loaded, and password consent/
-cancellation. Signed distribution is being prepared;
-previous evidence below does not validate this candidate. Full accessibility/
-contrast/minimum-window QA, listing/privacy/compliance responses, and
-Store/TestFlight-installed tests remain submission gates.
+This candidate makes existing task flows consistent: larger pinned navigation,
+native draggable dividers, Merge entry after opening one PDF, and explicit
+Password Protection wording and consent for the current image-copy requirement.
+The opening screen retains only neutral file intake. About displays only
+`Version 0.2.3`; the required internal build identifier remains in signing
+metadata. No PDF operations, permissions, services, or dependencies were added.
+
+All 406 tests passed (339 fast, 61 corpus, 6 performance), including new merge
+return-state, security-scope, empty-list, and navigation-guard regressions. The
+fast lane passed again after the final navigation changes. The subsequent About
+change passed native inspection and both release build paths. Native interaction
+checks covered single-PDF Merge, empty-list recovery, Back-chevron clicks,
+loaded-preview divider dragging, and password consent/cancellation.
+
+Source `fa0b729` is preserved by `v0.2.3` and `appstore-v0.2.3-build.7`.
+The unsigned structure check, signed archive, and App Store package export passed.
+The exported app has an Apple Distribution signature, the expected sandbox and
+file-access entitlements, Apple silicon code, and macOS 27.0 minimum. The package
+has a valid Mac App Store installer signature and SHA-256
+`72097c7a7fe471b76f122afd1fd013dcb9560e099f2f3f904a115c01cbdac596`.
+Xcode Organizer reported: “Your app successfully passed all validation checks.”
+Its preserved log records validation success at 2026-09-30 22:16:48 UTC.
+The Xcode archive UUID is `4D4E085F-EEA5-311F-8383-796653D0AAB6`.
+Private archives, export, distribution logs, tests, and signatures are retained in
+`../PDFwringer-release-evidence/appstore-0.2.3-build.7-fa0b729/`.
+
+The separate Developer ID app and disk image passed notarization and stapled
+ticket validation. The public GitHub download matches SHA-256
+`93d4a395da3e8a5bafafc1ea643b040272e6ebbb6f94ea9c29f3a8e91ae0a56a`.
+The download UUID is `2A8E476A-A08B-36BE-A1A8-9134529E5200`.
+Homebrew tap commit `db3b740` points to this version and checksum. Homebrew
+upgraded the installed receipt and app to 0.2.3. Native About displays
+`PDFwringer Version 0.2.3`, with no build suffix, and the opening screen retains
+neutral file intake. Strict signature, Gatekeeper, and stapled-ticket checks
+passed. The installed executable, bundle metadata, and code-signing resource
+record match the downloaded public payload. Download evidence is retained in
+`../PDFwringer-release-evidence/download-0.2.3-build.7-fa0b729/`.
+
+The earlier 0.2.2 internal candidate, source `2fb937a`, also passed signed
+archive/export and Organizer validation. Its artifacts and tags are preserved
+under their actual identities; it was superseded before a public download.
+
+Remaining submission gates are listing/privacy/compliance responses, complete
+accessibility/contrast/minimum-window QA, and Store/TestFlight-installed tests.
+No app was uploaded as a release or submitted for review in this increment.
 
 ## Previous validated candidate: 0.2.1 — 2026-09-30
 

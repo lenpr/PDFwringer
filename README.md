@@ -33,8 +33,8 @@ Merge is available after opening a single PDF. Release validation and
 remaining App Store checks are tracked in [APP_STORE.md](APP_STORE.md). The app
 has not been submitted for review or published on the App Store.
 
-The [0.2.1 download](https://github.com/lenpr/PDFwringer/releases/tag/v0.2.1) is
-signed, notarized, and available through Homebrew. All 402 tests passed; the
+The [0.2.3 download](https://github.com/lenpr/PDFwringer/releases/tag/v0.2.3) is
+signed, notarized, and available through Homebrew. All 406 tests passed; the
 matching App Store candidate passed signed archive/export and Organizer validation.
 
 See [CHANGELOG.md](CHANGELOG.md) for the public versions and earlier development

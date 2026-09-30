@@ -175,7 +175,7 @@ verify-app-store-metadata: $(INFO_PLIST) $(ENTITLEMENTS) $(PRIVACY_MANIFEST) $(A
 		echo "Mac App Store icon must include a 1024×1024 image." >&2; \
 		exit 1; \
 	fi
-	@echo "Verified Mac App Store metadata for $(APP_NAME) $(BUNDLE_VERSION) ($(BUNDLE_BUILD))."
+	@echo "Verified Mac App Store metadata for $(APP_NAME) $(BUNDLE_VERSION)."
 
 verify-app-store-inputs:
 	@set -e; \
