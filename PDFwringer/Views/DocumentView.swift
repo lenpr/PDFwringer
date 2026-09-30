@@ -5,6 +5,7 @@ struct DocumentView: View {
     let url: URL
     let document: PDFDocument
     let fileSize: Int64
+    let onMerge: () -> Void
     let onCompress: () -> Void
     let onSplit: () -> Void
     let onRotate: () -> Void
@@ -21,7 +22,7 @@ struct DocumentView: View {
 
 
     var body: some View {
-        HStack(spacing: 0) {
+        HSplitView {
             // Left: PDF preview + thumbnails
             VStack(spacing: 0) {
                 PDFPreviewPanel(document: document, currentPage: $currentPage)
@@ -29,108 +30,105 @@ struct DocumentView: View {
                 PageThumbnailStripView(document: document, currentPage: $currentPage)
                     .padding(.horizontal, 20)
             }
-            .frame(minWidth: 280, idealWidth: 350)
+            .frame(minWidth: 260, idealWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
             .overlay {
                 DropReceiverView(isTargeted: $isDropTargeted) { urls in
                     onFilesDropped(urls)
                 }
             }
 
-            Divider()
-
             // Right: File info + action cards
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    // File info header
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(url.lastPathComponent)
-                                .font(.headline)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                                .help(url.path(percentEncoded: false))
-                            Text("\(document.pageCount) pages \u{2022} \(Formatting.fileSize(fileSize))")
+            VStack(spacing: 0) {
+                OptionsHeaderView(url: url, onBack: onStartOver,
+                                  backTitle: String(localized: "Close File"),
+                                  backHelp: String(localized: "Close this file and choose another"))
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                Divider()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text(String(localized: "Choose a Tool"))
+                                .font(.title3.weight(.semibold))
+                            Spacer()
+                            Text("\(document.pageCount) pages • \(Formatting.fileSize(fileSize))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                                .contentTransition(.numericText())
+                        }
 
-                        }
-                        Spacer()
-                        Button(action: onStartOver) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.title3)
-                                .foregroundStyle(.tertiary)
-                        }
-                        .buttonStyle(.plain)
-                        .help(String(localized: "Start over"))
-                        .accessibilityLabel(String(localized: "Start over"))
+                        Divider()
+
+                        Text(String(localized: "What would you like to do?"))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        ActionCardView(
+                            icon: "arrow.down.doc",
+                            title: String(localized: "Compress"),
+                            description: String(localized: "Reduce file size with lossless or lossy compression"),
+                            action: onCompress
+                        )
+
+                        ActionCardView(
+                            icon: "doc.on.doc",
+                            title: String(localized: "Merge PDFs"),
+                            description: String(localized: "Add more PDFs and combine them into one copy"),
+                            action: onMerge
+                        )
+
+                        ActionCardView(
+                            icon: "scissors",
+                            title: String(localized: "Split / Extract"),
+                            description: String(localized: "Split into chunks or extract specific pages"),
+                            action: onSplit
+                        )
+
+                        ActionCardView(
+                            icon: "arrow.up.arrow.down",
+                            title: String(localized: "Reorder Pages"),
+                            description: String(localized: "Drag pages to rearrange their order"),
+                            action: onReorderPages
+                        )
+
+                        ActionCardView(
+                            icon: "rotate.right",
+                            title: String(localized: "Rotate Pages"),
+                            description: String(localized: "Rotate all or specific pages by 90°, 180°, or 270°"),
+                            action: onRotate
+                        )
+
+                        ActionCardView(
+                            icon: "crop",
+                            title: String(localized: "Crop / Resize"),
+                            description: String(localized: "Trim margins or resize pages to standard paper sizes"),
+                            action: onCrop
+                        )
+
+                        ActionCardView(
+                            icon: "slider.horizontal.3",
+                            title: String(localized: "Adjust Colors"),
+                            description: String(localized: "Tweak brightness, contrast, and saturation"),
+                            action: onAdjustColor
+                        )
+
+                        ActionCardView(
+                            icon: "photo.on.rectangle",
+                            title: String(localized: "Export as Images"),
+                            description: String(localized: "Export pages as JPEG or PNG files"),
+                            action: onExportImages
+                        )
+
+                        ActionCardView(
+                            icon: "info.circle",
+                            title: String(localized: "Edit Metadata"),
+                            description: String(localized: "Edit document details and password protection"),
+                            action: onMetadata
+                        )
                     }
-
-                    Divider()
-
-                    Text(String(localized: "What would you like to do?"))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-
-                    ActionCardView(
-                        icon: "arrow.down.doc",
-                        title: String(localized: "Compress"),
-                        description: String(localized: "Reduce file size with lossless or lossy compression"),
-                        action: onCompress
-                    )
-
-                    ActionCardView(
-                        icon: "scissors",
-                        title: String(localized: "Split / Extract"),
-                        description: String(localized: "Split into chunks or extract specific pages"),
-                        action: onSplit
-                    )
-
-                    ActionCardView(
-                        icon: "arrow.up.arrow.down",
-                        title: String(localized: "Reorder Pages"),
-                        description: String(localized: "Drag pages to rearrange their order"),
-                        action: onReorderPages
-                    )
-
-                    ActionCardView(
-                        icon: "rotate.right",
-                        title: String(localized: "Rotate Pages"),
-                        description: String(localized: "Rotate all or specific pages by 90°, 180°, or 270°"),
-                        action: onRotate
-                    )
-
-                    ActionCardView(
-                        icon: "crop",
-                        title: String(localized: "Crop / Resize"),
-                        description: String(localized: "Trim margins or resize pages to standard paper sizes"),
-                        action: onCrop
-                    )
-
-                    ActionCardView(
-                        icon: "slider.horizontal.3",
-                        title: String(localized: "Adjust Colors"),
-                        description: String(localized: "Tweak brightness, contrast, and saturation"),
-                        action: onAdjustColor
-                    )
-
-                    ActionCardView(
-                        icon: "photo.on.rectangle",
-                        title: String(localized: "Export as Images"),
-                        description: String(localized: "Export pages as JPEG or PNG files"),
-                        action: onExportImages
-                    )
-
-                    ActionCardView(
-                        icon: "info.circle",
-                        title: String(localized: "Edit Metadata"),
-                        description: String(localized: "View and edit title, author, subject, and keywords"),
-                        action: onMetadata
-                    )
+                    .padding(24)
                 }
-                .padding(24)
             }
-            .frame(minWidth: 280, idealWidth: 320)
+            .frame(minWidth: 300, idealWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }

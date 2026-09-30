@@ -329,6 +329,107 @@ struct AppViewModelTests {
         #expect(vm.isLanding)
     }
 
+    @Test("Merge from a single PDF returns to the same document and security scope")
+    func mergeFromSingleDocument() throws {
+        let url = TestPDFGenerator.makeRenderedPDF(pageCount: 3)
+        defer { TestPDFGenerator.cleanup(url) }
+        var stopped: [URL] = []
+        let vm = AppViewModel(beginSecurityScopedAccess: { _ in true },
+                              endSecurityScopedAccess: { stopped.append($0) },
+                              confirmDiscard: { true })
+        vm.openRecentDocument(url)
+        guard case .singleFile(_, let original) = vm.state else {
+            Issue.record("Expected document"); return
+        }
+        vm.currentPage = 2
+        vm.selectMerge()
+        guard case .merging(let items) = vm.state else {
+            Issue.record("Expected merge"); return
+        }
+        #expect(items.count == 1)
+        #expect(vm.windowTitle == "PDFwringer — 1 file")
+        #expect(items.first?.url == url)
+        #expect(vm.mergeReturnsToDocument)
+        #expect(stopped.isEmpty)
+        vm.goBack()
+        guard case .singleFile(let returnedURL, let returned) = vm.state else {
+            Issue.record("Expected original document"); return
+        }
+        #expect(returnedURL == url)
+        #expect(returned === original)
+        #expect(vm.currentPage == 2)
+        #expect(stopped.isEmpty)
+        vm.startOver()
+        #expect(stopped == [url])
+    }
+
+    @Test("Removing every selected merge file stays in Merge; Back returns to landing")
+    func emptyMerge() async {
+        let first = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
+        let second = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
+        defer { TestPDFGenerator.cleanup(first); TestPDFGenerator.cleanup(second) }
+        let vm = AppViewModel(confirmDiscard: { true })
+        // Tool entry requires an opened PDF; landing stays a neutral file intake.
+        vm.selectMerge()
+        #expect(vm.isLanding)
+        await vm.loadMultipleFiles([first, second]).value
+        #expect(!vm.isLanding)
+        #expect(!vm.mergeReturnsToDocument)
+        vm.updateMergeFiles([])
+        guard case .merging(let items) = vm.state else {
+            Issue.record("Removing the last file left the merge screen"); return
+        }
+        #expect(items.isEmpty)
+        #expect(vm.windowTitle == "PDFwringer — Merge PDFs")
+        vm.goBack()
+        #expect(vm.isLanding)
+    }
+
+    @Test("Merge Back respects dirty-work and running-operation guards")
+    func mergeBackGuards() {
+        let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
+        defer { TestPDFGenerator.cleanup(url) }
+        var discard = false
+        let vm = AppViewModel(confirmDiscard: { discard })
+        vm.loadSingleFile(url)
+        vm.selectMerge()
+        vm.updateMergeFiles([])
+        vm.hasUnsavedChanges = true
+        vm.goBack()
+        #expect(vm.mergeReturnsToDocument)
+        #expect(!vm.canSelectSingleFileAction)
+        discard = true
+        vm.operationIsRunning = { true }
+        vm.goBack()
+        #expect(vm.mergeReturnsToDocument)
+        vm.operationIsRunning = { false }
+        vm.goBack()
+        #expect(vm.canSelectSingleFileAction)
+        #expect(!vm.mergeReturnsToDocument)
+    }
+
+    @Test("Replacing or closing a merge clears its old return destination")
+    func mergeReturnDestinationLifetime() async {
+        let first = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
+        let second = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
+        defer { TestPDFGenerator.cleanup(first); TestPDFGenerator.cleanup(second) }
+        let vm = AppViewModel(confirmDiscard: { true })
+        vm.loadSingleFile(first)
+        vm.selectMerge()
+        vm.loadSingleFile(second)
+        #expect(!vm.mergeReturnsToDocument)
+        vm.selectMerge()
+        await vm.loadMultipleFiles([first, second]).value
+        #expect(!vm.mergeReturnsToDocument)
+        vm.goBack()
+        #expect(vm.isLanding)
+        vm.loadSingleFile(first)
+        vm.selectMerge()
+        vm.startOver()
+        vm.selectMerge()
+        #expect(!vm.mergeReturnsToDocument)
+    }
+
     @Test("startOver clears workflow navigation and confirmation state")
     func startOver() {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "so.pdf")

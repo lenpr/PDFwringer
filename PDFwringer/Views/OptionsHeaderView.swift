@@ -4,19 +4,21 @@ struct OptionsHeaderView: View {
     var url: URL? = nil
     let onBack: () -> Void
     var allowsEscapeBack = true
+    var backTitle = String(localized: "Back")
+    var backHelp = String(localized: "Return to tool selection")
 
     var body: some View {
         HStack {
             Button(action: onBack) {
-                Label(String(localized: "Back"), systemImage: "chevron.left")
-                    .font(.caption.weight(.medium))
-                    .padding(.vertical, 8)
-                    .padding(.horizontal, 10)
+                Label(backTitle, systemImage: "chevron.left")
+                    .font(.body.weight(.medium))
+                    .frame(minHeight: 28)
+                    .contentShape(Rectangle())
             }
             .keyboardShortcut(allowsEscapeBack ? KeyboardShortcut(.escape, modifiers: []) : nil)
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .contentShape(Rectangle())
+            .buttonStyle(.bordered)
+            .controlSize(.regular)
+            .help(backHelp)
 
             Spacer()
 

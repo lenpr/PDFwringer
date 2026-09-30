@@ -6,7 +6,22 @@ and must not be used to create the App Store build.
 
 The app requires macOS 27.0 or later on Apple silicon. Build with Xcode 27.
 
-## Current candidate: 0.2.1 (build 5) — 2026-09-30
+## Current candidate: 0.2.2 (build 6) — 2026-09-30
+
+This task-flow refinement enlarges and pins navigation, enables native divider
+adjustment, adds single-document entry to existing Merge, and clarifies password
+protection with consent for the current image-copy requirement. The landing screen
+keeps only neutral file intake. No PDF operations, permissions, services, or
+dependencies were added. All 406 tests passed (339 fast, 61 corpus, 6 performance).
+Native checks confirmed neutral landing, single-PDF Merge entry, empty-list
+recovery, discard protection and return to the original document, Back-chevron
+hit testing, mouse divider adjustment with a PDF loaded, and password consent/
+cancellation. Signed distribution is being prepared;
+previous evidence below does not validate this candidate. Full accessibility/
+contrast/minimum-window QA, listing/privacy/compliance responses, and
+Store/TestFlight-installed tests remain submission gates.
+
+## Previous validated candidate: 0.2.1 (build 5) — 2026-09-30
 
 This candidate implements the high-value UI/UX refinements recorded in
 `UX_AUDIT.md`, preserving the existing feature set. All 402 tests passed
@@ -269,7 +284,7 @@ and property lists, and rejects quarantine attributes. Its temporary archive is 
 Commit the release inputs, then tag that exact commit with both version values:
 
 ```bash
-git tag appstore-v0.2.1-build.5
+git tag appstore-v0.2.2-build.6
 ```
 
 The archive target refuses a dirty input tree or a mismatched tag. The separate
@@ -296,7 +311,7 @@ the archive is kept under `.build/app-store/` instead of Xcode's default archive
 directory, open or double-click the `.xcarchive` first, for example:
 
 ```bash
-open .build/app-store/PDFwringer-0.2.1-build.5/PDFwringer.xcarchive
+open .build/app-store/PDFwringer-0.2.2-build.6/PDFwringer.xcarchive
 ```
 
 Store builds are signed locally by Xcode with the team's App Store distribution

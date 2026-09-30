@@ -254,3 +254,34 @@ remains visible and clears when the fields are edited.
 Exact 650×420 sizing and a complete VoiceOver/Increase Contrast certification
 remain explicit final QA gates; do not infer them from the source/layout fixes.
 See `APP_STORE.md` for signed candidate and distribution evidence.
+
+## Task-flow follow-up — 0.2.2 (build 6)
+
+User feedback exposed the Back chevron's inadequate hit target, fixed pane widths,
+ambiguous Security wording, and the lack of Merge entry from a single PDF. This
+increment uses one repeatable navigation pattern: pinned, full-button Back to the
+tool chooser, and pinned Close File from the chooser to neutral file selection.
+All ten two-column screens now use Apple's native
+[HSplitView](https://developer.apple.com/documentation/SwiftUI/HSplitView), preserving
+reachable minimum widths while permitting divider adjustment.
+
+Merge joins the existing tool chooser and Actions menu. A single opened PDF starts
+its list; Add Files explains the next step. Back keeps the original document and
+its active file access. Removing the last file keeps the list open. Failed intake,
+discard refusal, and running-operation gates preserve their previous guarantees.
+The landing screen retains only neutral file selection; no Merge button or note.
+
+Password Protection names the actual operation. New password creation is reachable
+directly, but first explains and asks consent for an image-based copy, including
+loss of text selection, links, editable annotations/forms, accessibility tags, and
+signatures. The app's current safe writer requires this path; PDF files do not
+inherently require flattening to use a password. No weaker writer or new encryption
+dependency was introduced. Removal and retention still use the existing ordinary
+save path. Original inputs remain unchanged.
+
+All 406 tests passed, with focused merge-return/security-scope regressions. Native
+checks confirmed the neutral landing screen, one-PDF Merge entry and return,
+empty-list recovery, discard protection, Back-chevron clicks, loaded-preview
+divider dragging, and password consent/cancellation. Exact minimum-window and
+complete assistive-technology certification remain final QA gates. Validation
+evidence and remaining release gates are in `APP_STORE.md`.

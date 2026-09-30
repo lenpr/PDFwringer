@@ -92,6 +92,9 @@ struct PDFwringerApp: App {
                 .keyboardShortcut("1", modifiers: .command)
                 .disabled(!appVM.canSelectSingleFileAction)
 
+                Button(String(localized: "Merge PDFs")) { appVM.selectMerge() }
+                    .disabled(!appVM.canSelectSingleFileAction)
+
                 Button(String(localized: "Split / Extract")) {
                     appVM.selectSplit()
                 }
@@ -136,7 +139,7 @@ struct PDFwringerApp: App {
                 .keyboardShortcut("[")
                 .disabled(!appVM.canGoBack)
 
-                Button(String(localized: "Start Over")) {
+                Button(appVM.hasDocument ? String(localized: "Close File") : String(localized: "Close Files")) {
                     appVM.confirmStartOver()
                 }
                 .keyboardShortcut(.delete, modifiers: [.command, .shift])

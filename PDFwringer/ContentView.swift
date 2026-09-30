@@ -21,6 +21,7 @@ struct ContentView: View {
                     url: url,
                     document: doc,
                     fileSize: appVM.currentFileSize,
+                    onMerge: { appVM.selectMerge() },
                     onCompress: {
                         withAnimation(.spring(duration: 0.3)) {
                             appVM.selectCompress()
@@ -270,11 +271,7 @@ struct ContentView: View {
                 return []
             },
             set: { newItems in
-                if newItems.isEmpty {
-                    appVM.startOver()
-                } else {
-                    appVM.state = .merging(newItems)
-                }
+                appVM.updateMergeFiles(newItems)
             }
         )
     }

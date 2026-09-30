@@ -15,7 +15,7 @@ struct MergeOptionsView: View {
     private var selectedPosition: Int? { files.firstIndex { $0.id == selectedFileID } }
 
     var body: some View {
-        HStack(spacing: 0) {
+        HSplitView {
             // Left: File list with reordering
             VStack(spacing: 0) {
                 if files.isEmpty {
@@ -26,9 +26,9 @@ struct MergeOptionsView: View {
                         Text(String(localized: "No files added"))
                             .font(.callout)
                             .foregroundStyle(.secondary)
-                        Text(String(localized: "Drop PDF files here or click Add Files"))
+                        Text(String(localized: "Drop PDF files here or click Add Files below"))
                             .font(.caption)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .overlay {
@@ -137,82 +137,93 @@ struct MergeOptionsView: View {
                 .padding(.vertical, 8)
                 .background(Color(nsColor: .windowBackgroundColor))
             }
-            .frame(minWidth: 260, idealWidth: 300)
-
-            Divider()
+            .frame(minWidth: 260, idealWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
 
             // Right: Merge action
-            ScrollViewReader { scroll in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        OptionsHeaderView(onBack: onBack, allowsEscapeBack: !vm.isProcessing && !isAddingFiles)
+            VStack(spacing: 0) {
+                OptionsHeaderView(onBack: onBack, allowsEscapeBack: !vm.isProcessing && !isAddingFiles, backTitle: appVM.mergeReturnsToDocument ? String(localized: "Back") : String(localized: "Close Files"), backHelp: appVM.mergeReturnsToDocument ? String(localized: "Return to tool selection") : String(localized: "Close these files and choose others"))
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                Divider()
+                ScrollViewReader { scroll in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
 
-                        Text(String(localized: "Merge"))
-                            .font(.title3.weight(.semibold))
+                            Text(String(localized: "Merge"))
+                                .font(.title3.weight(.semibold))
 
-                        Text(String(localized: "Select a file and use Move Earlier/Later, or drag to reorder. Files merge top to bottom."))
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
+                            Text(String(localized: "Select a file and use Move Earlier/Later, or drag to reorder. Files merge top to bottom."))
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
 
-                        Text(String(localized: "The merged copy will not be password-protected, even if an input has protection."))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        HStack {
-                            Text("\(files.count) files")
+                            Text(String(localized: "The merged copy will not be password-protected, even if an input has protection."))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                                .contentTransition(.numericText())
-                            Text("\u{2022}")
-                                .foregroundStyle(.quaternary)
-                            Text("\(totalPages) total pages")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .contentTransition(.numericText())
-                        }
 
-                        HStack {
+                            HStack {
+                                Text(files.count == 1 ? String(localized: "1 file") : String(localized: "\(files.count) files"))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .contentTransition(.numericText())
+                                Text("\u{2022}")
+                                    .foregroundStyle(.quaternary)
+                                Text("\(totalPages) total pages")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .contentTransition(.numericText())
+                            }
+
+                            if files.count < 2 {
+                                Text(files.count == 1
+                                     ? String(localized: "Add another PDF using Add Files, or drop it into the list.")
+                                     : String(localized: "Add two or more PDFs using Add Files, or drop them into the list."))
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            HStack {
+                                Spacer()
+                                Button(String(localized: "Save Merged Copy…")) {
+                                    Task { await performMerge() }
+                                }
+                                .keyboardShortcut("s")
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.large)
+                                .disabled(files.count < 2 || vm.isProcessing || isAddingFiles)
+                            }
+
+                            if vm.isProcessing {
+                                HStack(spacing: 8) {
+                                    ProgressView(String(localized: "Merging PDFs…"), value: vm.progress)
+                                        .progressViewStyle(.linear)
+                                    Button(String(localized: "Cancel")) { vm.cancel() }
+                                        .keyboardShortcut(.cancelAction)
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.small)
+                                }
+                            }
+
+                            if let msg = vm.resultMessage {
+                                ResultMessageView(
+                                    message: msg,
+                                    isError: vm.isError,
+                                    outputURL: vm.lastOutputURL,
+                                    onRetry: vm.isError ? { Task { await performMerge() } } : nil
+                                )
+                            }
+
                             Spacer()
-                            Button(String(localized: "Merge")) {
-                                Task { await performMerge() }
-                            }
-                            .keyboardShortcut("s")
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.large)
-                            .disabled(files.count < 2 || vm.isProcessing || isAddingFiles)
                         }
-
-                        if vm.isProcessing {
-                            HStack(spacing: 8) {
-                                ProgressView(String(localized: "Merging PDFs…"), value: vm.progress)
-                                    .progressViewStyle(.linear)
-                                Button(String(localized: "Cancel")) { vm.cancel() }
-                                    .keyboardShortcut(.cancelAction)
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                            }
-                        }
-
-                        if let msg = vm.resultMessage {
-                            ResultMessageView(
-                                message: msg,
-                                isError: vm.isError,
-                                outputURL: vm.lastOutputURL,
-                                onRetry: vm.isError ? { Task { await performMerge() } } : nil
-                            )
-                        }
-
-                        Spacer()
+                        .padding(24)
+                        .frame(maxWidth: 520, alignment: .leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .padding(24)
-                    .frame(maxWidth: 520, alignment: .leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .onChange(of: vm.resultMessage) { _, message in
-                    if message != nil { scroll.scrollTo("operation-result", anchor: .bottom) }
+                    .onChange(of: vm.resultMessage) { _, message in
+                        if message != nil { scroll.scrollTo("operation-result", anchor: .bottom) }
+                    }
                 }
             }
-            .frame(minWidth: 300, idealWidth: 340)
+            .frame(minWidth: 300, idealWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
             .tint(.coral)
         }
         .onAppear {

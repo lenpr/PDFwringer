@@ -25,10 +25,11 @@
 ## Current Status
 
 The default branch contains the latest hardening work and compression review
-flow for **Apple silicon on macOS 27.0+**. Version **0.2.1 (build 5)** refines
+flow for **Apple silicon on macOS 27.0+**. Version **0.2.2 (build 6)** refines
 preview accuracy, page selection, pending/apply/save clarity, accessibility, and
 visual consistency while retaining target-size compression and original/result
-comparison. Release validation and
+comparison. Navigation controls now stay visible, the divider is adjustable, and
+Merge is available after opening a single PDF. Release validation and
 remaining App Store checks are tracked in [APP_STORE.md](APP_STORE.md). The app
 has not been submitted for review or published on the App Store.
 
@@ -109,7 +110,7 @@ Fine-tune brightness, contrast, and saturation with real-time preview. Named pre
 
 ### Edit Metadata
 
-View and edit title, author, subject, keywords, and creator. These are standard document-info fields; embedded XMP and other identifying content can remain. Ordinary saves retain existing password protection, or remove it when explicitly requested. Creating a new password requires explicitly flattening the document and produces verified AES-128 encryption. New passwords must contain 1–32 printable ASCII characters. Flattening turns every page into an image, including annotation and form appearances; searchable text, accessibility tags, interactive forms, links, and digital signatures are not preserved.
+View and edit title, author, subject, keywords, and creator. These are standard document-info fields; embedded XMP and other identifying content can remain. Ordinary saves retain existing password protection, or remove it when explicitly requested. Adding password protection offers an explicit confirmation for an image-based copy and produces verified AES-128 encryption. This is a limitation of the current writer; removing existing password protection does not require flattening. New passwords must contain 1–32 printable ASCII characters. Flattening turns every page into an image, including annotation and form appearances; searchable text, accessibility tags, interactive forms, links, and digital signatures are not preserved.
 
 <p align="center">
   <img src="screenshots/metadata.png" width="720" alt="Edit PDF metadata">

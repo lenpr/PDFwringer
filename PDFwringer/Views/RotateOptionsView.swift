@@ -20,7 +20,7 @@ struct RotateOptionsView: View {
     private let rotator = PDFRotator()
 
     var body: some View {
-        HStack(spacing: 0) {
+        HSplitView {
             VStack(spacing: 0) {
                 PDFPreviewPanel(document: document, currentPage: $currentPage, generation: documentGeneration)
 
@@ -32,76 +32,79 @@ struct RotateOptionsView: View {
                 .id(documentGeneration)
                 .padding(.horizontal, 20)
             }
-            .frame(minWidth: 260, idealWidth: 320)
+            .frame(minWidth: 260, idealWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
             .overlay {
                 DropReceiverView(isTargeted: $isDropTargeted) { urls in
                     onFilesDropped(urls)
                 }
             }
 
-            Divider()
+            VStack(spacing: 0) {
+                OptionsHeaderView(url: url, onBack: onBack)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                Divider()
+                ScrollViewReader { scroll in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
 
-            ScrollViewReader { scroll in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        OptionsHeaderView(url: url, onBack: onBack)
+                            HStack {
+                                Text(String(localized: "Rotate Pages"))
+                                    .font(.title3.weight(.semibold))
+                                Spacer()
+                                Text("\(document.pageCount) pages")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .contentTransition(.numericText())
+                            }
 
-                        HStack {
-                            Text(String(localized: "Rotate Pages"))
-                                .font(.title3.weight(.semibold))
-                            Spacer()
-                            Text("\(document.pageCount) pages")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .contentTransition(.numericText())
-                        }
+                            Divider()
 
-                        Divider()
-
-                        PageSelectionView(
-                            pageCount: document.pageCount,
-                            selection: $pageSelection,
-                            shakeOffset: $shakeOffset,
-                            label: String(localized: "Rotate all pages")
-                        )
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            Button(String(localized: "Rotate 90° Clockwise")) { rotateInPlace(angle: .ninety) }
-                                .keyboardShortcut("r")
-                            Button(String(localized: "180°")) { rotateInPlace(angle: .oneEighty) }
-                            Button(String(localized: "Rotate 90° Counterclockwise")) { rotateInPlace(angle: .twoSeventy) }
-                                .keyboardShortcut("r", modifiers: [.command, .shift])
-
-                        }
-
-                        HStack {
-                            Spacer()
-                            Button(String(localized: "Save Copy…")) { saveRotated() }
-                                .keyboardShortcut("s")
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.large)
-                        }
-
-                        if let msg = resultMessage {
-                            ResultMessageView(
-                                message: msg,
-                                isError: isError,
-                                outputURL: lastOutputURL,
-                                onRetry: isError ? { saveRotated() } : nil
+                            PageSelectionView(
+                                pageCount: document.pageCount,
+                                selection: $pageSelection,
+                                shakeOffset: $shakeOffset,
+                                label: String(localized: "Rotate all pages")
                             )
-                        }
 
-                        Spacer()
+                            VStack(alignment: .leading, spacing: 8) {
+                                Button(String(localized: "Rotate 90° Clockwise")) { rotateInPlace(angle: .ninety) }
+                                    .keyboardShortcut("r")
+                                Button(String(localized: "180°")) { rotateInPlace(angle: .oneEighty) }
+                                Button(String(localized: "Rotate 90° Counterclockwise")) { rotateInPlace(angle: .twoSeventy) }
+                                    .keyboardShortcut("r", modifiers: [.command, .shift])
+
+                            }
+
+                            HStack {
+                                Spacer()
+                                Button(String(localized: "Save Copy…")) { saveRotated() }
+                                    .keyboardShortcut("s")
+                                    .buttonStyle(.borderedProminent)
+                                    .controlSize(.large)
+                            }
+
+                            if let msg = resultMessage {
+                                ResultMessageView(
+                                    message: msg,
+                                    isError: isError,
+                                    outputURL: lastOutputURL,
+                                    onRetry: isError ? { saveRotated() } : nil
+                                )
+                            }
+
+                            Spacer()
+                        }
+                        .padding(24)
+                        .frame(maxWidth: 520, alignment: .leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .padding(24)
-                    .frame(maxWidth: 520, alignment: .leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .onChange(of: resultMessage) { _, message in
-                    if message != nil { scroll.scrollTo("operation-result", anchor: .bottom) }
+                    .onChange(of: resultMessage) { _, message in
+                        if message != nil { scroll.scrollTo("operation-result", anchor: .bottom) }
+                    }
                 }
             }
-            .frame(minWidth: 300, idealWidth: 340)
+            .frame(minWidth: 300, idealWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
             .tint(.coral)
         }
     }

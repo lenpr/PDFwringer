@@ -24,7 +24,7 @@ struct ExportImagesOptionsView: View {
     @State private var operationTask: Task<Void, Never>?
 
     var body: some View {
-        HStack(spacing: 0) {
+        HSplitView {
             VStack(spacing: 0) {
                 PDFPreviewPanel(document: document, currentPage: $currentPage)
                 PageThumbnailStripView(
@@ -34,74 +34,76 @@ struct ExportImagesOptionsView: View {
                 )
                 .padding(.horizontal, 20)
             }
-            .frame(minWidth: 260, idealWidth: 320)
+            .frame(minWidth: 260, idealWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
             .overlay {
                 DropReceiverView(isTargeted: $isDropTargeted) { urls in onFilesDropped(urls) }
             }
 
-            Divider()
+            VStack(spacing: 0) {
+                OptionsHeaderView(url: url, onBack: onBack, allowsEscapeBack: !isProcessing)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                Divider()
+                ScrollViewReader { scroll in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
 
-            ScrollViewReader { scroll in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        OptionsHeaderView(url: url, onBack: onBack, allowsEscapeBack: !isProcessing)
+                            HStack {
+                                Text(String(localized: "Export as Images"))
+                                    .font(.title3.weight(.semibold))
+                                Spacer()
+                                Text("\(document.pageCount) pages")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
 
-                        HStack {
-                            Text(String(localized: "Export as Images"))
-                                .font(.title3.weight(.semibold))
-                            Spacer()
-                            Text("\(document.pageCount) pages")
+                            Divider()
+
+                            if document.isEncrypted {
+                                Text(String(localized: "Exported images are not password-protected."))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                        }
+                            }
 
-                        Divider()
+                            PageSelectionView(
+                                pageCount: document.pageCount,
+                                selection: $pageSelection,
+                                shakeOffset: $shakeOffset,
+                                label: String(localized: "Export all pages")
+                            )
 
-                        if document.isEncrypted {
-                            Text(String(localized: "Exported images are not password-protected."))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        }
+                            Divider()
 
-                        PageSelectionView(
-                            pageCount: document.pageCount,
-                            selection: $pageSelection,
-                            shakeOffset: $shakeOffset,
-                            label: String(localized: "Export all pages")
-                        )
-
-                        Divider()
-
-                        // Format selection
-                        HStack {
-                            Text(String(localized: "Format"))
-                                .font(.callout)
-                            Spacer()
-                            Picker(String(localized: "Format"), selection: $format) {
-                                ForEach(PDFImageExporter.ImageFormat.allCases) { f in
-                                    Text(f.title).tag(f)
+                            // Format selection
+                            HStack {
+                                Text(String(localized: "Format"))
+                                    .font(.callout)
+                                Spacer()
+                                Picker(String(localized: "Format"), selection: $format) {
+                                    ForEach(PDFImageExporter.ImageFormat.allCases) { f in
+                                        Text(f.title).tag(f)
+                                    }
                                 }
+                                .pickerStyle(.segmented)
+                                .labelsHidden()
+                                .frame(width: 140)
                             }
-                            .pickerStyle(.segmented)
-                            .labelsHidden()
-                            .frame(width: 140)
-                        }
 
-                        // DPI
-                        HStack {
-                            Text(String(localized: "Resolution"))
-                                .font(.callout)
-                            Spacer()
-                            Picker(String(localized: "Resolution"), selection: $dpi) {
-                                Text("72 DPI").tag(CGFloat(72))
-                                Text("150 DPI").tag(CGFloat(150))
-                                Text("300 DPI").tag(CGFloat(300))
-                            }
-                            .pickerStyle(.segmented)
-                            .labelsHidden()
-                            .onChange(of: resultMessage) { _, message in
-                    if message != nil { scroll.scrollTo("operation-result", anchor: .bottom) }
-                }
+                            // DPI
+                            HStack {
+                                Text(String(localized: "Resolution"))
+                                    .font(.callout)
+                                Spacer()
+                                Picker(String(localized: "Resolution"), selection: $dpi) {
+                                    Text("72 DPI").tag(CGFloat(72))
+                                    Text("150 DPI").tag(CGFloat(150))
+                                    Text("300 DPI").tag(CGFloat(300))
+                                }
+                                .pickerStyle(.segmented)
+                                .labelsHidden()
+                                .onChange(of: resultMessage) { _, message in
+                        if message != nil { scroll.scrollTo("operation-result", anchor: .bottom) }
+                    }
             }
             .frame(minWidth: 150)
                     }
@@ -153,7 +155,8 @@ struct ExportImagesOptionsView: View {
                 .frame(maxWidth: 520, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(minWidth: 300, idealWidth: 340)
+            }
+            .frame(minWidth: 300, idealWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
             .tint(.coral)
         }
         .onAppear { appVM.operationIsRunning = { isProcessing } }

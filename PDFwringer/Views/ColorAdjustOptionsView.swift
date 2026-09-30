@@ -19,94 +19,97 @@ struct ColorAdjustOptionsView: View {
     @State private var isDropTargeted = false
 
     var body: some View {
-        HStack(spacing: 0) {
+        HSplitView {
             previewColumn
 
-            Divider()
+            VStack(spacing: 0) {
+                OptionsHeaderView(url: url, onBack: onBack, allowsEscapeBack: !vm.isSaving)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                Divider()
+                ScrollViewReader { scroll in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
 
-            ScrollViewReader { scroll in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        OptionsHeaderView(url: url, onBack: onBack, allowsEscapeBack: !vm.isSaving)
+                            HStack {
+                                Text(String(localized: "Adjust Colors"))
+                                    .font(.title3.weight(.semibold))
+                                Spacer()
+                                Text("\(document.pageCount) pages")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
 
-                        HStack {
-                            Text(String(localized: "Adjust Colors"))
-                                .font(.title3.weight(.semibold))
-                            Spacer()
-                            Text("\(document.pageCount) pages")
+                            Divider()
+
+                            if document.isEncrypted {
+                                Text(String(localized: "The saved copy will not be password-protected."))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                        }
-
-                        Divider()
-
-                        if document.isEncrypted {
-                            Text(String(localized: "The saved copy will not be password-protected."))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        }
-
-                        Text(String(localized: "Adjusted pages become images. Searchable text, accessibility tags, interactive forms, links, and digital signatures on those pages are not preserved."))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        PageSelectionView(
-                            pageCount: document.pageCount,
-                            selection: $pageSelection,
-                            shakeOffset: $shakeOffset,
-                            label: String(localized: "Adjust all pages")
-                        )
-
-                        Divider()
-
-                        sliderSection
-                            .disabled(vm.isSaving)
-
-                        presetButtons
-                            .disabled(vm.isSaving)
-
-                        Spacer()
-
-                        HStack {
-                            Spacer()
-                            Button(String(localized: "Save Copy…")) {
-                                saveAdjustedPDF()
                             }
-                            .keyboardShortcut("s")
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.large)
-                            .disabled(vm.isIdentity || vm.isSaving)
-                        }
 
-                        if vm.isSaving {
-                            HStack(spacing: 8) {
-                                ProgressView(String(localized: "Saving adjusted copy…"), value: vm.progress)
-                                    .progressViewStyle(.linear)
-                                Button(String(localized: "Cancel")) { vm.cancel() }
-                                    .keyboardShortcut(.cancelAction)
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                            }
-                        }
+                            Text(String(localized: "Adjusted pages become images. Searchable text, accessibility tags, interactive forms, links, and digital signatures on those pages are not preserved."))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
 
-                        if let msg = vm.resultMessage {
-                            ResultMessageView(
-                                message: msg,
-                                isError: vm.isError,
-                                outputURL: vm.lastOutputURL,
-                                onRetry: vm.isError ? { saveAdjustedPDF() } : nil
+                            PageSelectionView(
+                                pageCount: document.pageCount,
+                                selection: $pageSelection,
+                                shakeOffset: $shakeOffset,
+                                label: String(localized: "Adjust all pages")
                             )
+
+                            Divider()
+
+                            sliderSection
+                                .disabled(vm.isSaving)
+
+                            presetButtons
+                                .disabled(vm.isSaving)
+
+                            Spacer()
+
+                            HStack {
+                                Spacer()
+                                Button(String(localized: "Save Copy…")) {
+                                    saveAdjustedPDF()
+                                }
+                                .keyboardShortcut("s")
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.large)
+                                .disabled(vm.isIdentity || vm.isSaving)
+                            }
+
+                            if vm.isSaving {
+                                HStack(spacing: 8) {
+                                    ProgressView(String(localized: "Saving adjusted copy…"), value: vm.progress)
+                                        .progressViewStyle(.linear)
+                                    Button(String(localized: "Cancel")) { vm.cancel() }
+                                        .keyboardShortcut(.cancelAction)
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.small)
+                                }
+                            }
+
+                            if let msg = vm.resultMessage {
+                                ResultMessageView(
+                                    message: msg,
+                                    isError: vm.isError,
+                                    outputURL: vm.lastOutputURL,
+                                    onRetry: vm.isError ? { saveAdjustedPDF() } : nil
+                                )
+                            }
                         }
+                        .padding(24)
+                        .frame(maxWidth: 520, alignment: .leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .padding(24)
-                    .frame(maxWidth: 520, alignment: .leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .onChange(of: vm.resultMessage) { _, message in
-                    if message != nil { scroll.scrollTo("operation-result", anchor: .bottom) }
+                    .onChange(of: vm.resultMessage) { _, message in
+                        if message != nil { scroll.scrollTo("operation-result", anchor: .bottom) }
+                    }
                 }
             }
-            .frame(minWidth: 300, idealWidth: 340)
+            .frame(minWidth: 300, idealWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
             .tint(.coral)
         }
         .onChange(of: hasPendingChanges) { _, dirty in appVM.hasUnsavedChanges = dirty }
@@ -171,7 +174,7 @@ struct ColorAdjustOptionsView: View {
             )
             .padding(.horizontal, 20)
         }
-        .frame(minWidth: 260, idealWidth: 320)
+        .frame(minWidth: 260, idealWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
         .overlay {
             DropReceiverView(isTargeted: $isDropTargeted) { urls in
                 onFilesDropped(urls)

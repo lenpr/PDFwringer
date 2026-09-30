@@ -62,6 +62,7 @@ class AppViewModel {
     private var fileIntakeID: UUID?
     private var activeSecurityScopedURL: URL?
     private var pendingSecurityScopedURL: URL?
+    private var mergeReturnState: AppState?
     @ObservationIgnored private let beginSecurityScopedAccess: @MainActor (URL) -> Bool
     @ObservationIgnored private let endSecurityScopedAccess: @MainActor (URL) -> Void
 
@@ -86,7 +87,8 @@ class AppViewModel {
         case .rotating(let url, _, _), .cropping(let url, _, _):
             return "PDFwringer — \(url.lastPathComponent)"
         case .merging(let items):
-            return "PDFwringer — \(items.count) files"
+            return items.isEmpty ? "PDFwringer — Merge PDFs"
+                : "PDFwringer — \(items.count) \(items.count == 1 ? "file" : "files")"
         }
     }
 
@@ -99,6 +101,8 @@ class AppViewModel {
         if case .singleFile = state { return true }
         return false
     }
+
+    var mergeReturnsToDocument: Bool { mergeReturnState != nil }
 
     var canGoBack: Bool {
         switch state {
@@ -195,6 +199,7 @@ class AppViewModel {
         refreshRecentDocuments()
         hasUnsavedChanges = false
         operationIsRunning = { false }
+        mergeReturnState = nil
         state = .singleFile(url, doc)
     }
 
@@ -219,6 +224,7 @@ class AppViewModel {
             pendingLockedURL = nil
             wrongPasswordAttempt = false
             showPasswordPrompt = false
+            mergeReturnState = nil
             state = .singleFile(url, doc)
         } else {
             passwordText = ""
@@ -307,6 +313,33 @@ class AppViewModel {
         state = .reorderingPages(url, doc)
     }
 
+    func selectMerge() {
+        guard canSelectSingleFileAction, canLeaveWorkflow() else { return }
+        switch state {
+        case .singleFile(let url, let document):
+            // Merge reads its inputs again from disk; an in-memory unlock cannot
+            // be passed to the background merger as a password authorization.
+            if document.isEncrypted, PDFFileItem.from(url: url) == nil {
+                errorMessage = String(localized: "To merge this password-protected PDF, first save a copy with Remove password protection in Edit Metadata, then open that copy.")
+                showErrorAlert = true
+                return
+            }
+            mergeReturnState = state
+            state = .merging([PDFFileItem(url: url, pageCount: document.pageCount)])
+        default:
+            return
+        }
+        navigationDirection = .trailing
+        hasUnsavedChanges = false
+        operationIsRunning = { false }
+    }
+
+    func updateMergeFiles(_ items: [PDFFileItem]) {
+        guard case .merging = state else { return }
+        // Removing the final item leaves an empty merge list ready for Add Files.
+        state = .merging(items)
+    }
+
     func goBack() {
         guard canGoBack, canLeaveWorkflow() else { return }
         let destination: AppState
@@ -320,7 +353,8 @@ class AppViewModel {
              .reorderingPages(let url, let doc):
             destination = .singleFile(url, doc)
         case .merging:
-            destination = .landing
+            destination = mergeReturnState ?? .landing
+            mergeReturnState = nil
         default:
             return
         }
@@ -328,6 +362,7 @@ class AppViewModel {
         state = destination
         operationIsRunning = { false }
         hasUnsavedChanges = false
+        if case .landing = destination { stopActiveSecurityScope() }
     }
 
     func confirmStartOver() {
@@ -353,6 +388,7 @@ class AppViewModel {
         currentFileSize = 0
         navigationDirection = .trailing
         hasUnsavedChanges = false
+        mergeReturnState = nil
     }
 
     private func failFileIntake(_ error: Error, requestID: UUID) {
@@ -383,6 +419,7 @@ class AppViewModel {
             }
             refreshRecentDocuments()
             hasUnsavedChanges = false
+            mergeReturnState = nil
             state = .merging(items)
         }
     }

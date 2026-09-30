@@ -1,5 +1,25 @@
 # Release progression
 
+## 0.2.2 (build 6) — 2026-09-30
+
+Makes existing task flows more consistent, without new PDF operations.
+
+- Larger native Back controls respond across the whole label, including the
+  chevron. Navigation stays visible above scrolling options in every tool.
+- Native draggable dividers let people resize preview/list and options columns.
+- Close File replaces the small opposite-side X on the tool chooser. Back returns
+  to tools; Close File returns to the neutral file-selection screen.
+- Merge is available alongside the other tools after opening one PDF. The PDF is
+  already in the merge list, with guidance to Add Files. Back returns to the
+  original document; removing the last item leaves a usable empty merge list.
+- The opening screen remains focused on selecting PDFs, with no task-specific
+  buttons. Opening several PDFs still starts the existing merge flow.
+- Password Protection replaces the broad Security label. Add password protection
+  explains and asks consent for the current image-copy requirement; ordinary
+  password removal does not require flattening. The encryption safeguards remain.
+
+Validation and distribution evidence are tracked in `APP_STORE.md`.
+
 ## 0.2.1 (build 5) — 2026-09-30
 
 Refines existing workflows after the adversarial UI/UX review. No new PDF
