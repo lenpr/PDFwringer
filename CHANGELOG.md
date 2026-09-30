@@ -7,6 +7,11 @@ review work completed in September. This version replaces the May 0.1.16
 download and aligns the installed app, GitHub download, Homebrew cask, and new
 App Store candidate.
 
+All 399 tests, archive/export checks, and Xcode Organizer validation passed.
+The [0.2.0 download](https://github.com/lenpr/PDFwringer/releases/tag/v0.2.0)
+is signed, notarized, and stapled; Homebrew and the installed app use the same
+version and build. See `APP_STORE.md` for the preserved validation evidence.
+
 - Fit under a specified file-size limit, with complete output measurement and
   explicit consent for image compression.
 - Compare Original / Result before saving, preserving page and relative zoom.

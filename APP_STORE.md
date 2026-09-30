@@ -10,10 +10,35 @@ The app requires macOS 27.0 or later on Apple silicon. Build with Xcode 27.
 
 This version consolidates the September hardening and compression increments
 under a new visible version. `PDFwringer/Info.plist` contains version `0.2.0`
-and build `4`; the implementation is unchanged from validated build 3.
-Its own signed archive, export, and Organizer validation are required before
-marking this candidate validated. Earlier evidence below retains its original
-version and source identity. See `CHANGELOG.md` for the release progression.
+and build `4`; the implementation is unchanged from validated build 3. Source
+commit `b4e79d0` is tagged `v0.2.0` and `appstore-v0.2.0-build.4`.
+
+All 399 tests passed again (332 fast, 61 corpus, 6 performance), along with the
+unsigned archive check, signed archive, App Store export, strict signatures, and
+Xcode Organizer validation. Organizer reported: “Your app successfully passed
+all validation checks.” The export contains an Apple Distribution-signed arm64
+app, macOS 27 minimum, sandbox/user-selected read-write/app-scoped bookmarks,
+and no debugging entitlement. Its Mac App Store installer signature was verified.
+Package SHA-256:
+`002d40a48b5d325071b2fe97df44bed1b7c7f118c994357b02295daf9bb8cbab`.
+
+The [GitHub 0.2.0 release](https://github.com/lenpr/PDFwringer/releases/tag/v0.2.0)
+provides the separately Developer ID-signed app in a signed, notarized, stapled
+DMG. Both the app and DMG passed notarization; the downloaded GitHub asset matches
+SHA-256 `42f2fc513cda7f64e9beb327dd5c33a9d3a910cdfbea7e84d31b8e79c86d5beb`.
+The Homebrew cask points to that version/checksum and requires Apple silicon and
+macOS 27.0+. Homebrew upgraded the local receipt and installed app to `0.2.0`;
+the installed About panel visibly shows `Version 0.2.0 (4)`. Strict signature and
+Gatekeeper checks passed. The installed executable matches the download exactly
+and shares the archive UUID `0FFC18EC-47AF-3411-8EFB-230440893920`.
+
+Evidence is preserved outside `.build` in
+`../PDFwringer-release-evidence/appstore-0.2.0-build.4-b4e79d0/` and
+`../PDFwringer-release-evidence/download-0.2.0-build.4-b4e79d0/`.
+Earlier evidence below retains its original identity; see `CHANGELOG.md` for
+the progression. The App Store candidate has not been submitted for review.
+Account-side listing/privacy/compliance responses, the complete accessibility
+pass, and Store/TestFlight-installed checks remain submission gates.
 
 ## Build 3 compression implementation — 2026-09-30
 

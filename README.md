@@ -30,6 +30,10 @@ target-size compression and original/result comparison. Release validation and
 remaining App Store checks are tracked in [APP_STORE.md](APP_STORE.md). The app
 has not been submitted for review or published on the App Store.
 
+The [0.2.0 download](https://github.com/lenpr/PDFwringer/releases/tag/v0.2.0) is
+signed, notarized, and available through Homebrew. All 399 tests passed; the
+matching App Store candidate passed signed archive/export and Organizer validation.
+
 See [CHANGELOG.md](CHANGELOG.md) for the public versions and earlier development
 milestones. Screenshots below show the older release; current control labels
 and safety guidance may differ.
