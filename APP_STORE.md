@@ -6,6 +6,15 @@ and must not be used to create the App Store build.
 
 The app requires macOS 27.0 or later on Apple silicon. Build with Xcode 27.
 
+## Current candidate: 0.2.0 (build 4) — 2026-09-30
+
+This version consolidates the September hardening and compression increments
+under a new visible version. `PDFwringer/Info.plist` contains version `0.2.0`
+and build `4`; the implementation is unchanged from validated build 3.
+Its own signed archive, export, and Organizer validation are required before
+marking this candidate validated. Earlier evidence below retains its original
+version and source identity. See `CHANGELOG.md` for the release progression.
+
 ## Build 3 compression implementation — 2026-09-30
 
 Build `0.1.16 (3)` implements only the two increments retained in
@@ -173,8 +182,9 @@ These steps require the app owner and cannot be stored in the repository:
 
 Update both values in `PDFwringer/Info.plist` before every Store release:
 
-- `CFBundleShortVersionString` is the customer-facing version, such as
-  `0.1.17`.
+- `CFBundleShortVersionString` is the customer-facing version. Increment it for
+  each shipped user-visible batch, using a patch for fixes and a minor version
+  for retained feature increments (see `CHANGELOG.md`).
 - `CFBundleVersion` is the build number. Increment it for every new build sent
   to App Store Connect. Apple permits reuse only when its processing of the
   previous upload failed; in that case, reuse the existing artifact when
@@ -194,7 +204,7 @@ and property lists, and rejects quarantine attributes. Its temporary archive is 
 Commit the release inputs, then tag that exact commit with both version values:
 
 ```bash
-git tag appstore-v0.1.17-build.2
+git tag appstore-v0.2.0-build.4
 ```
 
 The archive target refuses a dirty input tree or a mismatched tag. The separate
@@ -221,7 +231,7 @@ the archive is kept under `.build/app-store/` instead of Xcode's default archive
 directory, open or double-click the `.xcarchive` first, for example:
 
 ```bash
-open .build/app-store/PDFwringer-0.1.17-build.2/PDFwringer.xcarchive
+open .build/app-store/PDFwringer-0.2.0-build.4/PDFwringer.xcarchive
 ```
 
 Store builds are signed locally by Xcode with the team's App Store distribution

@@ -25,16 +25,14 @@
 ## Current Status
 
 The default branch contains the latest hardening work and compression review
-flow for **Apple silicon on macOS 27.0+**. Build **0.1.16 (3)** adds target-size
-compression and original/result comparison. Release validation and remaining
-App Store checks are tracked in [APP_STORE.md](APP_STORE.md). All 399 tests,
-signed archive/export checks, and Xcode Organizer validation passed. The app has not
-been submitted for review or published on the App Store.
+flow for **Apple silicon on macOS 27.0+**. Version **0.2.0 (build 4)** includes
+target-size compression and original/result comparison. Release validation and
+remaining App Store checks are tracked in [APP_STORE.md](APP_STORE.md). The app
+has not been submitted for review or published on the App Store.
 
-The downloadable **v0.1.16 release and Homebrew cask are the May 2026 build**.
-They do not include the subsequent hardening or the password-retry fix. Build
-from the current source for those changes. Screenshots below show that older
-release; current control labels and safety guidance may differ.
+See [CHANGELOG.md](CHANGELOG.md) for the public versions and earlier development
+milestones. Screenshots below show the older release; current control labels
+and safety guidance may differ.
 
 ---
 
@@ -160,8 +158,9 @@ make app-store-check # credential-free Mac App Store archive validation
 
 ### Install
 
-The published May 2026 release is available via Homebrew (signed, notarized,
-and sandboxed). It is older than the current source:
+Download the signed, notarized app from
+[GitHub Releases](https://github.com/lenpr/PDFwringer/releases/latest), or install
+it through Homebrew:
 
 ```bash
 brew tap lenpr/tap

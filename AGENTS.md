@@ -93,3 +93,11 @@ landing → singleFile / multiFile → compressing / splitting / rotating / edit
 Both Makefile and Xcode builds support Apple silicon only (macOS 27.0+). See
 `APP_STORE.md` for the separate App Store archive/export path and outstanding
 release gates; a passing ad-hoc build is not App Store signing validation.
+
+## Release identity
+
+`PDFwringer/Info.plist` is the shared version/build source for both build paths.
+Follow `CHANGELOG.md`: bump the visible version for each shipped user-visible
+batch and the build number for every new signed candidate. Keep source, installed
+app, GitHub download, Homebrew cask and App Store candidate aligned. Preserve
+historical tags, binaries and validation records under their actual identities.

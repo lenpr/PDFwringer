@@ -3,6 +3,8 @@
 Design prepared on 2026-09-29; implemented on 2026-09-30 in **0.1.16 (3)**.
 Release evidence and remaining submission gates are recorded in `APP_STORE.md`.
 Build 2 at `df32247` remains preserved as the previous validated candidate.
+The public release containing both increments is **0.2.0 (build 4)**; see
+`CHANGELOG.md` for the relationship between historical candidates and releases.
 
 Only these two increments are in scope. The other brainstormed ideas are dropped.
 
