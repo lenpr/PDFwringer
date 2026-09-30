@@ -31,8 +31,10 @@ has a valid Mac App Store installer signature and SHA-256
 Xcode Organizer reported: “Your app successfully passed all validation checks.”
 Its preserved log records validation success at 2026-09-30 22:16:48 UTC.
 The Xcode archive UUID is `4D4E085F-EEA5-311F-8383-796653D0AAB6`.
-Private archives, export, distribution logs, tests, and signatures are retained in
-`../PDFwringer-release-evidence/appstore-0.2.3-build.7-fa0b729/`.
+The current signed archive and dSYMs are retained in Xcode at
+`~/Library/Developer/Xcode/Archives/2026-09-30/PDFwringer.xcarchive`.
+The export, distribution logs, tests, and signatures are retained in
+`../PDFwringer-release-evidence/current/app-store/`.
 
 The separate Developer ID app and disk image passed notarization and stapled
 ticket validation. The public GitHub download matches SHA-256
@@ -44,15 +46,39 @@ upgraded the installed receipt and app to 0.2.3. Native About displays
 neutral file intake. Strict signature, Gatekeeper, and stapled-ticket checks
 passed. The installed executable, bundle metadata, and code-signing resource
 record match the downloaded public payload. Download evidence is retained in
-`../PDFwringer-release-evidence/download-0.2.3-build.7-fa0b729/`.
+`../PDFwringer-release-evidence/current/download/`.
 
 The earlier 0.2.2 internal candidate, source `2fb937a`, also passed signed
-archive/export and Organizer validation. Its artifacts and tags are preserved
-under their actual identities; it was superseded before a public download.
+archive/export and Organizer validation. Its source tags and results above
+retain their original identities; obsolete local binaries were removed. It was
+superseded before a public download.
 
 Remaining submission gates are listing/privacy/compliance responses, complete
 accessibility/contrast/minimum-window QA, and Store/TestFlight-installed tests.
 No app was uploaded as a release or submitted for review in this increment.
+
+## Local artifact retention — 2026-09-30
+
+Keep one current release evidence folder at
+`../PDFwringer-release-evidence/current/`, plus the current Xcode-managed archive
+and dSYMs. The App Store package and archive identities were verified before
+removing their duplicate copies. The signed public DMG, checksum, and current
+validation records remain available alongside the package.
+
+Remove disposable test apps/PDFs, temporary scripts and logs, expanded packages,
+superseded local binaries, duplicate downloads, `.build`, and project-specific
+Derived Data after completing a batch. Keep source/history, the fixture corpus,
+installed-app settings and receipts, published GitHub assets, and matching
+symbols for publicly shipped executables. An older dSYM is retained only when its
+UUID matches a published binary; the retained 0.2.0 symbols match
+`0FFC18EC-47AF-3411-8EFB-230440893920`. This cleanup removed 177 disposable
+artifacts and recovered approximately 1.9 GB.
+
+When replacing the current candidate, preserve the newly validated archive,
+package, symbols, checksums, and essential evidence first, then remove superseded
+copies. Use `make clean` for reproducible build output. Use temporary directories
+with cleanup on both success and failure. Do not accumulate increment-specific
+backup folders or leave disposable data for the user to sort through.
 
 ## Previous validated candidate: 0.2.1 — 2026-09-30
 
@@ -86,10 +112,8 @@ download payload exactly. The download UUID is
 `905990A9-9CEF-3968-A318-067C4D551359`. Both use the same tagged source/version;
 the two build paths are not asserted to produce identical executables.
 
-Evidence is preserved outside `.build` in
-`../PDFwringer-release-evidence/appstore-0.2.1-build.5-30daa06/` and
-`../PDFwringer-release-evidence/download-0.2.1-build.5-30daa06/`.
-Historical evidence below retains its original identity. Store listing/privacy/
+The results above and source tags remain the historical record. Superseded
+local binaries and duplicate evidence were removed under the retention policy. Store listing/privacy/
 compliance responses, complete accessibility/contrast/minimum-window QA, and
 Store/TestFlight-installed checks remain submission gates. Nothing was uploaded
 as an App Store release or submitted for review by this increment.
@@ -120,11 +144,11 @@ the installed About panel was verified against version `0.2.0`. Strict signature
 Gatekeeper checks passed. The installed executable matches the download exactly
 and shares the archive UUID `0FFC18EC-47AF-3411-8EFB-230440893920`.
 
-Evidence is preserved outside `.build` in
-`../PDFwringer-release-evidence/appstore-0.2.0-build.4-b4e79d0/` and
-`../PDFwringer-release-evidence/download-0.2.0-build.4-b4e79d0/`.
-Earlier evidence below retains its original identity; see `CHANGELOG.md` for
-the progression. The App Store candidate has not been submitted for review.
+The results above and source tags remain the historical record; see
+`CHANGELOG.md` for the progression. Superseded local binaries and duplicate
+evidence were removed. The dSYM matching the published executable is retained
+for crash symbolication in `../PDFwringer-release-evidence/symbols/0.2.0/`.
+The App Store candidate has not been submitted for review.
 Account-side listing/privacy/compliance responses, the complete accessibility
 pass, and Store/TestFlight-installed checks remain submission gates.
 
@@ -170,8 +194,8 @@ prepare/review/save, destination-change refusal, corrected Try Again destination
 selection, and save-panel cancellation retaining the candidate. Reselecting a
 new destination and Command-S saved the result successfully.
 
-Evidence is preserved outside `.build` in
-`../PDFwringer-release-evidence/appstore-0.1.16-build.3-1962331/`.
+The results above and source tag remain the historical record. Superseded
+local artifacts were removed under the retention policy.
 Build 2's results below are historical. Remaining submission gates include the
 account-side listing/privacy/compliance responses and the complete
 accessibility/layout and distribution-installed interaction pass. No App Store
@@ -182,8 +206,8 @@ Apple notarization, stapled, and installed at `/Applications/PDFwringer.app`.
 Strict signature verification and Gatekeeper assessment passed. Its executable
 UUID matches the archive. Native installed-app launch, Open, Compress, target
 preflight and return to the landing screen passed. This local installation does
-not certify a Store/TestFlight-installed copy. Evidence is retained in
-`../PDFwringer-release-evidence/local-install-0.1.16-build.3-1962331/`.
+not certify a Store/TestFlight-installed copy. This superseded local installation and its duplicate evidence were removed
+under the retention policy.
 
 ## Signed candidate validation — 2026-09-28
 
@@ -200,8 +224,8 @@ Candidate `0.1.16`, source commit `55093a9`, tagged
   `com.pdfwringer.app`, primary language English (United States). Xcode initially
   reported an error after record creation; repeating validation succeeded.
 
-The archive, dSYMs, exported package, SHA-256, and validation logs are retained
-outside `.build` in `../PDFwringer-release-evidence/appstore-0.1.16-build.1-55093a9/`.
+The results above and source tag remain the historical record. Superseded
+local artifacts were removed under the retention policy.
 No app was submitted for review or published. Signed-candidate interaction tests
 and the App Store Connect listing, privacy, and compliance responses remain.
 The older unsigned-validation entries below are historical; their signing and
@@ -209,7 +233,7 @@ Organizer limitations have been resolved for this candidate only.
 
 ## Signed archive interaction checks — 2026-09-29
 
-Tested the preserved Apple Development-signed archive app for commit `55093a9`
+Tested the then-current Apple Development-signed archive app for commit `55093a9`
 on macOS 27. These checks do not certify an App Store-installed or
 TestFlight-delivered copy.
 
@@ -220,8 +244,8 @@ was independently reopened and verified to contain three pages and the expected
 title; the source SHA-256 remained unchanged. Quit after saving exited without
 a discard prompt. Relaunch and Open Recent reopened the fixture successfully.
 
-Evidence and the disposable saved PDF are retained alongside the signed archive
-as `native-smoke-20260929.json` and `signed-smoke-output-20260929.pdf`.
+The results above remain the historical record. Superseded archive copies,
+temporary evidence, and disposable outputs were removed under the retention policy.
 Remaining native checks include Finder/Dock replacement while a save panel is
 active, drag-and-drop, save failure/overwrite, long-operation cancellation,
 protected PDFs, and the full accessibility/layout pass. No code changes were
@@ -266,11 +290,9 @@ minimum, sandbox, user-selected read/write and app-scoped bookmarks, with no
 debugging entitlement. The package SHA-256 is
 `efe2bfee9cff3ba964debcea4c99b86380268d8888251e03ae64e51f717030a1`.
 
-The archive, dSYMs, package, signatures, test/build/validation logs, and synthetic
-protected-document fixtures are retained outside `.build` in
-`../PDFwringer-release-evidence/appstore-0.1.16-build.2-df32247/`.
-The native password and cancellation evidence is recorded in
-`native-protected-workflows-20260929.json`. The earlier interaction-check list
+The results above and source tag remain the historical record. Superseded
+archive copies, duplicate evidence, and disposable fixtures were removed under
+the retention policy. The earlier interaction-check list
 is historical: protected PDFs and long-operation cancellation are now covered.
 Finder/Dock replacement during a save panel, drag-and-drop, save failure/overwrite,
 the full accessibility/layout pass, and an App Store-installed or TestFlight copy
@@ -346,6 +368,11 @@ directory, open or double-click the `.xcarchive` first, for example:
 ```bash
 open .build/app-store/PDFwringer-0.2.3-build.7/PDFwringer.xcarchive
 ```
+
+After validation and cleanup, the current retained archive is the Xcode-managed
+copy at `~/Library/Developer/Xcode/Archives/2026-09-30/PDFwringer.xcarchive`;
+open that copy when continuing the release. The duplicate build-tree archive has
+been removed.
 
 Store builds are signed locally by Xcode with the team's App Store distribution
 assets, then delivered through App Store Connect. They are not submitted to
@@ -528,12 +555,9 @@ Validated source commit `96c1390` on the same Apple silicon/macOS 27 environment
   image/settings assertions, with a one-minute framework timeout for hangs.
   It no longer mistakes time spent on other concurrent tests for render failure.
 
-Local evidence is retained outside `.build`, in the sibling directory
-`PDFwringer-release-evidence/2026-09-27-96c1390/`: test/build/archive logs, the
-optimized local app, and an `evidence.json` containing the source revision,
-platform/toolchain, architecture, and binary SHA-256. `make clean` does not
-remove this directory. The unsigned check archive is temporary and is not kept;
-retain the actual signed distribution archive and its dSYMs at release time.
+The source revision and check results above remain the historical record.
+Obsolete local app copies and temporary logs were removed under the retention
+policy. Keep the current signed distribution archive and its dSYMs at release time.
 
 Remaining release gates: actual App Store signing/provisioning and Organizer
 validation, candidate-specific UI/accessibility checks, and the account-side
@@ -554,9 +578,8 @@ concurrency, and crop-geometry hardening:
 - Crop/resize tests reject non-finite origins, overflowing rectangle edges, and
   non-finite crop controls without mutating the affected page.
 
-Logs, the optimized local app, platform/toolchain details, source revision, and
-binary SHA-256 are preserved outside `.build` in the sibling directory
-`PDFwringer-release-evidence/2026-09-28-c5a76f4/`.
+The source revision and check results above remain the historical record.
+Obsolete local app copies and temporary logs were removed under the retention policy.
 
 This remains local validation on macOS 27. The App Store distribution
 signing/provisioning, Organizer, and candidate-specific manual release gates

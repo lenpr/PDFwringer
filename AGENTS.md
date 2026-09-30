@@ -100,4 +100,20 @@ release gates; a passing ad-hoc build is not App Store signing validation.
 Follow `CHANGELOG.md`: bump the visible version for each shipped user-visible
 batch and the build number for every new signed candidate. Keep source, installed
 app, GitHub download, Homebrew cask and App Store candidate aligned. Preserve
-historical tags, binaries and validation records under their actual identities.
+immutable source tags and record validation results under their actual identities.
+
+## Artifact cleanup
+
+After each completed batch, remove disposable test apps/PDFs, temporary scripts
+and logs, expanded packages, duplicate downloads, `.build` (`make clean`), and
+project-specific Derived Data. Preserve source, the external fixture corpus,
+installed-app settings and receipts, and published GitHub assets.
+
+Keep one canonical current archive with its dSYMs in Xcode's archive folder.
+Store the current App Store package and essential validation/checksum/notarization
+evidence in `../PDFwringer-release-evidence/current/`. Before pruning a superseded candidate,
+verify that the new archive, package, symbols, and evidence are safely retained.
+Older symbols may remain in `../PDFwringer-release-evidence/symbols/` only when
+their UUID matches a publicly shipped executable needed for crash diagnosis.
+Use temporary directories with cleanup on success and failure; do not create
+increment-specific backup folders or leave obsolete local binaries behind.

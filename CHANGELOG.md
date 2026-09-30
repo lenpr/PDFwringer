@@ -61,7 +61,7 @@ App Store candidate.
 All 399 tests, archive/export checks, and Xcode Organizer validation passed.
 The [0.2.0 download](https://github.com/lenpr/PDFwringer/releases/tag/v0.2.0)
 is signed, notarized, and stapled; Homebrew and the installed app use the same
-version and build. See `APP_STORE.md` for the preserved validation evidence.
+version and build. See `APP_STORE.md` for the validation record and artifact retention policy.
 
 - Fit under a specified file-size limit, with complete output measurement and
   explicit consent for image compression.
@@ -77,8 +77,9 @@ version and build. See `APP_STORE.md` for the preserved validation evidence.
 ## September development milestones
 
 These are the actual earlier build identities, recorded retrospectively to make
-the progression visible. Their archived binaries and signed tags are preserved;
-they were not separate public downloads and are not renumbered.
+the progression visible. Their source tags and validation results remain the
+historical record; superseded local binaries have been removed. They were not
+separate public downloads and are not renumbered.
 
 | Version | Date | Milestone | Source tag |
 |---|---|---|---|
@@ -105,4 +106,5 @@ public version. Tag each exact release-input commit as `v<version>` and
 GitHub release notes and the Homebrew cask must name that same version and point
 to the verified downloadable artifact. The installed Developer ID app and the
 App Store export have different signing requirements, but use the same source,
-public version, and build number. Historical evidence keeps its original identity.
+public version, and build number. Historical tags and validation results keep
+their original identity; retain local artifacts according to `APP_STORE.md`.
