@@ -144,6 +144,21 @@ installed/public download and preserved signed-candidate identities remain
 unchanged; candidate-specific signing/Organizer/installed QA is still required
 for the consolidated release. VoiceOver remains deferred.
 
+## Source-recovery follow-up — unreleased, 2026-10-01
+
+After `44def18`, regression tests reproduced stale results/progress/retry
+categories when reused Compress/Split convenience loaders rejected missing,
+corrupt or locked source replacements. Source changes now clear this feedback;
+valid-source recovery and previously saved output preservation are covered.
+Interactive failed Open still preserves the current workspace.
+
+All 384 fast tests passed, including the three input classes. Optimized release
+compilation and strict ad-hoc signature verification passed without warnings.
+PDF output algorithms and permissions are unchanged; the prior sweep's corpus
+and performance results were not rerun for this view-model feedback change.
+No version/distribution update or new signed Store validation was performed.
+Disposable build products and test logs were cleaned after the source commit.
+
 ## Local artifact retention — 2026-09-30
 
 Keep one current release evidence folder at

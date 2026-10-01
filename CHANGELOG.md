@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Reused Compress/Split source loaders clear stale results, completed progress
+  and retry categories when replacing sources, including rejected inputs.
+
 - Discard confirmation now blocks reentrant Open/Close/navigation events while
   the user decides, preserving unsaved edits when the decision is declined.
 - Extreme split sizes avoid integer overflow; invalid color-page indices fail

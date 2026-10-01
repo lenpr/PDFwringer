@@ -59,3 +59,21 @@ work; this review does not claim those are completed. Versions and distribution
 remain unchanged for the consolidated release.
 
 Validation results are recorded in `APP_STORE.md` after the fixes are verified.
+
+## Source-recovery follow-up — 2026-10-01
+
+Review of `44def18` confirmed that the Compress/Split convenience source loaders
+could reject a missing, corrupt or locked replacement while retaining an old
+success/error message or completed progress. Split also retained the previous
+operation's error category after a later successful source change. This affects
+view-model reuse/noninteractive callers; production views normally receive an
+already-loaded document. Failed interactive Open intentionally preserves the
+current workspace and was not changed.
+
+The loaders now clear feedback tied to the previous source on rejection, and
+successful source changes reset progress/retry categories. The regression first
+saves a real reviewed compression result, then exercises all three invalid input
+classes and valid-source recovery. Split uses a real validation error before
+replacement. Before the fix the cases failed; after the fix the output must stay
+readable, old feedback must be absent, and valid-source processing must recover.
+No PDF output algorithm, permission or navigation behavior changed.

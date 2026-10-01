@@ -34,6 +34,12 @@ class SplitViewModel {
             sourceURL = nil
             sourceDocument = nil
             sourcePageCount = 0
+            resultMessage = nil
+            lastOutputURL = nil
+            isError = false
+            progress = 0
+            errorSource = nil
+            lastOperation = nil
             return
         }
         setSource(url, document: document)
@@ -45,6 +51,9 @@ class SplitViewModel {
         resultMessage = nil
         lastOutputURL = nil
         isError = false
+        progress = 0
+        errorSource = nil
+        lastOperation = nil
         sourcePageCount = document.pageCount
     }
 

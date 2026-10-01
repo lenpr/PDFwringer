@@ -61,6 +61,9 @@ class CompressViewModel {
     func setSource(_ url: URL) {
         discardPreparedResult()
         allowRasterization = false
+        resultMessage = nil
+        isError = false
+        progress = 0
         guard let document = PDFDocument(url: url), !document.isLocked else {
             invalidateEstimation()
             estimationEnabled = false
@@ -82,6 +85,7 @@ class CompressViewModel {
         sourceURL = url
         resultMessage = nil
         isError = false
+        progress = 0
         estimatedSizes = [:]
         heuristicSizes = [:]
         sourcePageCount = document.pageCount

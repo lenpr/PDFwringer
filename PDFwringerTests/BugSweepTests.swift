@@ -77,4 +77,48 @@ struct BugSweepTests {
         }
     }
 
+
+    @Test("Failed source replacement clears old operation feedback and recovers", arguments: ["missing", "corrupt", "locked"])
+    func failedSourceRecovery(kind: String) async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
+        let directory = TestPDFGenerator.makeTempDirectory()
+        defer { TestPDFGenerator.cleanup(source); TestPDFGenerator.cleanup(directory) }
+        let invalid = directory.appending(component: "invalid.pdf")
+        if kind == "corrupt" { try Data("not a PDF".utf8).write(to: invalid) }
+        if kind == "locked" {
+            let document = try #require(PDFDocument(url: source))
+            #expect(document.write(to: invalid, withOptions: [.ownerPasswordOption: "secret", .userPasswordOption: "secret"]))
+        }
+        let compressor = CompressViewModel()
+        defer { compressor.cancelEstimation() }
+        compressor.setSource(source)
+        compressor.selectedLevel = .lossless
+        let output = directory.appending(component: "result.pdf")
+        await compressor.prepare(to: output)
+        await compressor.savePreparedResult()
+        #expect(compressor.lastOutputURL == output)
+        #expect(compressor.resultMessage != nil)
+        compressor.setSource(invalid)
+        #expect(!compressor.canCompress && compressor.pdfDocument == nil)
+        #expect(compressor.resultMessage == nil && !compressor.isError)
+        #expect(compressor.lastOutputURL == nil && compressor.progress == 0)
+        #expect(compressor.estimatedSizes.isEmpty && compressor.heuristicSizes.isEmpty)
+        compressor.setSource(source)
+        #expect(compressor.canCompress && compressor.sourcePageCount == 2)
+        #expect(compressor.resultMessage == nil && compressor.progress == 0)
+        #expect(PDFDocument(url: output)?.pageCount == 2)
+
+        let splitter = SplitViewModel()
+        splitter.setSource(source)
+        splitter.splitPagesPerFile = 0
+        await splitter.splitByPages()
+        #expect(splitter.isError && splitter.errorSource == .split)
+        splitter.setSource(invalid)
+        #expect(!splitter.canProcess && splitter.sourceDocument == nil)
+        #expect(splitter.resultMessage == nil && !splitter.isError && splitter.errorSource == nil)
+        splitter.setSource(source)
+        #expect(splitter.canProcess && splitter.sourcePageCount == 2)
+        #expect(splitter.resultMessage == nil && splitter.errorSource == nil)
+    }
+
 }
