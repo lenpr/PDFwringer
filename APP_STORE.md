@@ -100,6 +100,31 @@ new version/build identities, signing and candidate-specific verification.
 VoiceOver is deferred at the user's request; complete assistive-technology,
 high-contrast/Reduce Motion and Store/TestFlight-installed testing remain open.
 
+## Remaining performance verification — unreleased, 2026-10-01
+
+The follow-up to `d3cb49f` implements cooperative large-document entry/edits,
+worker-owned reviewed-result publication and remaining metadata/partial-color/
+split/export I/O, bounded immutable-source preview snapshots, selected-setting
+compression estimates, and asynchronous file intake/recent-bookmark refresh.
+All 452 tests passed (380 fast, 63 corpus, nine performance); the final fast lane,
+optimized release build, strict ad-hoc signature and unsigned App Store archive
+structure checks also passed. No permissions, dependencies or PDF tools added.
+
+An isolated temporary sandboxed app passed native slider/reset/divider,
+Back/Close File, 87-page navigation/enlarged preview/reorder-list checks and
+20 open/close cycles. Measured responsiveness and memory evidence, with
+limitations, are recorded in `PERFORMANCE_AUDIT.md`. Frame recording did not
+produce usable evidence; first-paint/frame/energy and slow-volume/>100 MB input
+qualification remain open. VoiceOver is deferred at the user's request.
+
+These results apply to unreleased source, not the preserved signed 0.2.3
+candidate. Source version, installed/public download and canonical archive/package
+identity remain unchanged. Rebuild/sign/export, Organizer validation and
+candidate-specific installed QA are required for the consolidated release.
+No upload, notarization or distribution was performed in this batch. Disposable
+benchmarks, generated PDFs, profiler traces, test app/settings, logs and project
+Derived Data were cleaned; historical candidate evidence remains preserved.
+
 ## Local artifact retention — 2026-09-30
 
 Keep one current release evidence folder at

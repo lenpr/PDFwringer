@@ -7,7 +7,7 @@ import Testing
 struct AppLifecycleTests {
     @MainActor private final class OperationState { var running = true }
     @Test("Adapted delegate delivers cold and warm file-open events")
-    func fileOpenDelivery() throws {
+    func fileOpenDelivery() async throws {
         let first = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
         let second = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
         defer { TestPDFGenerator.cleanup(first); TestPDFGenerator.cleanup(second) }
@@ -15,8 +15,10 @@ struct AppLifecycleTests {
         delegate.application(NSApplication.shared, open: [first])
         let vm = AppViewModel()
         delegate.configure(with: vm)
+        await vm.waitForFileIntake()
         #expect(vm.currentPageCount == 1)
         delegate.application(NSApplication.shared, open: [second])
+        await vm.waitForFileIntake()
         #expect(vm.currentPageCount == 2)
     }
 
@@ -28,11 +30,14 @@ struct AppLifecycleTests {
         var prompts = 0
         let vm = AppViewModel(confirmDiscard: { prompts += 1; return false })
         vm.loadSingleFile(first)
+        await vm.waitForFileIntake()
         vm.selectMetadata()
         vm.hasUnsavedChanges = true
         vm.goBack()
         vm.loadSingleFile(second)
+        await vm.waitForFileIntake()
         vm.handleDrop([second])
+        await vm.waitForFileIntake()
         await vm.loadMultipleFiles([first, second]).value
         vm.confirmStartOver()
         #expect(!vm.closeWorkflow())
@@ -49,7 +54,7 @@ struct AppLifecycleTests {
     }
 
     @Test("Active writes block leaving even when discard would be accepted")
-    func activeOperationBlocksLeaving() {
+    func activeOperationBlocksLeaving() async {
         var prompts = 0
         let vm = AppViewModel(confirmDiscard: { prompts += 1; return true })
         vm.hasUnsavedChanges = true
@@ -66,13 +71,14 @@ struct AppLifecycleTests {
         #expect(!vm.hasUnsavedChanges)
     }
     @Test("File panels preserve the workflow against reentrant application events")
-    func filePanelBlocksReplacement() throws {
+    func filePanelBlocksReplacement() async throws {
         let first = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
         let second = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
         defer { TestPDFGenerator.cleanup(first); TestPDFGenerator.cleanup(second) }
         var prompts = 0
         let vm = AppViewModel(confirmDiscard: { prompts += 1; return true })
         vm.loadSingleFile(first)
+        await vm.waitForFileIntake()
         vm.selectCompress()
         guard case .compressing(_, let originalDocument) = vm.state else { return }
         vm.hasUnsavedChanges = true
@@ -102,11 +108,12 @@ struct AppLifecycleTests {
         #expect(!FileDialogHelper.isPresentingFilePanel)
         // The guard must be released after cancellation: a subsequent open works.
         delegate.application(NSApplication.shared, open: [second])
+        await vm.waitForFileIntake()
         #expect(vm.currentPageCount == 2)
     }
 
     @Test("Nested file panels are rejected and either response releases the guard")
-    func nestedFilePanels() {
+    func nestedFilePanels() async {
         for response in [NSApplication.ModalResponse.OK, .cancel] {
             let result = FileDialogHelper.withFilePanel {
                 #expect(FileDialogHelper.isPresentingFilePanel)

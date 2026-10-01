@@ -6,11 +6,20 @@ import OSLog
 /// If any publication fails or the task is cancelled, files already published
 /// by this batch are removed when their filesystem identity is unchanged.
 enum ExclusiveFilePublisher {
-    struct StagedFile {
+    struct StagedFile: Sendable {
         let url: URL
         let baseStem: String
         let generatedSuffix: String
         let pathExtension: String
+    }
+
+    static func publishAsync(_ stagedFiles: [StagedFile], to outputDirectory: URL) async throws -> [URL] {
+        let worker = Task.detached(priority: .userInitiated) {
+            try publish(stagedFiles, to: outputDirectory)
+        }
+        return try await withTaskCancellationHandler {
+            try await worker.value
+        } onCancel: { worker.cancel() }
     }
 
     static func publish(_ stagedFiles: [StagedFile], to outputDirectory: URL) throws -> [URL] {

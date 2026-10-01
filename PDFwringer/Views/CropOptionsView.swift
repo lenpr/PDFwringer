@@ -27,7 +27,10 @@ struct CropOptionsView: View {
     @State private var isDropTargeted = false
     @State private var documentGeneration = 0
     @State private var isSaving = false
-    @State private var saveTask: Task<Void, Never>?
+    @State private var isEditing = false
+    @State private var showsEditProgress = false
+    private var isBusy: Bool { isSaving || isEditing }
+    @State private var operationTask: Task<Void, Never>?
     @State private var workingCopyHasChanges = false
     @State private var resizePending = false
     @State private var showingResizeGuide = false
@@ -63,9 +66,11 @@ struct CropOptionsView: View {
                     selectedPages: pageSelection.appliesToAll ? nil : $pageSelection.selectedPages
                 )
                 .id(documentGeneration)
+                .disabled(isBusy)
                 .padding(.horizontal, 20)
             }
             .frame(minWidth: 260, idealWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
+            .allowsHitTesting(!isBusy)
             .overlay {
                 DropReceiverView(isTargeted: $isDropTargeted) { urls in
                     onFilesDropped(urls)
@@ -73,17 +78,17 @@ struct CropOptionsView: View {
             }
 
             VStack(spacing: 0) {
-                OptionsHeaderView(url: url, onBack: onBack, allowsEscapeBack: !isSaving)
-                    .disabled(isSaving)
+                OptionsHeaderView(url: url, onBack: onBack, allowsEscapeBack: !isBusy)
+                    .disabled(isBusy)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
                 Divider()
-                if isSaving {
+                if isSaving || (isEditing && showsEditProgress) {
                     HStack {
                         ProgressView().controlSize(.small)
-                        Text(String(localized: "Saving…"))
+                        Text(isEditing ? String(localized: "Applying changes…") : String(localized: "Saving…"))
                         Spacer()
-                        Button(String(localized: "Cancel")) { saveTask?.cancel() }
+                        Button(String(localized: "Cancel")) { operationTask?.cancel() }
                     }
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
@@ -201,7 +206,7 @@ struct CropOptionsView: View {
                         .frame(maxWidth: 520, alignment: .leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .disabled(isSaving)
+                    .disabled(isBusy)
                     .onChange(of: resultMessage) { _, message in
                         if message != nil { scroll.scrollTo("operation-result", anchor: .bottom) }
                     }
@@ -210,8 +215,8 @@ struct CropOptionsView: View {
             .frame(minWidth: 300, idealWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
             .tint(.coral)
         }
-        .onAppear { appVM.operationIsRunning = { isSaving } }
-        .onDisappear { saveTask?.cancel() }
+        .onAppear { appVM.operationIsRunning = { isBusy } }
+        .onDisappear { operationTask?.cancel() }
         .onChange(of: [cropTop, cropBottom, cropLeft, cropRight]) { _, values in
             if values.contains(where: { $0 != 0 }) { showingResizeGuide = false; clearFeedback() }
         }
@@ -256,49 +261,63 @@ struct CropOptionsView: View {
     }
 
     private func applyCrop() {
+        guard !isBusy else { return }
         clearFeedback()
         guard let indices = targetIndices else {
             Formatting.triggerShake($shakeOffset)
             return
         }
 
-        let result: PDFCropper.CropResult
-        do {
-            result = try cropper.crop(
-                document: document,
-                indices: indices,
-                top: cropTop,
-                bottom: cropBottom,
-                left: cropLeft,
-                right: cropRight
-            )
-        } catch {
-            resultMessage = PDFwringerError.userMessage(for: error)
-            isError = true
-            return
-        }
+        let insets = (cropTop, cropBottom, cropLeft, cropRight)
+        isEditing = true
+        showsEditProgress = indices.count > 100
+        operationTask = Task { @MainActor in
+            defer { operationTask = nil; isEditing = false }
+            let result: PDFCropper.CropResult
+            do {
+                result = try await cropper.cropInBatches(
+                    document: document,
+                    indices: indices,
+                    top: insets.0,
+                    bottom: insets.1,
+                    left: insets.2,
+                    right: insets.3
+                )
+            } catch is CancellationError {
+                documentGeneration += 1
+                resultMessage = String(localized: "Cancelled. No changes applied.")
+                isError = false
+                return
+            } catch {
+                documentGeneration += 1
+                resultMessage = PDFwringerError.userMessage(for: error)
+                isError = true
+                return
+            }
 
-        if result.pagesModified == 0 && result.pagesSkipped > 0 {
-            Formatting.triggerShake($shakeOffset)
-            resultMessage = "Crop exceeds page dimensions on all selected pages."
-            isError = true
-            return
-        }
+            if result.pagesModified == 0 && result.pagesSkipped > 0 {
+                Formatting.triggerShake($shakeOffset)
+                resultMessage = "Crop exceeds page dimensions on all selected pages."
+                isError = true
+                return
+            }
 
-        cropTop = 0
-        cropBottom = 0
-        cropLeft = 0
-        cropRight = 0
-        documentGeneration += 1
-        resultMessage = result.pagesSkipped > 0
-            ? "Cropped \(result.pagesModified) pages (\(result.pagesSkipped) skipped — crop exceeds dimensions)."
-            : nil
-        isError = false
-        isWarning = result.pagesSkipped > 0
-        if result.pagesModified > 0 { workingCopyHasChanges = true }
+            cropTop = 0
+            cropBottom = 0
+            cropLeft = 0
+            cropRight = 0
+            documentGeneration += 1
+            resultMessage = result.pagesSkipped > 0
+                ? "Cropped \(result.pagesModified) pages (\(result.pagesSkipped) skipped — crop exceeds dimensions)."
+                : nil
+            isError = false
+            isWarning = result.pagesSkipped > 0
+            if result.pagesModified > 0 { workingCopyHasChanges = true }
+        }
     }
 
     private func applyResize() {
+        guard !isBusy else { return }
         clearFeedback()
         guard let indices = targetIndices else {
             Formatting.triggerShake($shakeOffset)
@@ -310,28 +329,39 @@ struct CropOptionsView: View {
             ? CGSize(width: paperSize.height, height: paperSize.width)
             : paperSize
 
-        let result: PDFCropper.CropResult
-        do {
-            result = try cropper.resize(
-                document: document,
-                indices: indices,
-                targetSize: targetSize
-            )
-        } catch {
-            resultMessage = PDFwringerError.userMessage(for: error)
-            isError = true
-            return
+        isEditing = true
+        showsEditProgress = indices.count > 100
+        operationTask = Task { @MainActor in
+            defer { operationTask = nil; isEditing = false }
+            let result: PDFCropper.CropResult
+            do {
+                result = try await cropper.resizeInBatches(
+                    document: document,
+                    indices: indices,
+                    targetSize: targetSize
+                )
+            } catch is CancellationError {
+                documentGeneration += 1
+                resultMessage = String(localized: "Cancelled. No changes applied.")
+                isError = false
+                return
+            } catch {
+                documentGeneration += 1
+                resultMessage = PDFwringerError.userMessage(for: error)
+                isError = true
+                return
+            }
+            resizePending = false
+            documentGeneration += 1
+            resultMessage = nil
+            isError = false
+            isWarning = result.pagesSkipped > 0
+            if result.pagesModified > 0 { workingCopyHasChanges = true }
         }
-        resizePending = false
-        documentGeneration += 1
-        resultMessage = nil
-        isError = false
-        isWarning = result.pagesSkipped > 0
-        if result.pagesModified > 0 { workingCopyHasChanges = true }
     }
 
     private func saveCropped() {
-        guard !isSaving else { return }
+        guard !isBusy else { return }
         guard !hasPendingSettings else {
             resultMessage = String(localized: "Apply or discard the pending changes before saving. Nothing saved.")
             isError = false
@@ -347,8 +377,8 @@ struct CropOptionsView: View {
 
         lastOutputURL = nil
         isSaving = true
-        saveTask = Task { @MainActor in
-            defer { saveTask = nil; isSaving = false }
+        operationTask = Task { @MainActor in
+            defer { operationTask = nil; isSaving = false }
             let result = await DocumentSaver.save(document: document, source: url, to: destination)
             resultMessage = result.message
             isError = result.isError

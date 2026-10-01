@@ -2,6 +2,7 @@ import SwiftUI
 import PDFKit
 
 struct DocumentView: View {
+    @Environment(AppViewModel.self) private var appVM
     let url: URL
     let document: PDFDocument
     let fileSize: Int64
@@ -31,6 +32,7 @@ struct DocumentView: View {
                     .padding(.horizontal, 20)
             }
             .frame(minWidth: 260, idealWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
+            .allowsHitTesting(!appVM.isPreparingTool)
             .overlay {
                 DropReceiverView(isTargeted: $isDropTargeted) { urls in
                     onFilesDropped(urls)
@@ -45,6 +47,16 @@ struct DocumentView: View {
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
                 Divider()
+                if appVM.isPreparingTool {
+                    HStack {
+                        ProgressView().controlSize(.small)
+                        Text(String(localized: "Preparing pages…"))
+                        Spacer()
+                        Button(String(localized: "Cancel")) { appVM.cancelToolPreparation() }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                }
                 ScrollView {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
@@ -126,6 +138,7 @@ struct DocumentView: View {
                         )
                     }
                     .padding(24)
+                    .disabled(appVM.isPreparingTool || appVM.isLoadingFile)
                 }
             }
             .frame(minWidth: 300, idealWidth: 340, maxWidth: .infinity, maxHeight: .infinity)

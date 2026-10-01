@@ -27,6 +27,7 @@ class ColorAdjustViewModel {
     @ObservationIgnored private var pendingPreviewPage = 0
     @ObservationIgnored private var pendingPreviewRevision: Int?
     @ObservationIgnored private var pendingPreviewPixels: CGSize?
+    @ObservationIgnored private var pendingSourceData: Data?
     @ObservationIgnored private var isPreparingPreviewBase = false
     @ObservationIgnored private weak var cachedPreviewDocument: PDFDocument?
     @ObservationIgnored private var cachedPreviewKey: PreviewKey?
@@ -76,7 +77,7 @@ class ColorAdjustViewModel {
     /// a fresh snapshot so arbitrary PDFKit edits cannot leave a stale preview.
     func updatePreview(
         document: PDFDocument, page: Int, selection: PageSelection? = nil,
-        documentRevision: Int? = nil, pixelSize: CGSize? = nil
+        documentRevision: Int? = nil, pixelSize: CGSize? = nil, sourceData: Data? = nil
     ) {
         guard !isSaving else { return }
         let sameInput = matchesPending(document, page: page, revision: documentRevision, pixels: pixelSize)
@@ -98,6 +99,7 @@ class ColorAdjustViewModel {
         pendingPreviewPage = page
         pendingPreviewRevision = documentRevision
         pendingPreviewPixels = pixelSize
+        pendingSourceData = sourceData
         startPendingPreviewIfNeeded()
     }
 
@@ -139,6 +141,7 @@ class ColorAdjustViewModel {
         let pageIndex = pendingPreviewPage
         let revision = pendingPreviewRevision
         let pixels = pendingPreviewPixels
+        let sourceData = pendingSourceData
         let isWarm = matchesCache(document, page: pageIndex, revision: revision, pixels: pixels)
         let initialGeneration = previewGeneration
         isRendering = true
@@ -160,7 +163,14 @@ class ColorAdjustViewModel {
                     base = image
                 } else {
                     self.isPreparingPreviewBase = true
-                    guard let data = page.dataRepresentation else { throw PDFwringerError.cannotCreateOutput }
+                    var data: Data?
+                    if revision != nil, page.annotations.isEmpty, let sourceData {
+                        data = try await PDFPageWorker.readOnlySnapshot(sourceData: sourceData, index: pageIndex,
+                            rotation: key.rotation, cropBox: key.cropBox, mediaBox: key.mediaBox)
+                    }
+                    try Task.checkCancellation()
+                    if data == nil { data = page.dataRepresentation }
+                    guard let data else { throw PDFwringerError.cannotCreateOutput }
                     let image = try await PDFPageWorker.run(pageData: data) { isolatedPage in
                         guard let image = PDFRasterizer.renderPreview(isolatedPage, pixelSize: pixels) else {
                             throw PDFwringerError.cannotCreateOutput
@@ -230,6 +240,7 @@ class ColorAdjustViewModel {
     func cancelPreview() {
         isPreviewUpdating = false
         pendingPreviewDocument = nil
+        pendingSourceData = nil
         previewGeneration += 1
         previewTask?.cancel()
         clearPreviewBase()

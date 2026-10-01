@@ -153,7 +153,8 @@ struct PDFImageExporterTests {
             exportFilename(source: source, pageNumber: 1),
             exportFilename(source: source, pageNumber: 2),
         ])
-        #expect(progressValues.count == 3)
+        #expect(progressValues.count == 4)
+        #expect(progressValues.dropLast().allSatisfy { $0 < 1 })
         #expect(progressValues.last == 1)
     }
 
@@ -287,7 +288,7 @@ struct PDFImageExporterTests {
             options: .init(format: .jpeg, dpi: 72, quality: 0.8),
             pageIndices: nil,
             progress: { value in
-                if value == 1, !createdCollision {
+                if value == 0.99, !createdCollision {
                     try! sentinel.write(to: canonical)
                     createdCollision = true
                 }

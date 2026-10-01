@@ -36,7 +36,7 @@ struct CompressionPreparationTests {
         #expect(try Data(contentsOf: source) == original)
         #expect(candidate.previewDocument?.pageCount == 2)
         let reviewed = try Data(contentsOf: candidate.url)
-        try candidate.commit()
+        try await candidate.commit()
         #expect(try Data(contentsOf: destination) == reviewed)
         #expect(try Data(contentsOf: source) == original)
         #expect(!FileManager.default.fileExists(atPath: candidate.url.path))
@@ -58,7 +58,7 @@ struct CompressionPreparationTests {
             try replacement.write(to: replacementURL)
             if existed { try FileManager.default.moveItem(at: destination, to: directory.appending(component: "original.pdf")) }
             try FileManager.default.moveItem(at: replacementURL, to: destination)
-            do { try candidate.commit(); Issue.record("Expected changed-destination rejection") }
+            do { try await candidate.commit(); Issue.record("Expected changed-destination rejection") }
             catch { guard case PDFwringerError.destinationChanged = error else { Issue.record("Unexpected error: \(error)"); return } }
             #expect(try Data(contentsOf: destination) == replacement)
             #expect(FileManager.default.fileExists(atPath: candidate.url.path))
@@ -114,7 +114,7 @@ struct CompressionPreparationTests {
         let firstURL = try #require(vm.prepared?.url)
         let external = Data("external file arrived".utf8)
         try external.write(to: destination)
-        vm.savePreparedResult()
+        await vm.savePreparedResult()
         #expect(vm.isError)
         #expect(vm.hasPreparedResult)
         #expect(vm.lastOutputURL == nil)
@@ -122,7 +122,7 @@ struct CompressionPreparationTests {
         await vm.prepare(to: destination)
         #expect(!FileManager.default.fileExists(atPath: firstURL.path))
         let reviewed = try Data(contentsOf: #require(vm.prepared?.url))
-        vm.savePreparedResult()
+        await vm.savePreparedResult()
         #expect(!vm.isError)
         #expect(!vm.hasPreparedResult)
         #expect(vm.lastOutputURL == destination)
@@ -166,7 +166,7 @@ struct CompressionPreparationTests {
         let staged = try #require(vm.prepared?.url)
         let reviewed = try Data(contentsOf: staged)
         try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: directory.path)
-        vm.savePreparedResult()
+        await vm.savePreparedResult()
         #expect(vm.isError)
         #expect(vm.resultMessage?.contains("Choose a folder") == true)
         #expect(vm.hasPreparedResult)
@@ -176,7 +176,7 @@ struct CompressionPreparationTests {
         #expect(try Data(contentsOf: source) == original)
 
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
-        vm.savePreparedResult()
+        await vm.savePreparedResult()
         #expect(!vm.isError)
         #expect(!vm.hasPreparedResult)
         #expect(vm.lastOutputURL == destination)
@@ -346,7 +346,7 @@ struct CompressionPreparationTests {
             quality: .good, grayscale: false, progress: { _ in })
         #expect(candidate.previewDocument == nil)
         let reviewed = try Data(contentsOf: candidate.url)
-        try candidate.commit()
+        try await candidate.commit()
         #expect(try Data(contentsOf: candidate.destination) == reviewed)
         let saved = try #require(PDFDocument(url: candidate.destination))
         #expect(saved.isEncrypted && saved.isLocked)

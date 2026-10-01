@@ -24,11 +24,17 @@ enum AppState {
 @MainActor @Observable
 class AppViewModel {
     var state: AppState = .landing {
-        didSet { cancelPendingIntake() }
+        didSet { cancelPendingIntake(); cancelToolPreparation() }
     }
     var currentPage: Int = 0
     var currentFileSize: Int64 = 0
     var navigationDirection: Edge = .trailing
+    private(set) var isPreparingTool = false
+    private(set) var isLoadingFile = false
+    @ObservationIgnored private var previewSourceBytes: Data?
+    @ObservationIgnored private weak var previewSourceDocument: PDFDocument?
+    @ObservationIgnored private var toolPreparationTask: Task<Void, Never>?
+    @ObservationIgnored private var toolPreparationID: UUID?
 
     // Error alert state
     var showErrorAlert = false
@@ -58,6 +64,8 @@ class AppViewModel {
     var passwordText = ""
     var wrongPasswordAttempt = false
     private var pendingLockedURL: URL?
+    private var pendingLockedDocument: PDFDocument?
+    private var pendingLockedFileSize: Int64 = 0
     private var fileIntakeTask: Task<Void, Never>?
     private var fileIntakeID: UUID?
     private var activeSecurityScopedURL: URL?
@@ -98,6 +106,7 @@ class AppViewModel {
     }
 
     var canSelectSingleFileAction: Bool {
+        guard !isPreparingTool, !isLoadingFile else { return false }
         if case .singleFile = state { return true }
         return false
     }
@@ -129,18 +138,41 @@ class AppViewModel {
 
     var hasDocument: Bool { currentPageCount > 0 }
 
-    func nextPage() { if currentPage < currentPageCount - 1 { currentPage += 1 } }
-    func previousPage() { if currentPage > 0 { currentPage -= 1 } }
-    func goToFirstPage() { currentPage = 0 }
-    func goToLastPage() { currentPage = max(0, currentPageCount - 1) }
+    private var canNavigatePages: Bool { !isPreparingTool && !isLoadingFile && !operationIsRunning() }
+
+    func nextPage() { if canNavigatePages, currentPage < currentPageCount - 1 { currentPage += 1 } }
+    func previousPage() { if canNavigatePages, currentPage > 0 { currentPage -= 1 } }
+    func goToFirstPage() { if canNavigatePages { currentPage = 0 } }
+    func goToLastPage() { if canNavigatePages { currentPage = max(0, currentPageCount - 1) } }
 
     var recentDocuments: [URL] = []
+    @ObservationIgnored private var recentRefreshTask: Task<Void, Never>?
+    @ObservationIgnored private var recentRefreshID: UUID?
 
     func refreshRecentDocuments() {
-        recentDocuments = BookmarkManager.resolveBookmarks()
+        recentRefreshID = UUID()
+        recentRefreshTask?.cancel()
+        startRecentRefreshIfNeeded()
+    }
+
+    private func startRecentRefreshIfNeeded() {
+        guard recentRefreshTask == nil, let id = recentRefreshID else { return }
+        recentRefreshTask = Task { @MainActor [weak self] in
+            defer {
+                if let self {
+                    self.recentRefreshTask = nil
+                    if self.recentRefreshID != id { self.startRecentRefreshIfNeeded() }
+                }
+            }
+            let urls = await BookmarkManager.resolveBookmarksAsync()
+            guard !Task.isCancelled, let self, self.recentRefreshID == id, let urls else { return }
+            self.recentDocuments = urls
+        }
     }
 
     func clearRecentDocuments() {
+        recentRefreshTask?.cancel()
+        recentRefreshID = nil
         NSDocumentController.shared.clearRecentDocuments(nil)
         BookmarkManager.clearAll()
         recentDocuments = []
@@ -177,15 +209,89 @@ class AppViewModel {
             pendingSecurityScopedURL = url
         }
 
-        guard let doc = PDFDocument(url: url) else {
-            cancelPendingIntake()
-            Log.app.warning("Cannot open file: \(url.lastPathComponent, privacy: .private)")
-            errorMessage = "Cannot open '\(url.lastPathComponent)'. The file may be corrupted or not a valid PDF."
-            showErrorAlert = true
-            return
+        let id = UUID()
+        fileIntakeID = id
+        isLoadingFile = true
+        // The task holds a recent-file grant until its read finishes, even when
+        // navigation cancels a noninterruptible filesystem read.
+        let scopedURL = pendingSecurityScopedURL
+        pendingSecurityScopedURL = nil
+        let endAccess = endSecurityScopedAccess
+        fileIntakeTask = Task { @MainActor [weak self] in
+            var ownsScope = scopedURL != nil
+            defer {
+                if ownsScope, let scopedURL { endAccess(scopedURL) }
+                if let self, self.fileIntakeID == id {
+                    self.fileIntakeTask = nil
+                    self.fileIntakeID = nil
+                    self.isLoadingFile = false
+                }
+            }
+            do {
+                let worker = Task.detached(priority: .userInitiated) {
+                    try Task.checkCancellation()
+                    let size = try FileManager.default.attributesOfItem(
+                        atPath: url.path(percentEncoded: false))[.size] as? Int64 ?? 0
+                    // Large sources retain URL-backed PDFKit loading rather
+                    // than retaining an additional unbounded byte buffer.
+                    let data = size > 0 && size <= 100_000_000 ? try Self.readPreviewBytes(at: url) : nil
+                    try Task.checkCancellation()
+                    return (data, data.map { Int64($0.count) } ?? size)
+                }
+                let (data, size) = try await withTaskCancellationHandler {
+                    try await worker.value
+                } onCancel: { worker.cancel() }
+                try Task.checkCancellation()
+                guard let self, self.fileIntakeID == id else { return }
+                let loadedDocument: PDFDocument?
+                if let data { loadedDocument = PDFDocument(data: data) }
+                else { loadedDocument = PDFDocument(url: url) }
+                guard let doc = loadedDocument else {
+                    throw PDFwringerError.cannotOpenDocument
+                }
+                self.pendingSecurityScopedURL = scopedURL
+                ownsScope = false
+                self.finishSingleFileLoad(url, document: doc, data: data, size: size)
+            } catch {
+                guard let self, self.fileIntakeID == id, !(error is CancellationError) else { return }
+                self.failFileIntake(error, requestID: id)
+                if case PDFwringerError.cannotOpenDocument = error {
+                    self.errorMessage = "Cannot open '\(url.lastPathComponent)'. The file may be corrupted or not a valid PDF."
+                }
+            }
         }
+    }
+
+    private nonisolated static func readPreviewBytes(at url: URL) throws -> Data? {
+        let limit = 100_000_000
+        let file = try FileHandle(forReadingFrom: url)
+        defer { try? file.close() }
+        var data = Data()
+        while data.count <= limit {
+            try Task.checkCancellation()
+            guard let chunk = try file.read(upToCount: min(1_048_576, limit + 1 - data.count)),
+                  !chunk.isEmpty else { return data }
+            data.append(chunk)
+        }
+        return nil
+    }
+
+    func waitForFileIntake() async { await fileIntakeTask?.value }
+
+    func cancelFileIntake() { cancelPendingIntake() }
+
+    func previewSourceData(for document: PDFDocument) -> Data? {
+        guard document === previewSourceDocument, !document.isEncrypted else { return nil }
+        return previewSourceBytes
+    }
+
+    private func finishSingleFileLoad(_ url: URL, document doc: PDFDocument, data: Data?, size: Int64) {
+        previewSourceBytes = doc.isEncrypted ? nil : data
+        previewSourceDocument = doc
         if doc.isLocked {
             pendingLockedURL = url
+            pendingLockedDocument = doc
+            pendingLockedFileSize = size
             passwordText = ""
             wrongPasswordAttempt = false
             showPasswordPrompt = true
@@ -193,9 +299,8 @@ class AppViewModel {
         }
         commitPendingSecurityScope()
         currentPage = 0
-        currentFileSize = (try? FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false))[.size] as? Int64) ?? 0
-        NSDocumentController.shared.noteNewRecentDocumentURL(url)
-        BookmarkManager.saveBookmark(for: url)
+        currentFileSize = size
+        recordRecentDocuments([url])
         refreshRecentDocuments()
         hasUnsavedChanges = false
         operationIsRunning = { false }
@@ -208,20 +313,21 @@ class AppViewModel {
             passwordText = ""
         }
         guard let url = pendingLockedURL,
-              let doc = PDFDocument(url: url) else {
+              let doc = pendingLockedDocument else {
             cancelPendingIntake()
             return
         }
         if doc.unlock(withPassword: passwordText) {
             commitPendingSecurityScope()
             currentPage = 0
-            currentFileSize = (try? FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false))[.size] as? Int64) ?? 0
-            NSDocumentController.shared.noteNewRecentDocumentURL(url)
-            BookmarkManager.saveBookmark(for: url)
+            currentFileSize = pendingLockedFileSize
+            recordRecentDocuments([url])
             refreshRecentDocuments()
             hasUnsavedChanges = false
             operationIsRunning = { false }
             pendingLockedURL = nil
+            pendingLockedDocument = nil
+            pendingLockedFileSize = 0
             wrongPasswordAttempt = false
             showPasswordPrompt = false
             mergeReturnState = nil
@@ -276,10 +382,7 @@ class AppViewModel {
     }
 
     func selectRotate() {
-        guard case .singleFile(let url, let doc) = state else { return }
-        guard let workingDocument = makeWorkingCopy(of: doc) else { return }
-        navigationDirection = .trailing
-        state = .rotating(url, source: doc, working: workingDocument)
+        prepareWorkingTool(crop: false)
     }
 
     func selectMetadata() {
@@ -289,10 +392,7 @@ class AppViewModel {
     }
 
     func selectCrop() {
-        guard case .singleFile(let url, let doc) = state else { return }
-        guard let workingDocument = makeWorkingCopy(of: doc) else { return }
-        navigationDirection = .trailing
-        state = .cropping(url, source: doc, working: workingDocument)
+        prepareWorkingTool(crop: true)
     }
 
     func selectAdjustColor() {
@@ -381,6 +481,8 @@ class AppViewModel {
     }
 
     private func resetWorkflow() {
+        previewSourceBytes = nil
+        previewSourceDocument = nil
         stopActiveSecurityScope()
         state = .landing
         operationIsRunning = { false }
@@ -413,10 +515,9 @@ class AppViewModel {
             guard canLeaveWorkflow() else { return }
             operationIsRunning = { false }
             commitPendingSecurityScope()
-            for item in items {
-                NSDocumentController.shared.noteNewRecentDocumentURL(item.url)
-                BookmarkManager.saveBookmark(for: item.url)
-            }
+            recordRecentDocuments(items.map(\.url))
+            previewSourceBytes = nil
+            previewSourceDocument = nil
             refreshRecentDocuments()
             hasUnsavedChanges = false
             mergeReturnState = nil
@@ -424,15 +525,28 @@ class AppViewModel {
         }
     }
 
+    private func recordRecentDocuments(_ urls: [URL]) {
+        for url in urls {
+            NSDocumentController.shared.noteNewRecentDocumentURL(url)
+            recentDocuments.removeAll { $0.standardizedFileURL == url.standardizedFileURL }
+            recentDocuments.insert(url, at: 0)
+            recentDocuments = Array(recentDocuments.prefix(10))
+        }
+        BookmarkManager.saveBookmarks(for: urls)
+    }
+
     private func cancelPendingIntake() {
         fileIntakeTask?.cancel()
         fileIntakeTask = nil
         fileIntakeID = nil
+        isLoadingFile = false
         if let pendingSecurityScopedURL {
             endSecurityScopedAccess(pendingSecurityScopedURL)
             self.pendingSecurityScopedURL = nil
         }
         pendingLockedURL = nil
+        pendingLockedDocument = nil
+        pendingLockedFileSize = 0
         showPasswordPrompt = false
         passwordText = ""
         wrongPasswordAttempt = false
@@ -450,27 +564,82 @@ class AppViewModel {
         self.activeSecurityScopedURL = nil
     }
 
-    private func makeWorkingCopy(of document: PDFDocument) -> PDFDocument? {
+    func cancelToolPreparation() {
+        toolPreparationTask?.cancel()
+        toolPreparationTask = nil
+        toolPreparationID = nil
+        isPreparingTool = false
+    }
+
+    private func prepareWorkingTool(crop: Bool) {
+        guard !isPreparingTool, case .singleFile(let url, let document) = state else { return }
+        // Normal documents retain immediate navigation. Large documents finish
+        // the same isolation checks before any editing view receives the copy.
+        if document.pageCount <= 100 {
+            do {
+                let copy = try workingCopyHeader(of: document)
+                try requireIsolatedPages(document, copy: copy, indices: 0..<document.pageCount)
+                navigationDirection = .trailing
+                state = crop ? .cropping(url, source: document, working: copy)
+                    : .rotating(url, source: document, working: copy)
+            } catch { reportToolPreparationFailure(error) }
+            return
+        }
+        let id = UUID()
+        toolPreparationID = id
+        isPreparingTool = true
+        toolPreparationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { if self.toolPreparationID == id { self.cancelToolPreparation() } }
+            do {
+                try Task.checkCancellation()
+                let copy = try self.workingCopyHeader(of: document)
+                for start in stride(from: 0, to: document.pageCount, by: 25) {
+                    try Task.checkCancellation()
+                    try self.requireIsolatedPages(document, copy: copy,
+                                                  indices: start..<min(start + 25, document.pageCount))
+                    await Task.yield()
+                }
+                try Task.checkCancellation()
+                guard self.toolPreparationID == id,
+                      case .singleFile(let currentURL, let currentDocument) = self.state,
+                      currentURL == url, currentDocument === document else { return }
+                self.navigationDirection = .trailing
+                self.state = crop ? .cropping(url, source: document, working: copy)
+                    : .rotating(url, source: document, working: copy)
+            } catch is CancellationError {
+                // Closing/replacing the file discards this private copy.
+            } catch {
+                if self.toolPreparationID == id { self.reportToolPreparationFailure(error) }
+            }
+        }
+    }
+
+    private func reportToolPreparationFailure(_ error: Error) {
+        errorMessage = PDFwringerError.userMessage(for: error)
+        showErrorAlert = true
+    }
+
+    private func workingCopyHeader(of document: PDFDocument) throws -> PDFDocument {
         guard let copy = document.copy() as? PDFDocument,
               copy !== document,
               copy.pageCount == document.pageCount,
               copy.isLocked == document.isLocked,
               copy.isEncrypted == document.isEncrypted,
               copy.accessPermissions == document.accessPermissions else {
-            errorMessage = PDFwringerError.cannotOpenDocument.localizedDescription
-            showErrorAlert = true
-            return nil
+            throw PDFwringerError.cannotOpenDocument
         }
-        for pageIndex in 0..<document.pageCount {
+        return copy
+    }
+
+    private func requireIsolatedPages(_ document: PDFDocument, copy: PDFDocument, indices: Range<Int>) throws {
+        for pageIndex in indices {
             guard let sourcePage = document.page(at: pageIndex),
                   let workingPage = copy.page(at: pageIndex),
                   sourcePage !== workingPage else {
-                errorMessage = PDFwringerError.cannotOpenDocument.localizedDescription
-                showErrorAlert = true
-                return nil
+                throw PDFwringerError.cannotOpenDocument
             }
         }
-        return copy
     }
 
 }

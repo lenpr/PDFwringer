@@ -280,8 +280,10 @@ struct CompressOptionsView: View {
                                 Spacer()
                                 if vm.hasPreparedResult {
                                     Button(String(localized: "Discard Result")) { vm.cancel() }
+                                        .disabled(vm.isProcessing)
                                         .keyboardShortcut(.cancelAction)
-                                    Button(String(localized: "Save Result")) { vm.savePreparedResult() }
+                                    Button(String(localized: "Save Result")) { Task { await vm.savePreparedResult() } }
+                                        .disabled(vm.isProcessing)
                                         .keyboardShortcut("s")
                                         .buttonStyle(.borderedProminent)
                                         .tint(.coralFill)
@@ -299,7 +301,8 @@ struct CompressOptionsView: View {
 
                             if vm.isProcessing {
                                 HStack(spacing: 8) {
-                                    ProgressView(String(localized: "Preparing compressed copy…"), value: vm.progress)
+                                    ProgressView(vm.isPublishing ? String(localized: "Saving result…") : String(localized: "Preparing compressed copy…"),
+                                                 value: vm.isPublishing ? nil : vm.progress)
                                         .progressViewStyle(.linear)
                                     Button(String(localized: "Cancel")) { vm.cancel() }
                                         .keyboardShortcut(.cancelAction)

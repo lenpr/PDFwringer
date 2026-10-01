@@ -30,7 +30,7 @@ class ConcatenateViewModel {
         isError = false
 
         let inputs = files
-        operationTask = Task {
+        operationTask = Task { [self] in
             defer { operationTask = nil }
             do {
                 let urls = inputs.map(\.url)

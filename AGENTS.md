@@ -33,10 +33,14 @@ fixture corpus and performance tests. Run test and archive builds sequentially.
 and peak-memory benchmark with generated inputs and automatic output cleanup.
 Run it without concurrent tests/builds for comparable measurements.
 `make benchmark-preview` compares uncached, cached and pane-sized color previews
-on verified vector/scanned inputs, including first-render and warm-filter timing.
+on verified vector/scanned inputs, including first-render, warm-filter timing
+and the optional immutable-source snapshot path.
 It is headless publication timing, not native mouse-to-paint latency.
 `make benchmark-thumbnails` measures a newly preferred page behind older queued
 requests, plus complete-queue timing, heartbeat delay and process peak memory.
+`make benchmark-remaining` measures reviewed compression publication, displayed
+estimate work and single-file intake. Large edit/entry modes are also included
+in `benchmark-performance`. All benchmarks run sequentially, separate from builds/tests.
 
 ## Architecture
 
@@ -48,7 +52,11 @@ PDFKit documents. Unannotated, unencrypted reordering and ordinary unencrypted
 metadata saves reconstruct isolated documents from a whole-document Data
 snapshot; preservation-sensitive inputs keep the established MainActor path.
 Lossless preparation verification and byte writes run in an isolated worker;
-authoritative copying/serialization and reviewed-result validation remain on MainActor.
+reviewed-result validation/publication also run in a worker. Authoritative
+copying/serialization remain on MainActor. Protected metadata and partial-color
+byte writes/verification use isolated snapshots without sharing PDFKit references.
+Large Rotate/Crop entry validates copy isolation in batches; page mutations yield
+and restore original rotations/bounds on cancellation before releasing busy state.
 Rotate/Crop output writers also verify isolated snapshots using value-only
 protection expectations; editing and navigation are guarded during saves.
 Full-document color output streams one encoded page at a time, while partial
@@ -81,7 +89,7 @@ landing → singleFile / multiFile → compressing / splitting / rotating / edit
 - **Cancellation**: All ViewModels store an `operationTask: Task<Void, Never>?` and expose a `cancel()` method. Views show a Cancel button alongside progress indicators. Services check `Task.checkCancellation()` per page iteration, so cancellation takes effect within one page.
 - **Source/dest guard**: Services use `FileSystemIdentity.requireDistinct` to reject source/destination aliases, including symbolic links, hard links, and case aliases, with `PDFwringerError.sourceEqualsDestination`. Plain URL equality is insufficient.
 - **Sandbox**: App is sandboxed with `com.apple.security.files.user-selected.read-write`. File access uses `NSSavePanel`/`NSOpenPanel` — never raw path construction.
-- **PDF reading**: `PDFCompressor.openPDF(at:)` reads file data into memory first (works around CGPDFDocument sandbox restrictions). Other services use `PDFDocument(url:)`.
+- **PDF reading**: Single-file intake reads immutable bytes in cancellable worker chunks capped at 100 MB, then constructs the authoritative PDFDocument on MainActor from those exact bytes. Larger sources keep URL-backed loading. Unencrypted read-only color/thumbnail snapshots may reconstruct isolated pages from those bytes, with annotation/geometry/revision safeguards; edited working copies and protected inputs keep authoritative snapshots. Never reopen a mutable file to substitute for the loaded document. Recent-file grants stay held until cancelled reads actually finish. `PDFCompressor.openPDF(at:)` reads file data into memory first (CGPDFDocument sandbox workaround); other service loaders use `PDFDocument(url:)`.
 - **Temp files**: Single-file saves stage in an item replacement directory on the destination volume. Batch outputs also stage on the destination volume and publish through `ExclusiveFilePublisher`. Do not revert to cross-volume temporary files or check-then-move publication.
 - **State management**: ViewModels use `@Observable` (Observation framework). Views own their VM via `@State`.
 - **Drop handling**: `DropReceiverView` wraps `DropNSView` (NSView subclass) for reliable drag-and-drop in sandbox. Returns `nil` from `hitTest` so SwiftUI buttons underneath remain clickable.
@@ -96,8 +104,8 @@ landing → singleFile / multiFile → compressing / splitting / rotating / edit
 
 - **Lossless** (`CompressionLevel.lossless`): Clears standard document-info fields and re-serializes via PDFKit; embedded XMP and other identifying content can remain. Optional annotation removal is limited to supported types and must verify that no annotations remain in the serialized output. Forms, signatures, redactions, and unsupported annotations fail closed. Existing protection must survive serialization or the write is rejected.
 - **Rasterize** (`CompressionLevel.high/medium/low`): Renders each page to a bitmap at target DPI, encodes as JPEG, assembles new PDF via CGContext. Flattens all content. Oversized pages (where point dimensions exceed A3 at the target DPI — common in scanned PDFs and iPhone photos) are automatically capped to prevent bitmap inflation.
-- **Size estimation**: `CompressViewModel` provides instant heuristic estimates (based on page dimensions × DPI × JPEG ratio) shown with "~" prefix, then replaces them with real first-page estimates computed in a background task.
-- **Prepare/review/save**: Both compression modes retain one `PreparedCompression` on the chosen destination volume. Original/result comparison uses that exact output; only Save Result publishes it. Settings/source changes and cancellation discard it. Capture destination identity at preparation and recheck it at publication. Locked lossless outputs retain protection and disable result comparison.
+- **Size estimation**: `CompressViewModel` provides instant heuristic estimates (based on page dimensions × DPI × JPEG ratio) shown with "~" prefix, then replaces them with real first-page estimates computed in a background task. The UI probes only displayed quality/color settings after a short debounce, pauses during Target Size/preparation/review, and retains a cancelled worker slot until completion to avoid overlap.
+- **Prepare/review/save**: Both compression modes retain one `PreparedCompression` on the chosen destination volume. Original/result comparison uses that exact output; only Save Result publishes it. Settings/source changes and preparation cancellation discard it. Publication is async and busy-guarded; failed/cancelled publication retains the candidate for retry. Capture destination identity at preparation and recheck it at publication. Locked lossless outputs retain protection and disable result comparison.
 - **Target size**: `CompressionTarget` strictly parses localized decimal MB (0.1–1,000; 1 MB = 1,000,000 bytes). Try lossless, then 300/150/72 DPI at Good quality only with explicit raster consent. At most four sequential complete attempts; only validated oversized results permit fallback. Success means measured bytes strictly below the limit. Errors and cancellation publish nothing.
 
 ## Annotation flattening

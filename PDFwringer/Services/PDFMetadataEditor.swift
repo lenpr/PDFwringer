@@ -225,29 +225,49 @@ struct PDFMetadataEditor {
             } onCancel: { worker.cancel() }
             return
         }
+        try Task.checkCancellation()
+        let staged = try AtomicFileWriter.StagedFile(destination: destination)
+        defer { staged.cleanup() }
         let doc = try outputDocument(from: sourceDocument, removeProtection: removeProtection)
         doc.documentAttributes = Self.buildAttributes(from: metadata)
-
-        try AtomicFileWriter.write(to: destination) { tempURL in
-            guard doc.write(to: tempURL),
-                  let verificationDocument = PDFDocument(url: tempURL) else { return false }
-            if sourceDocument.isEncrypted && !removeProtection {
-                try PDFEncryptionPolicy.requirePreservedProtection(from: sourceDocument, in: verificationDocument)
-                guard !verificationDocument.isLocked
-                        || verificationDocument.unlock(withPassword: verificationPassword ?? "") else {
+        let count = sourceDocument.pageCount
+        let encrypted = sourceDocument.isEncrypted
+        let permissions = UInt(sourceDocument.accessPermissions.rawValue)
+        await Task.yield()
+        try Task.checkCancellation()
+        guard let data = doc.dataRepresentation(), !data.isEmpty else {
+            throw PDFwringerError.cannotWriteOutput
+        }
+        let worker = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            try data.write(to: staged.url)
+            try Task.checkCancellation()
+            guard let verified = PDFDocument(url: staged.url) else { throw PDFwringerError.cannotWriteOutput }
+            if encrypted && !removeProtection {
+                try PDFEncryptionPolicy.requirePreservedProtection(
+                    sourceIsEncrypted: encrypted, sourcePermissions: permissions, in: verified)
+                guard !verified.isLocked || verified.unlock(withPassword: verificationPassword ?? "") else {
                     throw PDFwringerError.existingPasswordRequired
                 }
-                try PDFEncryptionPolicy.requirePreservedProtection(from: sourceDocument, in: verificationDocument)
-            } else if verificationDocument.isEncrypted {
+                try PDFEncryptionPolicy.requirePreservedProtection(
+                    sourceIsEncrypted: encrypted, sourcePermissions: permissions, in: verified)
+            } else if verified.isEncrypted {
                 throw PDFwringerError.cannotWriteOutput
             }
-            guard !verificationDocument.isLocked else {
+            guard !verified.isLocked, verified.pageCount == count else {
                 throw PDFwringerError.metadataVerificationFailed
             }
-            try Self.verifyMetadata(metadata, in: verificationDocument)
-            return verificationDocument.pageCount == sourceDocument.pageCount
-                && (0..<sourceDocument.pageCount).allSatisfy { verificationDocument.page(at: $0) != nil }
+            try Self.verifyMetadata(metadata, in: verified)
+            for index in 0..<count {
+                try Task.checkCancellation()
+                guard verified.page(at: index) != nil else { throw PDFwringerError.cannotWriteOutput }
+            }
+            try FileSystemIdentity.requireDistinct(source, destination)
+            try staged.commit()
         }
+        try await withTaskCancellationHandler {
+            try await worker.value
+        } onCancel: { worker.cancel() }
     }
 
     /// `PDFDocument.copy()` retains an unlocked document's protection settings.

@@ -149,30 +149,31 @@ struct PDFSplitter {
                 guard let copiedPage else { throw PDFwringerError.cannotOpenDocument }
                 chunkDoc.insert(copiedPage, at: chunkDoc.pageCount)
                 processedPages += 1
+                if processedPages.isMultiple(of: 25) {
+                    try Task.checkCancellation()
+                    await Task.yield()
+                }
             }
 
             let stagedURL = stagingDirectory
                 .appending(component: UUID().uuidString)
                 .appendingPathExtension("pdf")
             let expectedPageCount = endPage - startPage
-            guard chunkDoc.write(to: stagedURL),
-                  let verificationDocument = PDFDocument(url: stagedURL),
-                  verificationDocument.pageCount == expectedPageCount,
-                  (0..<expectedPageCount).allSatisfy({ verificationDocument.page(at: $0) != nil }) else {
-                throw PDFwringerError.cannotWriteOutput
-            }
+            try await writeSnapshot(of: chunkDoc, to: stagedURL, expectedPageCount: expectedPageCount)
             stagedOutputs.append(ExclusiveFilePublisher.StagedFile(
                 url: stagedURL,
                 baseStem: baseName,
                 generatedSuffix: String(format: "_%03d", chunkIndex + 1),
                 pathExtension: "pdf"
             ))
-            progress(Double(processedPages) / Double(pageCount))
+            progress(min(0.99, Double(processedPages) / Double(pageCount)))
             await Task.yield()
         }
 
         try Task.checkCancellation()
-        return try ExclusiveFilePublisher.publish(stagedOutputs, to: outputDir)
+        let outputs = try await ExclusiveFilePublisher.publishAsync(stagedOutputs, to: outputDir)
+        progress(1)
+        return outputs
     }
 
     // MARK: - Extract specific pages
@@ -189,6 +190,8 @@ struct PDFSplitter {
             throw PDFwringerError.invalidPageRange("page outside the document")
         }
         let expectedPageCount = pageIndices.count
+        let staged = try AtomicFileWriter.StagedFile(destination: destination)
+        defer { staged.cleanup() }
         let outputDoc = PDFDocument()
 
         for (i, pageIdx) in pageIndices.enumerated() {
@@ -203,7 +206,7 @@ struct PDFSplitter {
             guard let copiedPage else { throw PDFwringerError.cannotOpenDocument }
             outputDoc.insert(copiedPage, at: outputDoc.pageCount)
 
-            progress(Double(i + 1) / Double(pageIndices.count))
+            progress(min(0.99, Double(i + 1) / Double(pageIndices.count)))
 
             if (i + 1) % 10 == 0 {
                 await Task.yield()
@@ -215,15 +218,30 @@ struct PDFSplitter {
         }
 
         try Task.checkCancellation()
-        try AtomicFileWriter.write(to: destination) { tempURL in
-            guard outputDoc.write(to: tempURL),
-                  let verificationDocument = PDFDocument(url: tempURL),
-                  verificationDocument.pageCount == expectedPageCount else {
-                return false
+        try await writeSnapshot(of: outputDoc, to: staged.url, expectedPageCount: expectedPageCount)
+        try staged.commit()
+        progress(1)
+    }
+
+    private func writeSnapshot(of document: PDFDocument, to url: URL, expectedPageCount: Int) async throws {
+        try Task.checkCancellation()
+        guard let data = document.dataRepresentation(), !data.isEmpty else {
+            throw PDFwringerError.cannotWriteOutput
+        }
+        let worker = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            try data.write(to: url)
+            try Task.checkCancellation()
+            guard let verified = PDFDocument(url: url), verified.pageCount == expectedPageCount else {
+                throw PDFwringerError.cannotWriteOutput
             }
-            return (0..<outputDoc.pageCount).allSatisfy {
-                verificationDocument.page(at: $0) != nil
+            for index in 0..<expectedPageCount {
+                try Task.checkCancellation()
+                guard verified.page(at: index) != nil else { throw PDFwringerError.cannotWriteOutput }
             }
         }
+        try await withTaskCancellationHandler {
+            try await worker.value
+        } onCancel: { worker.cancel() }
     }
 }

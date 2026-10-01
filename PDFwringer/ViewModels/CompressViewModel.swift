@@ -3,24 +3,25 @@ import PDFKit
 
 /// Drives the compress flow: manages source file state, compression settings, background size estimation, and execution.
 ///
-/// Size estimates are computed in one background batch and cached for every
-/// level/quality/grayscale combination.
+/// Optional probes compute only the displayed quality/color configuration;
+/// estimates from previously displayed settings remain cached for this source.
 @MainActor @Observable
 class CompressViewModel {
     var sourceURL: URL?
     var sourcePageCount: Int = 0
     var sourceFileSize: Int64 = 0
-    var mode: CompressionMode = .manual { didSet { if mode != oldValue { settingsChanged() } } }
+    var mode: CompressionMode = .manual { didSet { if mode != oldValue { settingsChanged(); estimateConfigurationChanged() } } }
     var targetMegabytes = "10" { didSet { if targetMegabytes != oldValue { settingsChanged() } } }
     var allowRasterization = false { didSet { if allowRasterization != oldValue { settingsChanged() } } }
     var selectedLevel: CompressionLevel = .medium { didSet { if selectedLevel != oldValue { settingsChanged() } } }
-    var selectedQuality: JPEGQuality = .good { didSet { if selectedQuality != oldValue { settingsChanged() } } }
-    var grayscale = false { didSet { if grayscale != oldValue { settingsChanged() } } }
+    var selectedQuality: JPEGQuality = .good { didSet { if selectedQuality != oldValue { settingsChanged(); estimateConfigurationChanged() } } }
+    var grayscale = false { didSet { if grayscale != oldValue { settingsChanged(); estimateConfigurationChanged() } } }
     var removeAnnotations = false { didSet { if removeAnnotations != oldValue { settingsChanged() } } }
     private(set) var prepared: PDFCompressor.PreparedCompression?
     var comparisonShowsResult = false
     private var operationGeneration = 0
     var isProcessing = false
+    private(set) var isPublishing = false
     var progress: Double = 0
     var resultMessage: String?
     var isError = false
@@ -33,6 +34,7 @@ class CompressViewModel {
     var heuristicSizes: [String: Int64] = [:]
     private var estimationTask: Task<Void, Never>?
     private var estimationGeneration = 0
+    private var estimationEnabled = false
 
     private let compressor = PDFCompressor()
 
@@ -61,6 +63,7 @@ class CompressViewModel {
         allowRasterization = false
         guard let document = PDFDocument(url: url), !document.isLocked else {
             invalidateEstimation()
+            estimationEnabled = false
             sourceURL = nil
             sourcePageCount = 0
             sourceFileSize = 0
@@ -92,6 +95,7 @@ class CompressViewModel {
         }
 
         computeHeuristics()
+        estimationEnabled = true
         startBackgroundEstimation()
     }
 
@@ -172,43 +176,56 @@ class CompressViewModel {
     }
 
     private func startBackgroundEstimation() {
-        guard let source = sourceURL else { return }
-        // The URL remains locked after PDFKit unlocks the in-memory document. Keep
-        // heuristic estimates for encrypted sources instead of reopening the URL.
-        guard pdfDocument?.isEncrypted != true else { return }
-        let compressor = self.compressor
+        guard estimationEnabled, estimationTask == nil, !isProcessing, prepared == nil, mode == .manual,
+              let source = sourceURL,
+              pdfDocument?.isEncrypted != true else { return }
+        let quality = selectedQuality
+        let grayscale = grayscale
+        let keys = CompressionLevel.allCases.map {
+            PDFCompressor.estimateKey(level: $0, quality: quality, grayscale: grayscale)
+        }
+        guard keys.contains(where: { estimatedSizes[$0] == nil }) else { return }
+        let compressor = compressor
         let generation = estimationGeneration
-
-        estimationTask = Task.detached(priority: .utility) { [weak self] in
+        estimationTask = Task { @MainActor [weak self] in
+            defer {
+                if let self {
+                    self.estimationTask = nil
+                    if self.estimationGeneration != generation { self.startBackgroundEstimation() }
+                }
+            }
             do {
-                let estimates = try compressor.estimateFirstPageSizes(source: source)
+                // Coalesce optional work during rapid setting/source changes.
+                try await Task.sleep(for: .milliseconds(100))
                 try Task.checkCancellation()
-                await MainActor.run { [weak self] in
-                    guard let self,
-                          self.estimationGeneration == generation,
-                          self.sourceURL == source else { return }
-                    self.estimatedSizes = estimates
-                    self.estimationTask = nil
+                let worker = Task.detached(priority: .utility) {
+                    try compressor.estimateFirstPageSizes(source: source, quality: quality, grayscale: grayscale)
                 }
+                let estimates = try await withTaskCancellationHandler {
+                    try await worker.value
+                } onCancel: { worker.cancel() }
+                try Task.checkCancellation()
+                guard let self, self.estimationGeneration == generation, self.sourceURL == source else { return }
+                self.estimatedSizes.merge(estimates) { _, latest in latest }
             } catch {
-                // Heuristic estimates remain available if exact probing fails.
-                await MainActor.run { [weak self] in
-                    guard let self,
-                          self.estimationGeneration == generation,
-                          self.sourceURL == source else { return }
-                    self.estimationTask = nil
-                }
+                // Heuristics remain available; failures do not trigger retries.
             }
         }
     }
 
     private func invalidateEstimation() {
-        estimationTask?.cancel()
-        estimationTask = nil
         estimationGeneration += 1
+        // Keep the slot until a noninterruptible render has actually finished.
+        estimationTask?.cancel()
+    }
+
+    private func estimateConfigurationChanged() {
+        invalidateEstimation()
+        startBackgroundEstimation()
     }
 
     func cancelEstimation() {
+        estimationEnabled = false
         invalidateEstimation()
     }
 
@@ -262,7 +279,11 @@ class CompressViewModel {
 
         operationTask = Task { [weak self] in
             guard let self else { return }
-            defer { self.operationTask = nil; self.isProcessing = false }
+            defer {
+                self.operationTask = nil
+                self.isProcessing = false
+                self.startBackgroundEstimation()
+            }
             do {
                 let reportProgress: (Double) -> Void = { [weak self] value in
                     guard let self, self.operationGeneration == generation else { return }
@@ -308,21 +329,34 @@ class CompressViewModel {
         await operationTask?.value
     }
 
-    func savePreparedResult() {
+    func savePreparedResult() async {
         guard !isProcessing, let candidate = prepared else { return }
         comparisonShowsResult = false
-        do {
-            try candidate.commit()
-            lastOutputURL = candidate.destination
-            let protectionNote = pdfDocument?.isEncrypted == true && candidate.level.isRasterize
-                ? " This copy is not password-protected." : ""
-            resultMessage = "Saved \(Formatting.fileSize(candidate.outputSize)) using \(candidate.level.title).\(protectionNote)"
-            isError = false
-            prepared = nil
-        } catch {
-            resultMessage = PDFwringerError.userMessage(for: error)
-            isError = true
+        let generation = operationGeneration
+        isProcessing = true
+        isPublishing = true
+        resultMessage = nil
+        isError = false
+        operationTask = Task { [self] in
+            defer { operationTask = nil; isProcessing = false; isPublishing = false }
+            do {
+                try await candidate.commit()
+                guard generation == operationGeneration else { return }
+                lastOutputURL = candidate.destination
+                let protectionNote = pdfDocument?.isEncrypted == true && candidate.level.isRasterize
+                    ? " This copy is not password-protected." : ""
+                resultMessage = "Saved \(Formatting.fileSize(candidate.outputSize)) using \(candidate.level.title).\(protectionNote)"
+                isError = false
+                prepared = nil
+            } catch {
+                guard generation == operationGeneration else { return }
+                resultMessage = error is CancellationError
+                    ? "Cancelled. Nothing saved. Your prepared result is still available."
+                    : PDFwringerError.userMessage(for: error)
+                isError = !(error is CancellationError)
+            }
         }
+        await operationTask?.value
     }
 
     private func settingsChanged() {
@@ -342,6 +376,7 @@ class CompressViewModel {
 
     func cancel() {
         operationTask?.cancel()
+        if isPublishing { return }
         if prepared != nil {
             discardPreparedResult()
             resultMessage = "Cancelled. Nothing saved."

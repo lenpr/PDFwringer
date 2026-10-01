@@ -425,13 +425,14 @@ struct FailureModeTests {
     // MARK: - AppViewModel error state
 
     @Test("loadSingleFile with corrupt file shows error")
-    func appViewModelCorruptFile() {
+    func appViewModelCorruptFile() async {
         let corrupt = URL.temporaryDirectory.appending(component: UUID().uuidString + "_bad.pdf")
         try! Data("garbage".utf8).write(to: corrupt)
         defer { TestPDFGenerator.cleanup(corrupt) }
 
         let vm = AppViewModel()
         vm.loadSingleFile(corrupt)
+        await vm.waitForFileIntake()
 
         #expect(vm.showErrorAlert == true)
         #expect(vm.errorMessage.contains("bad"))
@@ -461,13 +462,14 @@ struct FailureModeTests {
     }
 
     @Test("handleDrop with zero-byte file ignores it")
-    func handleDropZeroByteFile() {
+    func handleDropZeroByteFile() async {
         let empty = URL.temporaryDirectory.appending(component: UUID().uuidString + "_empty.pdf")
         try! Data().write(to: empty)
         defer { TestPDFGenerator.cleanup(empty) }
 
         let vm = AppViewModel()
         vm.handleDrop([empty])
+        await vm.waitForFileIntake()
 
         // Zero-byte file can't be loaded as PDF → error
         #expect(vm.showErrorAlert)
@@ -486,6 +488,7 @@ struct FailureModeTests {
 
         let vm = AppViewModel()
         vm.handleDrop([valid, corrupt])
+        await vm.waitForFileIntake()
 
         // Intake fails visibly; it must not silently open only the valid subset.
         for _ in 0..<100 {
@@ -498,13 +501,14 @@ struct FailureModeTests {
     }
 
     @Test("handleDrop with non-PDF extension files is ignored")
-    func handleDropNonPDFExtension() {
+    func handleDropNonPDFExtension() async {
         let txt = URL.temporaryDirectory.appending(component: UUID().uuidString + "_file.txt")
         try! Data("hello".utf8).write(to: txt)
         defer { TestPDFGenerator.cleanup(txt) }
 
         let vm = AppViewModel()
         vm.handleDrop([txt])
+        await vm.waitForFileIntake()
 
         #expect(vm.isLanding)
     }

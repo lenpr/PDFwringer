@@ -24,6 +24,7 @@ final class ThumbnailCache {
         let page: PDFPage
         let size: CGSize
         let revision: Int
+        let sourceData: Data?
     }
 
     init() {
@@ -31,7 +32,7 @@ final class ThumbnailCache {
         cache.totalCostLimit = 32 * 1024 * 1024
     }
 
-    func thumbnail(for index: Int, document: PDFDocument, size: CGSize, priority: Bool = false) -> NSImage? {
+    func thumbnail(for index: Int, document: PDFDocument, size: CGSize, priority: Bool = false, sourceData: Data? = nil) -> NSImage? {
         if self.document !== document {
             cancel()
             self.document = document
@@ -51,7 +52,7 @@ final class ThumbnailCache {
               !(activeRequest?.key == key && activeRequest?.revision == revision) else { return nil }
         // A geometry change supersedes an older queued render of this cell.
         discardQueued(for: index, document: document, size: size)
-        pending[key] = Request(key: key, index: index, page: page, size: size, revision: revision)
+        pending[key] = Request(key: key, index: index, page: page, size: size, revision: revision, sourceData: sourceData)
         queue.append(key)
         startNextIfNeeded()
         return nil
@@ -88,7 +89,15 @@ final class ThumbnailCache {
             guard let request = self.pending.removeValue(forKey: key), self.revision == request.revision,
                   self.isCurrent(request) else { return }
             self.activeRequest = request
-            guard let pageData = request.page.dataRepresentation else { return }
+            var snapshot: Data?
+            if request.page.annotations.isEmpty, let sourceData = request.sourceData {
+                snapshot = try? await PDFPageWorker.readOnlySnapshot(sourceData: sourceData, index: request.index,
+                    rotation: request.page.rotation, cropBox: request.page.bounds(for: .cropBox),
+                    mediaBox: request.page.bounds(for: .mediaBox))
+            }
+            guard !Task.isCancelled, self.revision == request.revision, self.isCurrent(request) else { return }
+            if snapshot == nil { snapshot = request.page.dataRepresentation }
+            guard let pageData = snapshot else { return }
             let size = request.size
             let imageData = try? await PDFPageWorker.run(pageData: pageData) { isolatedPage in
                 let image = isolatedPage.thumbnail(of: size, for: .cropBox)

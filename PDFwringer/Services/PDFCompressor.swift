@@ -30,7 +30,9 @@ struct PDFCompressor {
     final class PreparedCompression {
         private let stagedFile: AtomicFileWriter.StagedFile
         private let source: URL
-        private let sourceDocument: PDFDocument
+        private let expectedPageCount: Int
+        private let sourceIsEncrypted: Bool
+        private let sourcePermissions: UInt
         let level: CompressionLevel
         let outputSize: Int64
         let previewDocument: PDFDocument?
@@ -44,27 +46,44 @@ struct PDFCompressor {
             }
             self.stagedFile = stagedFile
             self.source = source
-            sourceDocument = document
+            expectedPageCount = document.pageCount
+            sourceIsEncrypted = document.isEncrypted
+            sourcePermissions = UInt(document.accessPermissions.rawValue)
             self.level = level
             self.outputSize = outputSize
             previewDocument = output.isLocked ? nil : output
         }
 
-        func commit() throws {
-            try Task.checkCancellation()
-            try FileSystemIdentity.requireDistinct(source, destination)
-            guard let size = try FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false))[.size] as? Int64,
-                  size == outputSize, let output = PDFDocument(url: url) else {
-                throw PDFwringerError.cannotWriteOutput
+        func commit() async throws {
+            let staged = stagedFile
+            let source = source
+            let count = expectedPageCount
+            let encrypted = sourceIsEncrypted
+            let permissions = sourcePermissions
+            let size = outputSize
+            let rasterized = level.isRasterize
+            let worker = Task.detached(priority: .userInitiated) {
+                try Task.checkCancellation()
+                try FileSystemIdentity.requireDistinct(source, staged.destination)
+                guard let actualSize = try FileManager.default.attributesOfItem(
+                    atPath: staged.url.path(percentEncoded: false))[.size] as? Int64,
+                      actualSize == size, let output = PDFDocument(url: staged.url) else {
+                    throw PDFwringerError.cannotWriteOutput
+                }
+                if !rasterized {
+                    try PDFEncryptionPolicy.requirePreservedProtection(
+                        sourceIsEncrypted: encrypted, sourcePermissions: permissions, in: output)
+                }
+                if !output.isLocked {
+                    try PDFCompressor.validateOutput(output, expectedPageCount: count,
+                                                     requireNoAnnotations: rasterized)
+                }
+                try FileSystemIdentity.requireDistinct(source, staged.destination)
+                try staged.commit()
             }
-            if !level.isRasterize {
-                try PDFEncryptionPolicy.requirePreservedProtection(from: sourceDocument, in: output)
-            }
-            if !output.isLocked {
-                try PDFCompressor.validateOutput(output, expectedPageCount: sourceDocument.pageCount,
-                                                 requireNoAnnotations: level.isRasterize)
-            }
-            try stagedFile.commit()
+            try await withTaskCancellationHandler {
+                try await worker.value
+            } onCancel: { worker.cancel() }
         }
     }
 
@@ -203,10 +222,13 @@ struct PDFCompressor {
         return Result(outputSize: outputSize)
     }
 
-    /// Estimates every compression setting from one source open and at most one
+    /// Estimates requested settings (or all settings for noninteractive callers)
+    /// from one source open and at most one
     /// first-page render per DPI/color combination. The first-page byte count is
     /// extrapolated across the document, so estimates assume roughly uniform content.
-    nonisolated func estimateFirstPageSizes(source: URL) throws -> [String: Int64] {
+    nonisolated func estimateFirstPageSizes(
+        source: URL, quality selectedQuality: JPEGQuality? = nil, grayscale selectedGrayscale: Bool? = nil
+    ) throws -> [String: Int64] {
         try Task.checkCancellation()
         guard let attributes = try? FileManager.default.attributesOfItem(
             atPath: source.path(percentEncoded: false)
@@ -219,10 +241,12 @@ struct PDFCompressor {
             throw PDFwringerError.cannotOpenDocument
         }
 
+        let qualities = selectedQuality.map { [$0] } ?? JPEGQuality.allCases
+        let colorModes = selectedGrayscale.map { [$0] } ?? [false, true]
         var estimates: [String: Int64] = [:]
         let losslessEstimate = Int64(Double(sourceSize) * 0.95)
-        for quality in JPEGQuality.allCases {
-            for grayscale in [false, true] {
+        for quality in qualities {
+            for grayscale in colorModes {
                 estimates[Self.estimateKey(
                     level: .lossless,
                     quality: quality,
@@ -233,7 +257,7 @@ struct PDFCompressor {
 
         let pageCount = Int64(document.numberOfPages)
         for level in CompressionLevel.allCases where level.isRasterize {
-            for grayscale in [false, true] {
+            for grayscale in colorModes {
                 try Task.checkCancellation()
                 guard let (rendered, _) = PDFRasterizer.render(
                     firstPage,
@@ -241,7 +265,7 @@ struct PDFCompressor {
                     grayscale: grayscale
                 ) else { continue }
 
-                for quality in JPEGQuality.allCases {
+                for quality in qualities {
                     try Task.checkCancellation()
                     guard let jpegData = PDFRasterizer.jpegData(
                         for: rendered,

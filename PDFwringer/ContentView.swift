@@ -253,6 +253,19 @@ struct ContentView: View {
         } message: {
             Text(appVM.errorMessage)
         }
+        .disabled(appVM.isLoadingFile)
+        .overlay(alignment: .top) {
+            if appVM.isLoadingFile {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text(String(localized: "Opening PDF…"))
+                    Button(String(localized: "Cancel")) { appVM.cancelFileIntake() }
+                }
+                .padding(12)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+                .padding(.top, 12)
+            }
+        }
         .onAppear {
             appDelegate.configure(with: appVM)
             // Persist window frame across launches

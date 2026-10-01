@@ -42,7 +42,7 @@ struct PDFRotator {
         }
 
         let start = ContinuousClock.now
-        let rotatedPageCount = try rotate(
+        let rotatedPageCount = try await rotateInBatches(
             document: doc,
             angle: angle,
             pageIndices: pageIndices,
@@ -127,6 +127,46 @@ struct PDFRotator {
                 throw PDFwringerError.cannotOpenDocument
             }
             return normalizedRotation(page.rotation)
+        }
+    }
+
+    /// All authoritative references remain on MainActor. Cancellation restores
+    /// every original rotation before the editor becomes available again.
+    @discardableResult
+    func rotateInBatches(document: PDFDocument, angle: Angle, pageIndices: [Int]?,
+                         progress: (Double) -> Void) async throws -> Int {
+        if document.isLocked { throw PDFwringerError.documentIsLocked }
+        guard document.pageCount > 0 else { throw PDFwringerError.cannotOpenDocument }
+        try PDFPermissionPolicy.require(.assembleDocument, for: document)
+        let indices = pageIndices?.filter { (0..<document.pageCount).contains($0) }
+            ?? Array(0..<document.pageCount)
+        var originals: [Int: (PDFPage, Int)] = [:]
+        do {
+            for (offset, index) in indices.enumerated() {
+                try Task.checkCancellation()
+                guard let page = document.page(at: index) else { throw PDFwringerError.cannotOpenDocument }
+                if originals[index] == nil { originals[index] = (page, page.rotation) }
+                if (offset + 1).isMultiple(of: 25) { await Task.yield() }
+            }
+            for (offset, index) in indices.enumerated() {
+                try Task.checkCancellation()
+                guard let page = originals[index]?.0 else { throw PDFwringerError.cannotOpenDocument }
+                let expected = normalizedRotation(page.rotation + angle.rawValue)
+                page.rotation = expected
+                guard normalizedRotation(page.rotation) == expected else {
+                    throw PDFwringerError.documentPermissionsDenied
+                }
+                progress(Double(offset + 1) / Double(indices.count))
+                if (offset + 1).isMultiple(of: 25) { await Task.yield() }
+            }
+            try Task.checkCancellation()
+            return indices.count
+        } catch {
+            for (offset, original) in originals.values.enumerated() {
+                original.0.rotation = original.1
+                if (offset + 1).isMultiple(of: 25) { await Task.yield() }
+            }
+            throw error
         }
     }
 

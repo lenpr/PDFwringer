@@ -140,4 +140,50 @@ struct PDFCropper {
 
         return CropResult(pagesModified: modified, pagesSkipped: skipped)
     }
+
+    func cropInBatches(document: PDFDocument, indices: [Int], top: CGFloat, bottom: CGFloat,
+                       left: CGFloat, right: CGFloat) async throws -> CropResult {
+        try await mutateInBatches(document: document, indices: indices) { batch in
+            try crop(document: document, indices: batch, top: top, bottom: bottom, left: left, right: right)
+        }
+    }
+
+    func resizeInBatches(document: PDFDocument, indices: [Int], targetSize: CGSize) async throws -> CropResult {
+        try await mutateInBatches(document: document, indices: indices) { batch in
+            try resize(document: document, indices: batch, targetSize: targetSize)
+        }
+    }
+
+    private func mutateInBatches(document: PDFDocument, indices: [Int],
+                                 operation: ([Int]) throws -> CropResult) async throws -> CropResult {
+        try PDFPermissionPolicy.require(.changeDocument, for: document)
+        var originals: [Int: (PDFPage, CGRect, CGRect)] = [:]
+        var result = CropResult(pagesModified: 0, pagesSkipped: 0)
+        do {
+            for (offset, index) in indices.enumerated() {
+                try Task.checkCancellation()
+                if (0..<document.pageCount).contains(index), originals[index] == nil,
+                   let page = document.page(at: index) {
+                    originals[index] = (page, page.bounds(for: .mediaBox), page.bounds(for: .cropBox))
+                }
+                if (offset + 1).isMultiple(of: 25) { await Task.yield() }
+            }
+            for start in stride(from: 0, to: indices.count, by: 25) {
+                try Task.checkCancellation()
+                let batch = try operation(Array(indices[start..<min(start + 25, indices.count)]))
+                result.pagesModified += batch.pagesModified
+                result.pagesSkipped += batch.pagesSkipped
+                if indices.count > 25 { await Task.yield() }
+            }
+            try Task.checkCancellation()
+            return result
+        } catch {
+            for (offset, original) in originals.values.enumerated() {
+                original.0.setBounds(original.1, for: .mediaBox)
+                original.0.setBounds(original.2, for: .cropBox)
+                if (offset + 1).isMultiple(of: 25) { await Task.yield() }
+            }
+            throw error
+        }
+    }
 }

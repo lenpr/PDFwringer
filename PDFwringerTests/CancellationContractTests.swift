@@ -304,7 +304,7 @@ struct CancellationContractTests {
         }
 
         let extracted = directory.appending(component: "extracted.pdf")
-        await expectCancellationAtFinalProgress(output: extracted) { reportProgress in
+        await expectCancellationAtFinalProgress(output: extracted, cancelAt: 0.99) { reportProgress in
             _ = try await PDFSplitter().split(
                 source: source,
                 mode: .keepPages([0]),
@@ -344,7 +344,7 @@ struct CancellationContractTests {
                 options: .init(format: .jpeg, dpi: 72, quality: 0.8),
                 pageIndices: nil,
                 progress: { value in
-                    if value >= 1 {
+                    if value >= 0.99 {
                         operationTask?.cancel()
                     }
                 }

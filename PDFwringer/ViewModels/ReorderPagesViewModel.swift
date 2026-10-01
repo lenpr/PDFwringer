@@ -70,7 +70,7 @@ final class ReorderPagesViewModel {
         isError = false
         lastOutputURL = nil
 
-        operationTask = Task {
+        operationTask = Task { [self] in
             defer {
                 operationTask = nil
                 isSaving = false

@@ -376,6 +376,8 @@ enum DocumentSaver {
             try Task.checkCancellation()
             let staged = try AtomicFileWriter.StagedFile(destination: destination)
             defer { staged.cleanup() }
+            await Task.yield()
+            try Task.checkCancellation()
             guard expectedPageCount > 0,
                   let data = document.dataRepresentation(), !data.isEmpty else {
                 throw PDFwringerError.cannotWriteOutput

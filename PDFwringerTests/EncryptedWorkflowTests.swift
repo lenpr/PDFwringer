@@ -10,7 +10,7 @@ struct EncryptedWorkflowTests {
     private static let bookmarkDefaultsKey = "com.pdfwringer.recentBookmarks"
 
     @Test("Successful unlock enters the document and records it as recent")
-    func appViewModelUnlocksAndRecordsRecentDocument() throws {
+    func appViewModelUnlocksAndRecordsRecentDocument() async throws {
         let source = try makeEncryptedPDF(pageCount: 2, filename: "unlock.pdf")
         let previousBookmarks = UserDefaults.standard.object(forKey: Self.bookmarkDefaultsKey)
         defer {
@@ -20,6 +20,7 @@ struct EncryptedWorkflowTests {
 
         let viewModel = AppViewModel()
         viewModel.loadSingleFile(source)
+        await viewModel.waitForFileIntake()
 
         #expect(viewModel.isLanding)
         #expect(viewModel.showPasswordPrompt)
@@ -60,11 +61,12 @@ struct EncryptedWorkflowTests {
     }
 
     @Test("Incorrect password preserves retry state and cancellation clears it")
-    func incorrectPasswordRetryAndCancel() throws {
+    func incorrectPasswordRetryAndCancel() async throws {
         let source = try makeEncryptedPDF(pageCount: 2, filename: "retry-password.pdf")
         defer { TestPDFGenerator.cleanup(source) }
         let vm = AppViewModel()
         vm.loadSingleFile(source)
+        await vm.waitForFileIntake()
         for _ in 0..<2 {
             vm.passwordText = "wrong-password"
             vm.unlockDocument()
@@ -82,7 +84,7 @@ struct EncryptedWorkflowTests {
     }
 
     @Test("Loading a newer document clears a stale password prompt")
-    func newerDocumentClearsPasswordPrompt() throws {
+    func newerDocumentClearsPasswordPrompt() async throws {
         let locked = try makeEncryptedPDF(pageCount: 1, filename: "stale-prompt.pdf")
         let newer = TestPDFGenerator.makeRenderedPDF(pageCount: 2, filename: "newer-document.pdf")
         defer {
@@ -92,11 +94,13 @@ struct EncryptedWorkflowTests {
 
         let viewModel = AppViewModel()
         viewModel.loadSingleFile(locked)
+        await viewModel.waitForFileIntake()
         #expect(viewModel.showPasswordPrompt)
         viewModel.passwordText = "stale password"
         viewModel.wrongPasswordAttempt = true
 
         viewModel.loadSingleFile(newer)
+        await viewModel.waitForFileIntake()
 
         #expect(!viewModel.showPasswordPrompt)
         #expect(viewModel.passwordText.isEmpty)
@@ -178,12 +182,13 @@ struct EncryptedWorkflowTests {
     }
 
     @Test("Mutable editors isolate unlocked encrypted documents")
-    func mutableEditorsUseEncryptedWorkingCopies() throws {
+    func mutableEditorsUseEncryptedWorkingCopies() async throws {
         let source = try makeEncryptedPDF(pageCount: 2, filename: "working-copy.pdf")
         defer { TestPDFGenerator.cleanup(source) }
 
         let viewModel = AppViewModel()
         viewModel.loadSingleFile(source)
+        await viewModel.waitForFileIntake()
         viewModel.passwordText = Self.password
         viewModel.unlockDocument()
         guard case .singleFile(_, let sourceDocument) = viewModel.state else {

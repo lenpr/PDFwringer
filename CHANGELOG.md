@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Large-document Rotate/Crop entry and bulk edits yield to the interface;
+  cancellation restores the original working-copy bounds/rotations.
+- Reviewed compression publication, protected metadata verification,
+  partial-color byte writes and split/image-export I/O run in isolated workers.
+  Split/export completion now means the outputs are actually published.
+- Cancellable file intake retains bounded immutable source bytes for safe
+  background read-only preview/thumbnail snapshots; protected or edited content
+  retains the authoritative fallback. Password retries reuse the loaded PDF.
+- Optional compression estimates calculate only the displayed settings and pause
+  in Target Size/review flows. Recent-bookmark refresh runs away from the UI,
+  avoids mount/prompts, and cannot overwrite a newer intake or cleared menu.
+
 - Merge assembles, writes and verifies PDFs in an isolated background worker;
   cancellation and destination-change checks prevent publishing stale results.
 - Unannotated, unencrypted page reordering avoids redundant per-page

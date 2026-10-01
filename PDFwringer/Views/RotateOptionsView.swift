@@ -18,7 +18,10 @@ struct RotateOptionsView: View {
     @State private var shakeOffset: CGFloat = 0
     @State private var documentGeneration = 0
     @State private var isSaving = false
-    @State private var saveTask: Task<Void, Never>?
+    @State private var isEditing = false
+    @State private var showsEditProgress = false
+    private var isBusy: Bool { isSaving || isEditing }
+    @State private var operationTask: Task<Void, Never>?
 
     private let rotator = PDFRotator()
 
@@ -33,9 +36,11 @@ struct RotateOptionsView: View {
                     selectedPages: pageSelection.appliesToAll ? nil : $pageSelection.selectedPages
                 )
                 .id(documentGeneration)
+                .disabled(isBusy)
                 .padding(.horizontal, 20)
             }
             .frame(minWidth: 260, idealWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
+            .allowsHitTesting(!isBusy)
             .overlay {
                 DropReceiverView(isTargeted: $isDropTargeted) { urls in
                     onFilesDropped(urls)
@@ -43,17 +48,17 @@ struct RotateOptionsView: View {
             }
 
             VStack(spacing: 0) {
-                OptionsHeaderView(url: url, onBack: onBack, allowsEscapeBack: !isSaving)
-                    .disabled(isSaving)
+                OptionsHeaderView(url: url, onBack: onBack, allowsEscapeBack: !isBusy)
+                    .disabled(isBusy)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
                 Divider()
-                if isSaving {
+                if isSaving || (isEditing && showsEditProgress) {
                     HStack {
                         ProgressView().controlSize(.small)
-                        Text(String(localized: "Saving…"))
+                        Text(isEditing ? String(localized: "Applying changes…") : String(localized: "Saving…"))
                         Spacer()
-                        Button(String(localized: "Cancel")) { saveTask?.cancel() }
+                        Button(String(localized: "Cancel")) { operationTask?.cancel() }
                     }
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
@@ -114,7 +119,7 @@ struct RotateOptionsView: View {
                         .frame(maxWidth: 520, alignment: .leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .disabled(isSaving)
+                    .disabled(isBusy)
                     .onChange(of: resultMessage) { _, message in
                         if message != nil { scroll.scrollTo("operation-result", anchor: .bottom) }
                     }
@@ -123,37 +128,49 @@ struct RotateOptionsView: View {
             .frame(minWidth: 300, idealWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
             .tint(.coral)
         }
-        .onAppear { appVM.operationIsRunning = { isSaving } }
-        .onDisappear { saveTask?.cancel() }
+        .onAppear { appVM.operationIsRunning = { isBusy } }
+        .onDisappear { operationTask?.cancel() }
     }
 
     private func rotateInPlace(angle: PDFRotator.Angle) {
+        guard !isBusy else { return }
         guard let indices = pageSelection.resolvedIndices(pageCount: document.pageCount) else {
             Formatting.triggerShake($shakeOffset)
             return
         }
 
-        do {
-            try rotator.rotate(
-                document: document,
-                angle: angle,
-                pageIndices: indices,
-                progress: { _ in }
-            )
-            documentGeneration += 1
-            resultMessage = nil
-            isError = false
-            lastOutputURL = nil
-            onDirtyChange?(true)
-        } catch {
-            resultMessage = PDFwringerError.userMessage(for: error)
-            isError = true
-            lastOutputURL = nil
+        isEditing = true
+        showsEditProgress = indices.count > 100
+        operationTask = Task { @MainActor in
+            defer { operationTask = nil; isEditing = false }
+            do {
+                try await rotator.rotateInBatches(
+                    document: document,
+                    angle: angle,
+                    pageIndices: indices,
+                    progress: { _ in }
+                )
+                documentGeneration += 1
+                resultMessage = nil
+                isError = false
+                lastOutputURL = nil
+                onDirtyChange?(true)
+            } catch is CancellationError {
+                documentGeneration += 1
+                resultMessage = String(localized: "Cancelled. No changes applied.")
+                isError = false
+                lastOutputURL = nil
+            } catch {
+                documentGeneration += 1
+                resultMessage = PDFwringerError.userMessage(for: error)
+                isError = true
+                lastOutputURL = nil
+            }
         }
     }
 
     private func saveRotated() {
-        guard !isSaving else { return }
+        guard !isBusy else { return }
         do {
             try PDFPermissionPolicy.require(.assembleDocument, for: document)
         } catch {
@@ -171,8 +188,8 @@ struct RotateOptionsView: View {
 
         lastOutputURL = nil
         isSaving = true
-        saveTask = Task { @MainActor in
-            defer { saveTask = nil; isSaving = false }
+        operationTask = Task { @MainActor in
+            defer { operationTask = nil; isSaving = false }
             let result = await DocumentSaver.save(document: document, source: url, to: destination)
             resultMessage = result.message
             isError = result.isError

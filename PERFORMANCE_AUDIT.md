@@ -216,6 +216,114 @@ The optimized build, strict ad-hoc signature verification and unsigned App Store
 archive structure check passed. Installed/published versions and canonical
 signed release artifacts remain unchanged for the consolidated release.
 
+## Remaining performance targets — unreleased, 2026-10-01
+
+Follow-up to `d3cb49f`, covering large-document editing, remaining save I/O,
+cold read-only snapshots, optional estimates, split/export completion, file
+intake/recent bookmarks, and native interaction/memory checks. No new PDF
+operations, dependencies, permissions or persistent preview cache were added.
+
+### Changes and safeguards
+
+- Rotate/Crop entry checks private working-copy page isolation in 25-page
+  slices for documents above 100 pages. Bulk rotate/crop/resize yield in batches,
+  block competing edits/navigation, and restore original rotations/bounds on
+  cancellation or failure before allowing another edit. The original remains
+  untouched. Existing geometry, permission and duplicate-index behavior is tested.
+- Save Result reopens/verifies the exact staged compression candidate and
+  publishes it in a worker. It shows an indeterminate saving phase, permits
+  cancellation, retains the candidate for retry, and preserves destination
+  identity/protection checks. Protected metadata and partial-color saves now
+  move byte writing/reopening/verification into isolated workers. Authoritative
+  copying/serialization remains on MainActor, with a yield before serialization.
+- Single-file intake reads immutable bytes off MainActor in cancellable chunks,
+  capped at 100 MB; the authoritative document is constructed from those same
+  bytes. Read-only color previews/thumbnails normalize eligible pages in a worker
+  from that exact snapshot, rather than reopening a potentially changed file.
+  Encrypted, annotated, edited-working-copy and mismatched-geometry pages retain
+  the authoritative snapshot path. Larger sources retain URL-backed loading;
+  no unbounded additional byte buffer is retained. Closing/replacing/cancelling
+  intake cannot publish an old document, and recent-file grants remain held until
+  the actual read finishes. Password retries reuse the loaded locked document.
+- Manual compression probes only the displayed quality/color configuration:
+  three rasterizations and three JPEG encodes rather than six and 24. A 100 ms
+  debounce coalesces changes; cancellation retains the worker slot until it
+  finishes, preventing overlap. Previously displayed estimates remain cached.
+  Target Size and preparation/review skip unused probes; heuristics remain
+  available immediately. Probe failures do not create a retry loop.
+- Split/extract snapshot byte writes and verification, image-export byte writes,
+  and batch publication run in workers. Page copying yields periodically.
+  Split/extract/export report 100% only after publication. Same-volume staging,
+  exclusive publication, batch rollback and cancellation guards remain intact.
+- Startup recent-bookmark resolution runs off MainActor without mounting volumes
+  or displaying UI. Snapshot checks prevent stale refreshes from overwriting a
+  newer intake or Clear Menu. Intake saves bookmarks once per batch, resolving
+  the bounded existing list once, and updates the menu immediately in memory.
+
+### Paired optimized measurements
+
+M2 Pro, 32 GB, macOS 27, Swift 6.4; sequential optimized arm64 builds and runs.
+Baseline is `d3cb49f`, with only harness/API adapters for the same inputs.
+Three fresh processes per row; elapsed is median, interface delay is maximum
+MainActor heartbeat lateness, memory is maximum process peak RSS. A separate
+initial after-run reproduced the main responsiveness/work-reduction results.
+
+| Operation/input | Elapsed ms before → after | Max interface delay ms before → after | Peak RSS MiB before → after |
+|---|---:|---:|---:|
+| Rotate/Crop entry, 2,000-page vector PDF | 225.1 → 230.8 | 226.6 → 5.6 | 92.0 → 92.2 |
+| Rotate all, 2,000 pages | 105.1 → 111.1 | 109.4 → 3.0 | 70.5 → 70.4 |
+| Crop all, 2,000 pages | 106.9 → 111.3 | 113.0 → 2.7 | 71.4 → 71.9 |
+| Resize all, 2,000 pages | 108.5 → 117.3 | 113.0 → 2.9 | 70.5 → 71.1 |
+| Save reviewed lossless result, 2,000 pages | 118.3 → 119.7 | 119.6 → 1.4 | 487.5 → 486.2 |
+| Displayed compression estimates, scanned fixture | 969.0 → 481.0 | 1.8 → 2.2 | 187.8 → 174.5 |
+| Single-file intake, four-page scanned fixture | 6.9 → 6.3 | 66.3 → 52.8 | 37.9 → 38.7 |
+| Cold source-byte color preview, scanned fixture | 382.9 → 386.4 | 154.0 → 1.8 | 75.3 → 72.1 |
+
+Cooperative batches trade a little throughput for much shorter interface stalls;
+reviewed saving and cold preview perform approximately the same total work.
+The estimate comparison measures the optional service batch, excluding the UI
+100 ms debounce; it produces four displayed keys instead of the old 32-key
+matrix. Preview source-byte acquisition is outside its timer. The scanned
+fixture is `usgs_orthoimagery.pdf`, approximately 1 MB with mixed text/images.
+Intake's first-process framework/bookmark initialization remains an outlier;
+these three runs do not establish a general launch/first-paint improvement.
+Headless publication timing is not mouse-to-visible response, FPS or GPU timing.
+
+### Verification and native checks
+
+All 452 tests passed: 380 fast, 63 checksum-verified corpus, nine performance.
+The final fast lane passed again after navigation/estimate guards. Optimized
+release compilation had no warnings; strict ad-hoc signature and unsigned
+App Store archive structure checks passed. Regression coverage includes
+mid-edit rollback, superseded/cancelled intake and security-scope balance,
+source-snapshot identity, selected-estimate invalidation/Target Size pause,
+and existence of published outputs when progress reaches completion. Eligible
+first/last pages across the external corpus have exact normalized preview pixel
+parity; encrypted/annotated pages exercise the conservative fallback.
+
+A separate temporary sandboxed app, using the final optimized executable and
+its own settings, passed native checks at the 800 × 520 window size: color
+slider/reset, resized preview via the native divider, Back/Close File, far-end
+87-page thumbnail navigation/enlarged preview, and long reorder-list scrolling
+and selection/boundary buttons. These establish behavior, not frame pacing.
+Twenty scanned-fixture open/close cycles returned cleanly to the landing screen.
+Settled physical footprint after cycles six, 13 and 20 was 239.9, 205.5 and
+195.3 MiB; the observed high-water footprint was 393.7 MiB. This scenario showed
+no continuing settled growth after warming up, but is not a universal leak proof.
+A prior frame-profiler run created memory pressure, so its initial footprint is
+excluded from that comparison.
+
+Animation Hitches recording stalled during export and was stopped; an overlapping
+retry was rejected by the profiler lock. Neither produced usable frame evidence.
+Both traces and the isolated test app/settings were discarded. VoiceOver remains
+deferred. Remaining evidence: successful native frame/first-paint/energy profiling,
+slow/removable/network/iCloud files, >100 MB sources, and the final Store-installed
+candidate. Initial authoritative PDFKit construction/copying/serialization can
+still pause MainActor; preservation-sensitive snapshots retain that limitation.
+Do not replace those safeguards with unsafe cross-actor references or disk reopen
+shortcuts. Version, installed app, published download and signed candidate remain
+0.2.3 until the consolidated release.
+
 ## How the baseline was measured
 
 - Apple M2 Pro, 12 CPU cores, 32 GiB RAM, macOS 27.0, build 26A428; Swift 6.4.

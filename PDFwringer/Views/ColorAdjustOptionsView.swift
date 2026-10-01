@@ -138,7 +138,7 @@ struct ColorAdjustOptionsView: View {
         // This editor never mutates the source document. Its revision is stable
         // for the view lifetime; another document/page or geometry invalidates it.
         vm.updatePreview(document: document, page: currentPage, selection: pageSelection,
-                         documentRevision: 0, pixelSize: previewPixelSize)
+                         documentRevision: 0, pixelSize: previewPixelSize, sourceData: appVM.previewSourceData(for: document))
     }
 
     private func updatePreviewPixelSize(_ size: CGSize) {

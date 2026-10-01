@@ -352,7 +352,10 @@ benchmark-performance: verify-fixtures $(BUILD_DIR)/PDFwringerBenchmark
 	$(BUILD_DIR)/PDFwringerBenchmark generate2000 PDFwringerTests/Fixtures/smoke/tracemonkey.pdf "$$benchmark_dir"; \
 	$(BUILD_DIR)/PDFwringerBenchmark metadata "$$benchmark_dir/vector-2000.pdf" "$$benchmark_dir"; \
 	$(BUILD_DIR)/PDFwringerBenchmark save "$$benchmark_dir/vector-2000.pdf" "$$benchmark_dir"; \
-	$(BUILD_DIR)/PDFwringerBenchmark lossless "$$benchmark_dir/vector-2000.pdf" "$$benchmark_dir"
+	$(BUILD_DIR)/PDFwringerBenchmark lossless "$$benchmark_dir/vector-2000.pdf" "$$benchmark_dir"; \
+	for operation in tool-entry rotate-edit crop-edit resize-edit; do \
+		$(BUILD_DIR)/PDFwringerBenchmark "$$operation" "$$benchmark_dir/vector-2000.pdf" "$$benchmark_dir"; \
+	done
 
 $(BUILD_DIR)/PDFwringerBenchmark: Makefile $(TESTABLE_SOURCES) scripts/PerformanceBenchmark.swift
 	@mkdir -p $(BUILD_DIR)
@@ -363,7 +366,7 @@ $(BUILD_DIR)/PDFwringerBenchmark: Makefile $(TESTABLE_SOURCES) scripts/Performan
 benchmark-preview: verify-fixtures $(BUILD_DIR)/PDFwringerBenchmark
 	@set -e; \
 	for fixture in smoke/tracemonkey.pdf scanned/usgs_orthoimagery.pdf; do \
-		for operation in preview preview-cached preview-sized; do \
+		for operation in preview preview-cached preview-sized preview-source; do \
 			$(BUILD_DIR)/PDFwringerBenchmark "$$operation" "PDFwringerTests/Fixtures/$$fixture" "$(BUILD_DIR)"; \
 		done; \
 	done
@@ -373,6 +376,18 @@ benchmark-thumbnails: verify-fixtures $(BUILD_DIR)/PDFwringerBenchmark
 	@set -e; \
 	for fixture in smoke/tracemonkey.pdf large/fdsys_architecture.pdf scanned/usgs_orthoimagery.pdf; do \
 		$(BUILD_DIR)/PDFwringerBenchmark thumbnail-priority "PDFwringerTests/Fixtures/$$fixture" "$(BUILD_DIR)"; \
+	done
+
+# Additional optimized optional-work and release-flow measurements.
+.PHONY: benchmark-remaining
+benchmark-remaining: verify-fixtures $(BUILD_DIR)/PDFwringerBenchmark
+	@set -e; \
+	benchmark_dir=$$(mktemp -d "$(BUILD_DIR)/remaining.XXXXXX"); \
+	trap 'rm -rf "$$benchmark_dir"' EXIT; \
+	$(BUILD_DIR)/PDFwringerBenchmark generate2000 PDFwringerTests/Fixtures/smoke/tracemonkey.pdf "$$benchmark_dir"; \
+	$(BUILD_DIR)/PDFwringerBenchmark review-save "$$benchmark_dir/vector-2000.pdf" "$$benchmark_dir"; \
+	for operation in estimates file-open; do \
+		$(BUILD_DIR)/PDFwringerBenchmark "$$operation" PDFwringerTests/Fixtures/scanned/usgs_orthoimagery.pdf "$$benchmark_dir"; \
 	done
 
 # Slow lane: corpus tests first, then performance bounds without corpus contention.

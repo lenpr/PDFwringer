@@ -163,7 +163,10 @@ struct PDFImageExporter {
                 throw PDFwringerError.cannotWriteOutput
             }
 
-            let imageData = try await PDFPageWorker.run(pageData: pageData) { isolatedPage in
+            let stagedURL = stagingDirectory.appending(
+                component: "\(UUID().uuidString).\(options.format.fileExtension)"
+            )
+            try await PDFPageWorker.run(pageData: pageData) { isolatedPage in
                 guard let (rendered, _) = PDFRasterizer.render(
                     isolatedPage,
                     dpi: options.dpi,
@@ -180,13 +183,9 @@ struct PDFImageExporter {
                     data = PDFRasterizer.pngData(for: rendered)
                 }
                 guard let data else { throw PDFwringerError.cannotWriteOutput }
-                return data
+                try Task.checkCancellation()
+                try data.write(to: stagedURL)
             }
-
-            let stagedURL = stagingDirectory.appending(
-                component: "\(UUID().uuidString).\(options.format.fileExtension)"
-            )
-            try imageData.write(to: stagedURL)
             stagedOutputs.append(ExclusiveFilePublisher.StagedFile(
                 url: stagedURL,
                 baseStem: baseName,
@@ -194,14 +193,15 @@ struct PDFImageExporter {
                 pathExtension: options.format.fileExtension
             ))
 
-            progress(Double(i + 1) / Double(indicesToExport.count))
+            progress(min(0.99, Double(i + 1) / Double(indicesToExport.count)))
         }
 
         try Task.checkCancellation()
-        let publishedOutputs = try ExclusiveFilePublisher.publish(
+        let publishedOutputs = try await ExclusiveFilePublisher.publishAsync(
             stagedOutputs,
             to: outputDirectory
         )
+        progress(1)
 
         let elapsed = ContinuousClock.now - start
         Log.app.info("Export complete: \(publishedOutputs.count) images, duration=\(elapsed)")

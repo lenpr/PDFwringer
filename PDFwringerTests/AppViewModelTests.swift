@@ -20,7 +20,7 @@ struct AppViewModelTests {
     // MARK: - Initial state
 
     @Test("Starts in landing state")
-    func initialState() {
+    func initialState() async {
         let vm = AppViewModel(confirmDiscard: { true })
         #expect(vm.isLanding)
         #expect(vm.windowTitle == "PDFwringer")
@@ -29,12 +29,13 @@ struct AppViewModelTests {
     // MARK: - File loading
 
     @Test("loadSingleFile transitions to singleFile state")
-    func loadSingleFile() {
+    func loadSingleFile() async {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 2, filename: "single.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
         let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
+        await vm.waitForFileIntake()
 
         if case .singleFile(let loadedURL, let doc) = vm.state {
             #expect(loadedURL == url)
@@ -45,14 +46,15 @@ struct AppViewModelTests {
     }
 
     @Test("loadSingleFile with invalid URL stays in current state")
-    func loadInvalidFile() {
+    func loadInvalidFile() async {
         let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(URL.temporaryDirectory.appending(component: "nonexistent.pdf"))
+        await vm.waitForFileIntake()
         #expect(vm.isLanding)
     }
 
     @Test("Recent-document security scopes are balanced across failures and replacement")
-    func recentDocumentScopesAreBalanced() {
+    func recentDocumentScopesAreBalanced() async {
         let first = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "recent-first.pdf")
         let second = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "recent-second.pdf")
         let missing = URL.temporaryDirectory.appending(component: "\(UUID()).pdf")
@@ -72,10 +74,12 @@ struct AppViewModelTests {
         )
 
         vm.openRecentDocument(first)
+        await vm.waitForFileIntake()
         #expect(started == [first])
         #expect(stopped.isEmpty)
 
         vm.openRecentDocument(missing)
+        await vm.waitForFileIntake()
         #expect(started == [first, missing])
         #expect(stopped == [missing])
         guard case .singleFile(let retainedURL, _) = vm.state else {
@@ -85,6 +89,7 @@ struct AppViewModelTests {
         #expect(retainedURL == first)
 
         vm.openRecentDocument(second)
+        await vm.waitForFileIntake()
         #expect(started == [first, missing, second])
         #expect(stopped == [missing, first])
 
@@ -151,6 +156,7 @@ struct AppViewModelTests {
         let missing = directory.appending(component: "missing.pdf")
         let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(current)
+        await vm.waitForFileIntake()
         guard case .singleFile(_, let previousDocument) = vm.state else {
             Issue.record("Expected the initial document to open")
             return
@@ -180,6 +186,7 @@ struct AppViewModelTests {
         let vm = AppViewModel(confirmDiscard: { true })
         let staleIntake = vm.loadMultipleFiles([old1, old2])
         vm.loadSingleFile(newer)
+        await vm.waitForFileIntake()
         await staleIntake.value
 
         guard case .singleFile(let loadedURL, let document) = vm.state else {
@@ -210,12 +217,13 @@ struct AppViewModelTests {
     // MARK: - handleDrop routing
 
     @Test("handleDrop with one PDF goes to singleFile")
-    func handleDropSingle() {
+    func handleDropSingle() async {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "drop.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
         let vm = AppViewModel(confirmDiscard: { true })
         vm.handleDrop([url])
+        await vm.waitForFileIntake()
 
         if case .singleFile = vm.state {
             // pass
@@ -235,6 +243,7 @@ struct AppViewModelTests {
 
         let vm = AppViewModel(confirmDiscard: { true })
         vm.handleDrop([url1, url2])
+        await vm.waitForFileIntake()
         try await waitForStateChange(vm)
 
         if case .merging(let items) = vm.state {
@@ -245,7 +254,7 @@ struct AppViewModelTests {
     }
 
     @Test("handleDrop ignores non-PDF files, including images")
-    func handleDropNonPDF() {
+    func handleDropNonPDF() async {
         let vm = AppViewModel(confirmDiscard: { true })
         let stem = UUID().uuidString
         let txt = URL.temporaryDirectory.appending(component: "\(stem).txt")
@@ -258,18 +267,20 @@ struct AppViewModelTests {
         }
 
         vm.handleDrop([txt, image])
+        await vm.waitForFileIntake()
         #expect(vm.isLanding)
     }
 
     // MARK: - State transitions
 
     @Test("selectCompress from singleFile goes to compressing")
-    func selectCompress() {
+    func selectCompress() async {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "c.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
         let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
+        await vm.waitForFileIntake()
         vm.selectCompress()
 
         if case .compressing(let u, _) = vm.state {
@@ -280,12 +291,13 @@ struct AppViewModelTests {
     }
 
     @Test("selectSplit from singleFile goes to splitting")
-    func selectSplit() {
+    func selectSplit() async {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "s.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
         let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
+        await vm.waitForFileIntake()
         vm.selectSplit()
 
         if case .splitting(let u, _) = vm.state {
@@ -296,12 +308,13 @@ struct AppViewModelTests {
     }
 
     @Test("goBack from compressing returns to singleFile")
-    func goBackFromCompress() {
+    func goBackFromCompress() async {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "gb.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
         let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
+        await vm.waitForFileIntake()
         vm.selectCompress()
         vm.goBack()
 
@@ -330,7 +343,7 @@ struct AppViewModelTests {
     }
 
     @Test("Merge from a single PDF returns to the same document and security scope")
-    func mergeFromSingleDocument() throws {
+    func mergeFromSingleDocument() async throws {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 3)
         defer { TestPDFGenerator.cleanup(url) }
         var stopped: [URL] = []
@@ -338,6 +351,7 @@ struct AppViewModelTests {
                               endSecurityScopedAccess: { stopped.append($0) },
                               confirmDiscard: { true })
         vm.openRecentDocument(url)
+        await vm.waitForFileIntake()
         guard case .singleFile(_, let original) = vm.state else {
             Issue.record("Expected document"); return
         }
@@ -386,12 +400,13 @@ struct AppViewModelTests {
     }
 
     @Test("Merge Back respects dirty-work and running-operation guards")
-    func mergeBackGuards() {
+    func mergeBackGuards() async {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
         defer { TestPDFGenerator.cleanup(url) }
         var discard = false
         let vm = AppViewModel(confirmDiscard: { discard })
         vm.loadSingleFile(url)
+        await vm.waitForFileIntake()
         vm.selectMerge()
         vm.updateMergeFiles([])
         vm.hasUnsavedChanges = true
@@ -415,8 +430,10 @@ struct AppViewModelTests {
         defer { TestPDFGenerator.cleanup(first); TestPDFGenerator.cleanup(second) }
         let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(first)
+        await vm.waitForFileIntake()
         vm.selectMerge()
         vm.loadSingleFile(second)
+        await vm.waitForFileIntake()
         #expect(!vm.mergeReturnsToDocument)
         vm.selectMerge()
         await vm.loadMultipleFiles([first, second]).value
@@ -424,6 +441,7 @@ struct AppViewModelTests {
         vm.goBack()
         #expect(vm.isLanding)
         vm.loadSingleFile(first)
+        await vm.waitForFileIntake()
         vm.selectMerge()
         vm.startOver()
         vm.selectMerge()
@@ -431,12 +449,13 @@ struct AppViewModelTests {
     }
 
     @Test("startOver clears workflow navigation and confirmation state")
-    func startOver() {
+    func startOver() async {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "so.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
         let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
+        await vm.waitForFileIntake()
         vm.selectCompress()
         vm.currentPage = 4
         vm.currentFileSize = 123
@@ -455,7 +474,7 @@ struct AppViewModelTests {
     }
 
     @Test("goBack is a true no-op outside child workflows")
-    func unsupportedGoBackIsNoOp() {
+    func unsupportedGoBackIsNoOp() async {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "no-op.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
@@ -468,6 +487,7 @@ struct AppViewModelTests {
         #expect(vm.hasUnsavedChanges)
 
         vm.loadSingleFile(url)
+        await vm.waitForFileIntake()
         vm.navigationDirection = .trailing
         vm.hasUnsavedChanges = true
         vm.goBack()
@@ -481,12 +501,13 @@ struct AppViewModelTests {
     }
 
     @Test("export navigation enables page commands and Back")
-    func exportNavigation() {
+    func exportNavigation() async {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 3, filename: "export.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
         let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
+        await vm.waitForFileIntake()
         vm.selectExportImages()
 
         #expect(vm.canGoBack)
@@ -508,12 +529,13 @@ struct AppViewModelTests {
     }
 
     @Test("reorder navigation enables Back")
-    func reorderNavigation() {
+    func reorderNavigation() async {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 2, filename: "reorder.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
         let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
+        await vm.waitForFileIntake()
         vm.selectReorderPages()
         #expect(vm.canGoBack)
 
@@ -540,6 +562,7 @@ struct AppViewModelTests {
         #expect(vm.windowTitle == "PDFwringer")
 
         vm.loadSingleFile(url)
+        await vm.waitForFileIntake()
         #expect(vm.windowTitle.hasSuffix("title.pdf"))
 
         vm.startOver()
@@ -551,12 +574,13 @@ struct AppViewModelTests {
     // MARK: - Rotate and Metadata transitions
 
     @Test("selectRotate creates an isolated working document")
-    func selectRotate() throws {
+    func selectRotate() async throws {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "r.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
         let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
+        await vm.waitForFileIntake()
         guard case .singleFile(_, let originalDocument) = vm.state else {
             Issue.record("Expected singleFile state")
             return
@@ -576,12 +600,13 @@ struct AppViewModelTests {
     }
 
     @Test("selectMetadata from singleFile goes to editingMetadata")
-    func selectMetadata() {
+    func selectMetadata() async {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "m.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
         let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
+        await vm.waitForFileIntake()
         vm.selectMetadata()
 
         if case .editingMetadata(let u, _) = vm.state {
@@ -592,12 +617,13 @@ struct AppViewModelTests {
     }
 
     @Test("goBack from splitting returns to singleFile")
-    func goBackFromSplit() {
+    func goBackFromSplit() async {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "gs.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
         let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
+        await vm.waitForFileIntake()
         vm.selectSplit()
         vm.goBack()
 
@@ -609,12 +635,13 @@ struct AppViewModelTests {
     }
 
     @Test("goBack from rotating discards working mutations")
-    func goBackFromRotate() throws {
+    func goBackFromRotate() async throws {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "gr.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
         let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
+        await vm.waitForFileIntake()
         vm.selectRotate()
         guard case .rotating(_, let sourceDocument, let workingDocument) = vm.state else {
             Issue.record("Expected rotating state")
@@ -643,12 +670,13 @@ struct AppViewModelTests {
     }
 
     @Test("goBack from editingMetadata returns to singleFile")
-    func goBackFromMetadata() {
+    func goBackFromMetadata() async {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "gm.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
         let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
+        await vm.waitForFileIntake()
         vm.selectMetadata()
         vm.goBack()
 
@@ -662,12 +690,13 @@ struct AppViewModelTests {
     // MARK: - Crop transitions
 
     @Test("selectCrop creates an isolated working document")
-    func selectCrop() throws {
+    func selectCrop() async throws {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "cr.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
         let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
+        await vm.waitForFileIntake()
         guard case .singleFile(_, let originalDocument) = vm.state else {
             Issue.record("Expected singleFile state")
             return
@@ -687,12 +716,13 @@ struct AppViewModelTests {
     }
 
     @Test("goBack from cropping discards working mutations")
-    func goBackFromCrop() throws {
+    func goBackFromCrop() async throws {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "gc.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
         let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
+        await vm.waitForFileIntake()
         vm.selectCrop()
         guard case .cropping(_, let sourceDocument, let workingDocument) = vm.state else {
             Issue.record("Expected cropping state")
@@ -727,19 +757,20 @@ struct AppViewModelTests {
     // MARK: - File size caching
 
     @Test("loadSingleFile populates currentFileSize")
-    func fileSizePopulated() {
+    func fileSizePopulated() async {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 3, filename: "sized.pdf")
         defer { TestPDFGenerator.cleanup(url) }
 
         let vm = AppViewModel(confirmDiscard: { true })
         vm.loadSingleFile(url)
+        await vm.waitForFileIntake()
         #expect(vm.currentFileSize > 0)
     }
 
     // MARK: - Password state
 
     @Test("cancelPassword resets all password state")
-    func cancelPasswordResetsState() {
+    func cancelPasswordResetsState() async {
         let vm = AppViewModel(confirmDiscard: { true })
         vm.showPasswordPrompt = true
         vm.passwordText = "secret"

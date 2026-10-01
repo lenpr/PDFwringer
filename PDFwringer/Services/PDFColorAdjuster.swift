@@ -167,6 +167,8 @@ struct PDFColorAdjuster {
             Log.colorAdjust.info("Color adjust complete: \(pageCount) pages, duration=\(elapsed)")
             return
         }
+        let staged = try AtomicFileWriter.StagedFile(destination: destination)
+        defer { staged.cleanup() }
         let outputDocument = PDFDocument()
         outputDocument.documentAttributes = document.documentAttributes
 
@@ -222,15 +224,27 @@ struct PDFColorAdjuster {
 
         try Task.checkCancellation()
 
-        try AtomicFileWriter.write(to: destination) { tempDest in
-            guard outputDocument.write(to: tempDest),
-                  let verificationDocument = PDFDocument(url: tempDest),
-                  !verificationDocument.isLocked,
-                  verificationDocument.pageCount == pageCount else {
-                return false
-            }
-            return (0..<pageCount).allSatisfy { verificationDocument.page(at: $0) != nil }
+        await Task.yield()
+        try Task.checkCancellation()
+        guard let data = outputDocument.dataRepresentation(), !data.isEmpty else {
+            throw PDFwringerError.cannotWriteOutput
         }
+        let worker = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            try data.write(to: staged.url)
+            try Task.checkCancellation()
+            guard let verified = PDFDocument(url: staged.url), !verified.isLocked,
+                  verified.pageCount == pageCount else { throw PDFwringerError.cannotWriteOutput }
+            for index in 0..<pageCount {
+                try Task.checkCancellation()
+                guard verified.page(at: index) != nil else { throw PDFwringerError.cannotWriteOutput }
+            }
+            try FileSystemIdentity.requireDistinct(source, destination)
+            try staged.commit()
+        }
+        try await withTaskCancellationHandler {
+            try await worker.value
+        } onCancel: { worker.cancel() }
         progress(1.0)
         let elapsed = ContinuousClock.now - start
         Log.colorAdjust.info("Color adjust complete: \(pageCount) pages, duration=\(elapsed)")

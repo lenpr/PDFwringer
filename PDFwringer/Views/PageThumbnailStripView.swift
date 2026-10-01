@@ -2,6 +2,7 @@ import SwiftUI
 import PDFKit
 
 struct PageThumbnailStripView: View {
+    @Environment(AppViewModel.self) private var appVM
     let document: PDFDocument
     var currentPage: Binding<Int>?
     var selectedPages: Binding<Set<Int>>?
@@ -71,7 +72,7 @@ struct PageThumbnailStripView: View {
             Group {
                 if let img = cache.thumbnail(for: index, document: document,
                                              size: CGSize(width: thumbWidth * 2, height: thumbHeight * 2),
-                                             priority: isCurrent) {
+                                             priority: isCurrent, sourceData: appVM.previewSourceData(for: document)) {
                     Image(nsImage: img)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
@@ -145,7 +146,7 @@ struct PageThumbnailStripView: View {
                    previewSize.width > 0, previewSize.height > 0 {
                     let _ = cache.generation
                     Group {
-                        if let image = cache.thumbnail(for: index, document: document, size: previewSize, priority: true) {
+                        if let image = cache.thumbnail(for: index, document: document, size: previewSize, priority: true, sourceData: appVM.previewSourceData(for: document)) {
                             Image(nsImage: image)
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
@@ -163,7 +164,7 @@ struct PageThumbnailStripView: View {
         }
         .onAppear {
             _ = cache.thumbnail(for: index, document: document,
-                                size: CGSize(width: thumbWidth * 2, height: thumbHeight * 2), priority: isCurrent)
+                                size: CGSize(width: thumbWidth * 2, height: thumbHeight * 2), priority: isCurrent, sourceData: appVM.previewSourceData(for: document))
         }
         .onDisappear {
             cache.discardQueued(for: index, document: document,
