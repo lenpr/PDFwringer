@@ -9,6 +9,20 @@ private final class InvalidRepresentationPDFDocument: PDFDocument {
     }
 }
 
+private final class SnapshotHookPDFDocument: PDFDocument {
+    let snapshot: Data
+    let hook: @Sendable () -> Void
+    init(snapshot: Data, hook: @escaping @Sendable () -> Void) {
+        self.snapshot = snapshot
+        self.hook = hook
+        super.init()
+    }
+    override func dataRepresentation() -> Data? {
+        hook()
+        return snapshot
+    }
+}
+
 @Suite("Utilities")
 @MainActor
 struct UtilityTests {
@@ -446,8 +460,53 @@ struct UtilityTests {
         #expect(extracted[1].contains("Page 1"))
     }
 
+    @Test("DocumentSaver preserves cancellation and destination approval across the snapshot",
+          arguments: [false, true])
+    func documentSaverSnapshotBoundary(cancel: Bool) async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
+        let snapshot = try Data(contentsOf: source)
+        let directory = TestPDFGenerator.makeTempDirectory()
+        let output = directory.appending(component: "saved.pdf")
+        let original = Data("Approved original".utf8)
+        let replacement = Data("Concurrent replacement".utf8)
+        try original.write(to: output)
+        defer { TestPDFGenerator.cleanup(source); TestPDFGenerator.cleanup(directory) }
+        let document = SnapshotHookPDFDocument(snapshot: snapshot) {
+            if cancel { withUnsafeCurrentTask { $0?.cancel() } }
+            else { try? replacement.write(to: output, options: .atomic) }
+        }
+        document.insert(PDFPage(), at: 0)
+        let operation = Task { @MainActor in
+            await DocumentSaver.save(document: document, source: source, to: output)
+        }
+        let result = await operation.value
+        #expect(result.outputURL == nil)
+        #expect(result.isError == !cancel)
+        #expect(try Data(contentsOf: output) == (cancel ? original : replacement))
+        #expect(try Data(contentsOf: source) == snapshot)
+    }
+
+    @Test("DocumentSaver publishes unsaved geometry and leaves its source intact")
+    func documentSaverWorkingContent() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
+        let bytes = try Data(contentsOf: source)
+        let directory = TestPDFGenerator.makeTempDirectory()
+        let output = directory.appending(component: "saved.pdf")
+        defer { TestPDFGenerator.cleanup(source); TestPDFGenerator.cleanup(directory) }
+        let document = try #require(PDFDocument(url: source))
+        let page = try #require(document.page(at: 0))
+        page.rotation = 90
+        let crop = CGRect(x: 10, y: 20, width: 400, height: 500)
+        page.setBounds(crop, for: .cropBox)
+        let result = await DocumentSaver.save(document: document, source: source, to: output)
+        #expect(!result.isError && result.outputURL == output)
+        let saved = try #require(PDFDocument(url: output)?.page(at: 0))
+        #expect(saved.rotation == 90 && saved.bounds(for: .cropBox) == crop)
+        #expect(try Data(contentsOf: source) == bytes)
+    }
+
     @Test("DocumentSaver refuses to replace its source document")
-    func documentSaverRejectsSourceDestination() throws {
+    func documentSaverRejectsSourceDestination() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "save-source.pdf")
         defer { TestPDFGenerator.cleanup(source) }
         let originalData = try Data(contentsOf: source)
@@ -459,7 +518,7 @@ struct UtilityTests {
             progress: { _ in }
         )
 
-        let result = DocumentSaver.save(
+        let result = await DocumentSaver.save(
             document: workingDocument,
             source: source,
             to: source
@@ -472,7 +531,7 @@ struct UtilityTests {
     }
 
     @Test("DocumentSaver rejects invalid serialization without replacing destination")
-    func documentSaverValidatesStagedOutput() throws {
+    func documentSaverValidatesStagedOutput() async throws {
         let directory = TestPDFGenerator.makeTempDirectory()
         let source = directory.appending(component: "source.pdf")
         let destination = directory.appending(component: "destination.pdf")
@@ -483,7 +542,7 @@ struct UtilityTests {
         let document = InvalidRepresentationPDFDocument()
         document.insert(PDFPage(), at: 0)
 
-        let result = DocumentSaver.save(
+        let result = await DocumentSaver.save(
             document: document,
             source: source,
             to: destination

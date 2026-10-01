@@ -8,6 +8,36 @@ struct PDFMetadataEditorTests {
 
     private let editor = PDFMetadataEditor()
 
+    @Test("Background metadata writing retains unsaved page edits and source bytes")
+    func backgroundSavePreservesWorkingContent() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
+        let directory = TestPDFGenerator.makeTempDirectory()
+        let output = directory.appending(component: "metadata.pdf")
+        defer { TestPDFGenerator.cleanup(source); TestPDFGenerator.cleanup(directory) }
+        let bytes = try Data(contentsOf: source)
+        let document = try #require(PDFDocument(url: source))
+        let page = try #require(document.page(at: 0))
+        page.rotation = 90
+        let crop = CGRect(x: 10, y: 20, width: 400, height: 500)
+        page.setBounds(crop, for: .cropBox)
+        let annotation = PDFAnnotation(bounds: CGRect(x: 30, y: 40, width: 100, height: 30),
+                                       forType: .freeText, withProperties: nil)
+        annotation.contents = "Unsaved annotation"
+        page.addAnnotation(annotation)
+        let metadata = PDFMetadataEditor.Metadata(title: "Updated", author: "", subject: "",
+                                                   keywords: "", creator: "")
+        try await PDFMetadataEditor().write(metadata: metadata, document: document,
+                                            source: source, destination: output)
+        let result = try #require(PDFDocument(url: output))
+        let savedPage = try #require(result.page(at: 0))
+        #expect(savedPage.rotation == 90)
+        #expect(savedPage.bounds(for: .cropBox) == crop)
+        #expect(savedPage.annotations.first?.contents == "Unsaved annotation")
+        #expect(PDFMetadataEditor().read(from: result) == metadata)
+        #expect(page.rotation == 90 && page.annotations.first === annotation)
+        #expect(try Data(contentsOf: source) == bytes)
+    }
+
     @Test("Read metadata from PDF with attributes")
     func readMetadata() {
         let url = makePDFWithMetadata(title: "Test Title", author: "Author Name")

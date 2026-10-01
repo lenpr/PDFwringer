@@ -4,7 +4,7 @@ import Foundation
 /// Compares filesystem entries by identity instead of relying on path spelling.
 /// This catches hard links, symbolic links, and case aliases on case-insensitive volumes.
 enum FileSystemIdentity {
-    struct Identity: Equatable {
+    struct Identity: Equatable, Sendable {
         let device: UInt64
         let inode: UInt64
     }

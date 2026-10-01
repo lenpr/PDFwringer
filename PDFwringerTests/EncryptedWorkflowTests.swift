@@ -449,7 +449,7 @@ struct EncryptedWorkflowTests {
     }
 
     @Test("Rotation preserves encryption for an unlocked document")
-    func rotationUsesUnlockedDocument() throws {
+    func rotationUsesUnlockedDocument() async throws {
         let source = try makeEncryptedPDF(pageCount: 2, filename: "rotate.pdf")
         let outputDirectory = TestPDFGenerator.makeTempDirectory()
         let output = outputDirectory.appending(component: "rotated.pdf")
@@ -467,7 +467,7 @@ struct EncryptedWorkflowTests {
             progress: { _ in }
         )
 
-        let saveResult = DocumentSaver.save(document: document, source: source, to: output)
+        let saveResult = await DocumentSaver.save(document: document, source: source, to: output)
         #expect(!saveResult.isError)
 
         let lockedOutput = try #require(PDFDocument(url: output))

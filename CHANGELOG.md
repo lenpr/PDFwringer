@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Merge assembles, writes and verifies PDFs in an isolated background worker;
+  cancellation and destination-change checks prevent publishing stale results.
+- Unannotated, unencrypted page reordering avoids redundant per-page
+  serialization and writes in the background. Preservation-sensitive inputs keep
+  the established path.
+- Full-document color adjustment streams encoded pages instead of retaining a
+  complete image-backed document. Partial selections preserve untouched pages.
+- Rotate/Crop saves write and verify in the background, show a cancellable busy
+  phase and prevent edits/navigation from racing publication.
+- Ordinary unencrypted metadata saves write and verify in the background after
+  capturing the current document; protected inputs retain their safeguards.
+- Lossless preparation verifies and writes isolated snapshots in the background
+  without weakening encryption or annotation-removal checks.
+- Merge, reorder and color progress reserve completion for verified publication.
+- A repeatable optimized benchmark and responsiveness/cancellation regressions
+  track performance without collecting user data. Evidence: `PERFORMANCE_AUDIT.md`.
+
 - Metadata/password fields keep their accessibility names after typing.
 - Coral controls improve text contrast in light appearance; primary buttons and
   segmented choices retain readable white labels in both appearances.

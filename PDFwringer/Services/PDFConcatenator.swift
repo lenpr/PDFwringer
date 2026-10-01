@@ -8,7 +8,7 @@ import PDFKit
 @MainActor
 struct PDFConcatenator {
 
-    struct Result {
+    struct Result: Sendable {
         let outputPageCount: Int
     }
 
@@ -18,7 +18,24 @@ struct PDFConcatenator {
     func concatenate(
         sources: [URL],
         destination: URL,
-        progress: (Double) -> Void
+        progress: @escaping @MainActor @Sendable (Double) -> Void
+    ) async throws -> Result {
+        // The worker owns every PDFKit object; only URLs, progress, and the
+        // value result cross actors. Cancellation must reach the detached task
+        // even while PDFKit is inside its non-interruptible writer.
+        let worker = Task.detached(priority: .userInitiated) {
+            try await Self.merge(sources: sources, destination: destination, progress: progress)
+        }
+        return try await withTaskCancellationHandler {
+            try await worker.value
+        } onCancel: {
+            worker.cancel()
+        }
+    }
+
+    private nonisolated static func merge(
+        sources: [URL], destination: URL,
+        progress: @MainActor @Sendable (Double) -> Void
     ) async throws -> Result {
         guard !sources.isEmpty else { throw PDFwringerError.emptyFileList }
 
@@ -29,7 +46,11 @@ struct PDFConcatenator {
         let start = ContinuousClock.now
         Log.merge.info("Starting merge: \(sources.count) files")
 
+        // Capture destination approval before any long preparation or callback.
+        let staged = try AtomicFileWriter.StagedFile(destination: destination)
+        defer { staged.cleanup() }
         let output = PDFDocument()
+        var lastProgress = ContinuousClock.now
         var insertIndex = 0
 
         for (sourceIndex, url) in sources.enumerated() {
@@ -56,12 +77,10 @@ struct PDFConcatenator {
                 insertIndex += 1
 
                 let completedSourceFraction = Double(pageIndex + 1) / Double(sourceDocument.pageCount)
-                progress(
-                    (Double(sourceIndex) + completedSourceFraction) / Double(sources.count)
-                )
-
-                if insertIndex % 10 == 0 {
-                    await Task.yield()
+                let now = ContinuousClock.now
+                if pageIndex + 1 == sourceDocument.pageCount || now - lastProgress >= .milliseconds(33) {
+                    await progress(min(0.99, (Double(sourceIndex) + completedSourceFraction) / Double(sources.count)))
+                    lastProgress = now
                 }
             }
         }
@@ -70,16 +89,22 @@ struct PDFConcatenator {
             throw PDFwringerError.cannotWriteOutput
         }
         try Task.checkCancellation()
-        try AtomicFileWriter.write(to: destination) { tempURL in
-            guard output.write(to: tempURL),
-                  let verificationDocument = PDFDocument(url: tempURL),
-                  verificationDocument.pageCount == insertIndex else {
-                return false
-            }
-            return (0..<insertIndex).allSatisfy {
-                verificationDocument.page(at: $0) != nil
+        guard output.write(to: staged.url) else { throw PDFwringerError.cannotWriteOutput }
+        try Task.checkCancellation()
+        guard let verificationDocument = PDFDocument(url: staged.url),
+              !verificationDocument.isLocked,
+              verificationDocument.pageCount == insertIndex else {
+            throw PDFwringerError.cannotWriteOutput
+        }
+        for index in 0..<insertIndex {
+            try Task.checkCancellation()
+            guard verificationDocument.page(at: index) != nil else {
+                throw PDFwringerError.cannotWriteOutput
             }
         }
+        for source in sources { try FileSystemIdentity.requireDistinct(source, destination) }
+        try staged.commit()
+        await progress(1.0)
 
         let elapsed = ContinuousClock.now - start
         Log.merge.info("Merge complete: \(insertIndex) pages, duration=\(elapsed)")

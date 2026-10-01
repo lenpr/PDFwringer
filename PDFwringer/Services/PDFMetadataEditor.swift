@@ -5,7 +5,7 @@ import PDFKit
 @MainActor
 struct PDFMetadataEditor {
 
-    struct Metadata: Equatable {
+    struct Metadata: Equatable, Sendable {
         var title: String
         var author: String
         var subject: String
@@ -16,9 +16,9 @@ struct PDFMetadataEditor {
     }
 
     /// Maximum length for metadata fields to prevent DoS from crafted PDFs with huge metadata.
-    private static let maxFieldLength = 10_000
+    private nonisolated static let maxFieldLength = 10_000
     /// Maximum number of keywords to join before truncating.
-    private static let maxKeywords = 500
+    private nonisolated static let maxKeywords = 500
 
     /// Reads metadata from a PDF file. Truncates fields to prevent DoS.
     func read(from url: URL) -> Metadata {
@@ -31,6 +31,11 @@ struct PDFMetadataEditor {
 
     /// Reads metadata from an already-open document, including one the caller unlocked.
     func read(from document: PDFDocument) -> Metadata {
+        Self.readMetadata(from: document)
+    }
+
+    // Called only with a document owned by the current actor/worker.
+    private nonisolated static func readMetadata(from document: PDFDocument) -> Metadata {
         guard !document.isLocked,
               let attrs = document.documentAttributes else { return .empty }
 
@@ -50,7 +55,7 @@ struct PDFMetadataEditor {
         )
     }
 
-    private static func truncate(_ string: String) -> String {
+    private nonisolated static func truncate(_ string: String) -> String {
         if string.count <= maxFieldLength { return string }
         return String(string.prefix(maxFieldLength))
     }
@@ -135,8 +140,9 @@ struct PDFMetadataEditor {
                 progress: progress
             )
         } else {
-            try writeNormalPDF(
+            try await writeNormalPDF(
                 sourceDocument: document,
+                source: source,
                 metadata: metadata,
                 destination: destination,
                 verificationPassword: existingPassword,
@@ -146,13 +152,13 @@ struct PDFMetadataEditor {
         }
     }
 
-    private func buildAttributes(from metadata: Metadata) -> [PDFDocumentAttribute: Any] {
+    private nonisolated static func buildAttributes(from metadata: Metadata) -> [PDFDocumentAttribute: Any] {
         var attrs: [PDFDocumentAttribute: Any] = [:]
         if !metadata.title.isEmpty { attrs[.titleAttribute] = metadata.title }
         if !metadata.author.isEmpty { attrs[.authorAttribute] = metadata.author }
         if !metadata.subject.isEmpty { attrs[.subjectAttribute] = metadata.subject }
         if !metadata.keywords.isEmpty {
-            attrs[.keywordsAttribute] = parsedKeywords(from: metadata)
+            attrs[.keywordsAttribute] = Self.parsedKeywords(from: metadata)
         }
         if !metadata.creator.isEmpty { attrs[.creatorAttribute] = metadata.creator }
         return attrs
@@ -163,7 +169,7 @@ struct PDFMetadataEditor {
         if !metadata.title.isEmpty { info[kCGPDFContextTitle] = metadata.title }
         if !metadata.author.isEmpty { info[kCGPDFContextAuthor] = metadata.author }
         if !metadata.subject.isEmpty { info[kCGPDFContextSubject] = metadata.subject }
-        if !metadata.keywords.isEmpty { info[kCGPDFContextKeywords] = parsedKeywords(from: metadata) }
+        if !metadata.keywords.isEmpty { info[kCGPDFContextKeywords] = Self.parsedKeywords(from: metadata) }
         if !metadata.creator.isEmpty { info[kCGPDFContextCreator] = metadata.creator }
         if let password, !password.isEmpty {
             info[kCGPDFContextOwnerPassword] = password
@@ -173,7 +179,7 @@ struct PDFMetadataEditor {
         return info
     }
 
-    private func parsedKeywords(from metadata: Metadata) -> [String] {
+    private nonisolated static func parsedKeywords(from metadata: Metadata) -> [String] {
         metadata.keywords
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -181,13 +187,46 @@ struct PDFMetadataEditor {
 
     private func writeNormalPDF(
         sourceDocument: PDFDocument,
+        source: URL,
         metadata: Metadata,
         destination: URL,
         verificationPassword: String?,
         removeProtection: Bool
-    ) throws {
+    ) async throws {
+        if !sourceDocument.isEncrypted {
+            // Keep the existing normalization snapshot, including unsaved edits.
+            // Reopening, metadata edits, final serialization and verification are
+            // performed on a worker that owns every PDFKit reference it uses.
+            let staged = try AtomicFileWriter.StagedFile(destination: destination)
+            defer { staged.cleanup() }
+            let count = sourceDocument.pageCount
+            guard let data = sourceDocument.dataRepresentation(), !data.isEmpty else {
+                throw PDFwringerError.cannotWriteOutput
+            }
+            let worker = Task.detached(priority: .userInitiated) {
+                try Task.checkCancellation()
+                guard let output = PDFDocument(data: data), !output.isEncrypted,
+                      output.pageCount == count else { throw PDFwringerError.cannotWriteOutput }
+                output.documentAttributes = Self.buildAttributes(from: metadata)
+                guard output.write(to: staged.url) else { throw PDFwringerError.cannotWriteOutput }
+                try Task.checkCancellation()
+                guard let verified = PDFDocument(url: staged.url), !verified.isEncrypted,
+                      verified.pageCount == count else { throw PDFwringerError.cannotWriteOutput }
+                try Self.verifyMetadata(metadata, in: verified)
+                for index in 0..<count {
+                    try Task.checkCancellation()
+                    guard verified.page(at: index) != nil else { throw PDFwringerError.cannotWriteOutput }
+                }
+                try FileSystemIdentity.requireDistinct(source, destination)
+                try staged.commit()
+            }
+            try await withTaskCancellationHandler {
+                try await worker.value
+            } onCancel: { worker.cancel() }
+            return
+        }
         let doc = try outputDocument(from: sourceDocument, removeProtection: removeProtection)
-        doc.documentAttributes = buildAttributes(from: metadata)
+        doc.documentAttributes = Self.buildAttributes(from: metadata)
 
         try AtomicFileWriter.write(to: destination) { tempURL in
             guard doc.write(to: tempURL),
@@ -205,7 +244,7 @@ struct PDFMetadataEditor {
             guard !verificationDocument.isLocked else {
                 throw PDFwringerError.metadataVerificationFailed
             }
-            try verifyMetadata(metadata, in: verificationDocument)
+            try Self.verifyMetadata(metadata, in: verificationDocument)
             return verificationDocument.pageCount == sourceDocument.pageCount
                 && (0..<sourceDocument.pageCount).allSatisfy { verificationDocument.page(at: $0) != nil }
         }
@@ -214,16 +253,6 @@ struct PDFMetadataEditor {
     /// `PDFDocument.copy()` retains an unlocked document's protection settings.
     /// Removing protection therefore requires a fresh document populated with copied pages.
     private func outputDocument(from source: PDFDocument, removeProtection: Bool) throws -> PDFDocument {
-        if !source.isEncrypted {
-            // PDFKit can ignore edits to the Info dictionary on some original PDF 2.0
-            // files. Reopen a serialized snapshot before editing, keeping vector content,
-            // annotations, and document-level objects (including any embedded XMP).
-            guard let data = source.dataRepresentation(),
-                  let normalized = PDFDocument(data: data),
-                  normalized.pageCount == source.pageCount,
-                  !normalized.isLocked else { throw PDFwringerError.cannotWriteOutput }
-            return normalized
-        }
         guard removeProtection else {
             guard let copiedDocument = source.copy() as? PDFDocument else {
                 throw PDFwringerError.cannotOpenDocument
@@ -326,19 +355,19 @@ struct PDFMetadataEditor {
                   (0..<pageCount).allSatisfy({ verificationDocument.page(at: $0) != nil }) else {
                 return false
             }
-            try verifyMetadata(metadata, in: verificationDocument)
+            try Self.verifyMetadata(metadata, in: verificationDocument)
             try Task.checkCancellation()
             return true
         }
     }
 
-    private func verifyMetadata(_ expected: Metadata, in document: PDFDocument) throws {
-        let actual = read(from: document)
+    private nonisolated static func verifyMetadata(_ expected: Metadata, in document: PDFDocument) throws {
+        let actual = Self.readMetadata(from: document)
         guard actual.title == expected.title,
               actual.author == expected.author,
               actual.subject == expected.subject,
               actual.creator == expected.creator,
-              parsedKeywords(from: actual) == parsedKeywords(from: expected) else {
+              parsedKeywords(from: actual) == Self.parsedKeywords(from: expected) else {
             throw PDFwringerError.metadataVerificationFailed
         }
     }

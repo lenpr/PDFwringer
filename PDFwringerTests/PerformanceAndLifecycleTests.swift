@@ -10,6 +10,92 @@ struct PerformanceBoundsTests {
 
     private static let regressionLimit = Duration.seconds(30)
 
+    @Test("Large merge does not block MainActor during final PDF writing")
+    func mergeResponsiveness() async throws {
+        let source = FixtureDiscovery.fixturesDirectory.appending(path: "large/fdsys_architecture.pdf")
+        let directory = TestPDFGenerator.makeTempDirectory()
+        defer { TestPDFGenerator.cleanup(directory) }
+        var maxGap = Duration.zero
+        let heartbeat = Task { @MainActor in
+            var previous = ContinuousClock.now
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(5))
+                let now = ContinuousClock.now
+                maxGap = max(maxGap, now - previous)
+                previous = now
+            }
+        }
+        defer { heartbeat.cancel() }
+        try await Task.sleep(for: .milliseconds(10))
+        let result = try await PDFConcatenator().concatenate(
+            sources: Array(repeating: source, count: 10),
+            destination: directory.appending(component: "merged.pdf"), progress: { _ in }
+        )
+        try await Task.sleep(for: .milliseconds(10))
+        #expect(result.outputPageCount == 870)
+        #expect(maxGap < .milliseconds(250), "MainActor was blocked for \(maxGap)")
+    }
+
+    @Test("Cancellation during the merge writer suppresses publication")
+    func mergeWriterCancellation() async throws {
+        let source = FixtureDiscovery.fixturesDirectory.appending(path: "large/fdsys_architecture.pdf")
+        let directory = TestPDFGenerator.makeTempDirectory()
+        let output = directory.appending(component: "cancelled.pdf")
+        defer { TestPDFGenerator.cleanup(directory) }
+        var operation: Task<PDFConcatenator.Result, Error>?
+        var cancellation: Task<Void, Never>?
+        operation = Task {
+            try await PDFConcatenator().concatenate(sources: Array(repeating: source, count: 10),
+                                                    destination: output) { value in
+                if value == 0.99, cancellation == nil {
+                    cancellation = Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(20))
+                        operation?.cancel()
+                    }
+                }
+            }
+        }
+        defer { cancellation?.cancel() }
+        do { _ = try await operation?.value; Issue.record("Expected cancellation during writing") }
+        catch is CancellationError { }
+        #expect(cancellation != nil)
+        #expect(!FileManager.default.fileExists(atPath: output.path))
+    }
+
+    @Test("Ordinary metadata writing remains responsive and cancellable")
+    func metadataResponsivenessAndCancellation() async throws {
+        let source = FixtureDiscovery.fixturesDirectory.appending(path: "large/fdsys_architecture.pdf")
+        let document = try #require(PDFDocument(url: source))
+        let directory = TestPDFGenerator.makeTempDirectory()
+        let output = directory.appending(component: "metadata.pdf")
+        let original = Data("Preserve approved destination".utf8)
+        try original.write(to: output)
+        defer { TestPDFGenerator.cleanup(directory) }
+        var maxGap = Duration.zero
+        let heartbeat = Task { @MainActor in
+            var previous = ContinuousClock.now
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(5))
+                let now = ContinuousClock.now
+                maxGap = max(maxGap, now - previous)
+                previous = now
+            }
+        }
+        defer { heartbeat.cancel() }
+        try await Task.sleep(for: .milliseconds(10))
+        let operation = Task {
+            try await PDFMetadataEditor().write(metadata: .empty, document: document,
+                                                 source: source, destination: output)
+        }
+        try await Task.sleep(for: .milliseconds(20))
+        operation.cancel()
+        do { try await operation.value; Issue.record("Expected cancelled metadata write") }
+        catch is CancellationError { }
+        try await Task.sleep(for: .milliseconds(10))
+        #expect(maxGap < .milliseconds(250), "MainActor was blocked for \(maxGap)")
+        #expect(try Data(contentsOf: output) == original)
+    }
+
     @Test("Compress 50-page PDF completes in reasonable time")
     func compress50Pages() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 50, filename: "perf_compress50.pdf")

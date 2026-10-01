@@ -29,13 +29,25 @@ Test suites cover: `PageRangeParser`, `PDFConcatenator`, `PDFSplitter`, `PDFComp
 The fast lane also compiles `Views/PDFPreviewView.swift` to test native PDF
 navigation and teardown. `make test` additionally verifies and runs the external
 fixture corpus and performance tests. Run test and archive builds sequentially.
+`make benchmark-performance` runs an optional optimized timing, MainActor-delay
+and peak-memory benchmark with generated inputs and automatic output cleanup.
+Run it without concurrent tests/builds for comparable measurements.
 
 ## Architecture
 
 MVVM with a service layer. UI state and authoritative PDFKit documents are
 `@MainActor`. Background workers reconstruct isolated pages from `Data`; PDFKit
 reference objects must not be shared across actors. File-list intake and optional
-compression estimates also run off MainActor.
+compression estimates also run off MainActor. Merge workers open and own their
+PDFKit documents. Unannotated, unencrypted reordering and ordinary unencrypted
+metadata saves reconstruct isolated documents from a whole-document Data
+snapshot; preservation-sensitive inputs keep the established MainActor path.
+Lossless preparation verification and byte writes run in an isolated worker;
+authoritative copying/serialization and reviewed-result validation remain on MainActor.
+Rotate/Crop output writers also verify isolated snapshots using value-only
+protection expectations; editing and navigation are guarded during saves.
+Full-document color output streams one encoded page at a time, while partial
+selections retain untouched PDF pages.
 
 ```
 Models/       → Value types: CompressionLevel, JPEGQuality, PDFFileItem, PaperSize, ColorPreset

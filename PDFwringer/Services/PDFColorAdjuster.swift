@@ -62,7 +62,7 @@ struct PDFColorAdjuster {
         if settings.isIdentity {
             try FileSystemIdentity.requireDistinct(source, destination)
             try Task.checkCancellation()
-            progress(1.0)
+            progress(0.99)
             try Task.checkCancellation()
             try await AtomicFileWriter.write(to: destination) { tempURL in
                 try await Task.detached(priority: .userInitiated) {
@@ -73,6 +73,7 @@ struct PDFColorAdjuster {
                 return verificationDocument.pageCount == document.pageCount
                     && verificationDocument.isLocked == document.isLocked
             }
+            progress(1.0)
             Log.colorAdjust.info("Identity settings — copied source without re-serialization")
             return
         }
@@ -125,7 +126,7 @@ struct PDFColorAdjuster {
             guard let data = document.dataRepresentation(), !data.isEmpty else {
                 throw PDFwringerError.cannotWriteOutput
             }
-            progress(1.0)
+            progress(0.99)
             try Task.checkCancellation()
             try AtomicFileWriter.write(to: destination) { tempURL in
                 try data.write(to: tempURL)
@@ -139,11 +140,24 @@ struct PDFColorAdjuster {
                 return !verificationDocument.isLocked
                     && verificationDocument.pageCount == pageCount
             }
+            progress(1.0)
             Log.colorAdjust.info("Identity settings — serialized authoritative document unchanged")
             return
         }
 
         try PDFPermissionPolicy.require(.copyContent, .changeDocument, for: document)
+        // A fully adjusted document is already flattened. Stream its encoded
+        // pages rather than retaining a decoded image-backed PDFPage per page.
+        // Partial selections keep the vector/annotation-preserving copy path.
+        if targetPages.count == pageCount {
+            try await writeAdjustedPages(document: document, destination: destination,
+                                         settings: settings, dpi: dpi, quality: quality,
+                                         progress: progress)
+            progress(1.0)
+            let elapsed = ContinuousClock.now - start
+            Log.colorAdjust.info("Color adjust complete: \(pageCount) pages, duration=\(elapsed)")
+            return
+        }
         let outputDocument = PDFDocument()
         outputDocument.documentAttributes = document.documentAttributes
 
@@ -194,7 +208,7 @@ struct PDFColorAdjuster {
             }
             outputDocument.insert(outputPage, at: outputDocument.pageCount)
 
-            progress(Double(i + 1) / Double(pageCount))
+            progress(min(0.99, Double(i + 1) / Double(pageCount)))
         }
 
         try Task.checkCancellation()
@@ -208,7 +222,67 @@ struct PDFColorAdjuster {
             }
             return (0..<pageCount).allSatisfy { verificationDocument.page(at: $0) != nil }
         }
+        progress(1.0)
         let elapsed = ContinuousClock.now - start
         Log.colorAdjust.info("Color adjust complete: \(pageCount) pages, duration=\(elapsed)")
     }
+
+    private func writeAdjustedPages(
+        document: PDFDocument, destination: URL, settings: Settings,
+        dpi: CGFloat, quality: CGFloat, progress: (Double) -> Void
+    ) async throws {
+        let count = document.pageCount
+        var info: [CFString: Any] = [:]
+        let keys: [(PDFDocumentAttribute, CFString)] = [
+            (.titleAttribute, kCGPDFContextTitle), (.authorAttribute, kCGPDFContextAuthor),
+            (.subjectAttribute, kCGPDFContextSubject), (.keywordsAttribute, kCGPDFContextKeywords),
+            (.creatorAttribute, kCGPDFContextCreator)
+        ]
+        for (attribute, key) in keys {
+            if attribute == .keywordsAttribute,
+               let values = document.documentAttributes?[attribute] as? [String] {
+                info[key] = values
+            } else if let value = document.documentAttributes?[attribute] as? String {
+                info[key] = value
+            }
+        }
+        try await AtomicFileWriter.write(to: destination) { stagedURL in
+            var box = CGRect.zero
+            guard let context = CGContext(stagedURL as CFURL, mediaBox: &box, info as CFDictionary) else {
+                throw PDFwringerError.cannotCreateOutput
+            }
+            var closed = false
+            defer { if !closed { context.closePDF() } }
+            for index in 0..<count {
+                try Task.checkCancellation()
+                let data = try autoreleasepool { () throws -> Data in
+                    guard let data = document.page(at: index)?.dataRepresentation else {
+                        throw PDFwringerError.cannotOpenDocument
+                    }
+                    return data
+                }
+                let encoded = try await PDFPageWorker.run(pageData: data) { page in
+                    guard let (rendered, size) = PDFRasterizer.render(page, dpi: dpi, grayscale: false),
+                          let adjusted = Self.adjustImage(rendered, settings: settings),
+                          let jpeg = PDFRasterizer.jpegData(for: adjusted, quality: quality) else {
+                        throw PDFwringerError.cannotWriteOutput
+                    }
+                    return PDFRasterizer.JPEGPage(data: jpeg, displaySize: size)
+                }
+                try autoreleasepool { try PDFRasterizer.append(encoded, to: context) }
+                progress(min(0.99, Double(index + 1) / Double(count)))
+            }
+            try Task.checkCancellation()
+            context.closePDF()
+            closed = true
+            guard let output = PDFDocument(url: stagedURL), !output.isEncrypted,
+                  output.pageCount == count else { return false }
+            for index in 0..<count {
+                try Task.checkCancellation()
+                guard let page = output.page(at: index), page.annotations.isEmpty else { return false }
+            }
+            return true
+        }
+    }
+
 }

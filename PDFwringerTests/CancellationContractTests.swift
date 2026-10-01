@@ -10,13 +10,13 @@ import Foundation
 struct CancellationContractTests {
 
     private func expectCancellationAtFinalProgress(
-        output: URL,
-        operation: @escaping @MainActor (@escaping (Double) -> Void) async throws -> Void
+        output: URL, cancelAt: Double = 1,
+        operation: @escaping @MainActor (@escaping @MainActor @Sendable (Double) -> Void) async throws -> Void
     ) async {
         var operationTask: Task<Void, Error>?
         operationTask = Task { @MainActor in
             try await operation { value in
-                if value >= 1 {
+                if value >= cancelAt {
                     operationTask?.cancel()
                 }
             }
@@ -270,7 +270,7 @@ struct CancellationContractTests {
         }
 
         let adjusted = directory.appending(component: "adjusted.pdf")
-        await expectCancellationAtFinalProgress(output: adjusted) { reportProgress in
+        await expectCancellationAtFinalProgress(output: adjusted, cancelAt: 0.99) { reportProgress in
             try await PDFColorAdjuster().adjust(
                 source: source,
                 destination: adjusted,
@@ -282,7 +282,7 @@ struct CancellationContractTests {
         }
 
         let identityAdjusted = directory.appending(component: "identity-adjusted.pdf")
-        await expectCancellationAtFinalProgress(output: identityAdjusted) { reportProgress in
+        await expectCancellationAtFinalProgress(output: identityAdjusted, cancelAt: 0.99) { reportProgress in
             try await PDFColorAdjuster().adjust(
                 source: source,
                 destination: identityAdjusted,
@@ -314,7 +314,7 @@ struct CancellationContractTests {
         }
 
         let merged = directory.appending(component: "merged.pdf")
-        await expectCancellationAtFinalProgress(output: merged) { reportProgress in
+        await expectCancellationAtFinalProgress(output: merged, cancelAt: 0.99) { reportProgress in
             _ = try await PDFConcatenator().concatenate(
                 sources: [source],
                 destination: merged,
@@ -407,7 +407,7 @@ struct CancellationContractTests {
         }
         let document = try #require(PDFDocument(url: source))
 
-        await expectCancellationAtFinalProgress(output: output) { reportProgress in
+        await expectCancellationAtFinalProgress(output: output, cancelAt: 0.99) { reportProgress in
             try await PDFPageReorderer().reorder(
                 document: document,
                 source: source,

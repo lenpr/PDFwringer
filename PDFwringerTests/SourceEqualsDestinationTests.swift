@@ -221,7 +221,7 @@ struct SourceEqualsDestinationTests {
         }
 
         let document = try #require(PDFDocument(url: source))
-        let saveResult = DocumentSaver.save(document: document, source: source, to: destination)
+        let saveResult = await DocumentSaver.save(document: document, source: source, to: destination)
         #expect(saveResult.isError)
         #expect(saveResult.outputURL == nil)
         #expect(saveResult.message == PDFwringerError.sourceEqualsDestination.localizedDescription)

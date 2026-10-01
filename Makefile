@@ -337,6 +337,27 @@ test: verify-fixtures $(BUILD_DIR)/$(TEST_NAME)
 test-fast: $(BUILD_DIR)/$(TEST_NAME)
 	$(BUILD_DIR)/$(TEST_NAME) --skip "$(SLOW_TEST_FILTER)"
 
+# Optional optimized baseline: fresh process per operation, isolated generated
+# documents, cleanup even on failure. Emits local JSON timing/memory records.
+.PHONY: benchmark-performance
+benchmark-performance: verify-fixtures $(BUILD_DIR)/PDFwringerBenchmark
+	@set -e; \
+	benchmark_dir=$$(mktemp -d "$(BUILD_DIR)/performance.XXXXXX"); \
+	trap 'rm -rf "$$benchmark_dir"' EXIT; \
+	$(BUILD_DIR)/PDFwringerBenchmark generate PDFwringerTests/Fixtures/smoke/tracemonkey.pdf "$$benchmark_dir"; \
+	$(BUILD_DIR)/PDFwringerBenchmark merge PDFwringerTests/Fixtures/large/fdsys_architecture.pdf "$$benchmark_dir"; \
+	for operation in reorder color compress; do \
+		$(BUILD_DIR)/PDFwringerBenchmark "$$operation" "$$benchmark_dir/vector-400.pdf" "$$benchmark_dir"; \
+	done; \
+	$(BUILD_DIR)/PDFwringerBenchmark generate2000 PDFwringerTests/Fixtures/smoke/tracemonkey.pdf "$$benchmark_dir"; \
+	$(BUILD_DIR)/PDFwringerBenchmark metadata "$$benchmark_dir/vector-2000.pdf" "$$benchmark_dir"; \
+	$(BUILD_DIR)/PDFwringerBenchmark save "$$benchmark_dir/vector-2000.pdf" "$$benchmark_dir"; \
+	$(BUILD_DIR)/PDFwringerBenchmark lossless "$$benchmark_dir/vector-2000.pdf" "$$benchmark_dir"
+
+$(BUILD_DIR)/PDFwringerBenchmark: Makefile $(TESTABLE_SOURCES) scripts/PerformanceBenchmark.swift
+	@mkdir -p $(BUILD_DIR)
+	$(SWIFTC) $(SWIFT_FLAGS) $(RELEASE_FLAGS) -o $@ $(TESTABLE_SOURCES) scripts/PerformanceBenchmark.swift
+
 # Slow lane: corpus tests first, then performance bounds without corpus contention.
 test-corpus: verify-fixtures $(BUILD_DIR)/$(TEST_NAME)
 	$(BUILD_DIR)/$(TEST_NAME) --filter "$(CORPUS_TEST_FILTER)"

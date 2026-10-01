@@ -215,4 +215,65 @@ struct PDFConcatenatorTests {
         #expect(replacementError == nil)
         #expect(try Data(contentsOf: output) == originalDestination)
     }
+
+    @Test("Completion means the merged file is already published")
+    func completionFollowsPublication() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 3)
+        let directory = TestPDFGenerator.makeTempDirectory()
+        let output = directory.appending(component: "merged.pdf")
+        defer { TestPDFGenerator.cleanup(source); TestPDFGenerator.cleanup(directory) }
+        var publishedAtCompletion = false
+        try await PDFConcatenator().concatenate(sources: [source, source], destination: output) { value in
+            #expect(Thread.isMainThread)
+            if value == 1 {
+                publishedAtCompletion = PDFDocument(url: output)?.pageCount == 6
+            }
+        }
+        #expect(publishedAtCompletion)
+    }
+
+    @Test("An external destination change during merge is preserved", arguments: [false, true])
+    func destinationChanges(existing: Bool) async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
+        let directory = TestPDFGenerator.makeTempDirectory()
+        let output = directory.appending(component: "merged.pdf")
+        defer { TestPDFGenerator.cleanup(source); TestPDFGenerator.cleanup(directory) }
+        if existing { try Data("previous destination".utf8).write(to: output) }
+        let externalBytes = Data("externally replaced destination".utf8)
+        var didReplace = false
+        do {
+            try await PDFConcatenator().concatenate(sources: [source, source], destination: output) { value in
+                guard !didReplace, value < 1 else { return }
+                do {
+                    try externalBytes.write(to: output, options: .atomic)
+                    didReplace = true
+                } catch { Issue.record("Could not simulate destination replacement: \(error)") }
+            }
+            Issue.record("Expected destinationChanged")
+        } catch PDFwringerError.destinationChanged { }
+        #expect(didReplace)
+        #expect(try Data(contentsOf: output) == externalBytes)
+    }
+
+    @Test("Cancellation after assembly reaches the worker and preserves existing output")
+    func cancelBeforeWriting() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 3)
+        let directory = TestPDFGenerator.makeTempDirectory()
+        let output = directory.appending(component: "merged.pdf")
+        defer { TestPDFGenerator.cleanup(source); TestPDFGenerator.cleanup(directory) }
+        let original = Data("existing destination".utf8)
+        try original.write(to: output)
+        var operation: Task<PDFConcatenator.Result, Error>?
+        var sawCompletion = false
+        operation = Task {
+            try await PDFConcatenator().concatenate(sources: [source], destination: output) { value in
+                if value >= 0.99, value < 1 { operation?.cancel() }
+                if value == 1 { sawCompletion = true }
+            }
+        }
+        do { _ = try await operation?.value; Issue.record("Expected cancellation") }
+        catch is CancellationError { }
+        #expect(!sawCompletion)
+        #expect(try Data(contentsOf: output) == original)
+    }
 }

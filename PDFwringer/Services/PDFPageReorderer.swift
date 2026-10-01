@@ -9,7 +9,7 @@ struct PDFPageReorderer {
         source: URL,
         destination: URL,
         pageOrder: [Int],
-        progress: (Double) -> Void
+        progress: @escaping @MainActor @Sendable (Double) -> Void
     ) async throws {
         try FileSystemIdentity.requireDistinct(source, destination)
         if document.isLocked { throw PDFwringerError.documentIsLocked }
@@ -23,6 +23,29 @@ struct PDFPageReorderer {
         try PDFPermissionPolicy.require(.copyContent, .assembleDocument, for: document)
         try Task.checkCancellation()
 
+        let staged = try AtomicFileWriter.StagedFile(destination: destination)
+        defer { staged.cleanup() }
+        // A document snapshot preserves unsaved in-memory content. The worker
+        // reconstructs its own PDFKit graph instead of sharing reference objects.
+        // Encrypted snapshots can relock. PDFKit also changes some annotation
+        // geometry when serializing a whole document instead of one page.
+        // Keep the established isolation path for those preservation cases.
+        let hasAnnotations = (0..<pageCount).contains { document.page(at: $0)?.annotations.isEmpty == false }
+        if !document.isEncrypted && !hasAnnotations {
+            guard let snapshot = document.dataRepresentation(), !snapshot.isEmpty else {
+                throw PDFwringerError.cannotWriteOutput
+            }
+            let worker = Task.detached(priority: .userInitiated) {
+                try await Self.writeReordered(snapshot: snapshot, expectedCount: pageCount,
+                                              source: source, staged: staged,
+                                              order: pageOrder, progress: progress)
+            }
+            try await withTaskCancellationHandler {
+                try await worker.value
+            } onCancel: { worker.cancel() }
+            return
+        }
+
         let output = PDFDocument()
         output.documentAttributes = document.documentAttributes
         for (position, pageIndex) in pageOrder.enumerated() {
@@ -34,7 +57,7 @@ struct PDFPageReorderer {
                 throw PDFwringerError.cannotOpenDocument
             }
             output.insert(copiedPage, at: output.pageCount)
-            progress(Double(position + 1) / Double(pageCount))
+            progress(min(0.99, Double(position + 1) / Double(pageCount)))
             try Task.checkCancellation()
             await Task.yield()
         }
@@ -46,7 +69,7 @@ struct PDFPageReorderer {
         await Task.yield()
         try Task.checkCancellation()
 
-        try await AtomicFileWriter.write(to: destination) { stagedURL in
+        try await AtomicFileWriter.write(to: staged.url) { stagedURL in
             try await Task.detached(priority: .utility) {
                 try outputData.write(to: stagedURL)
             }.value
@@ -60,5 +83,43 @@ struct PDFPageReorderer {
             }
             return true
         }
+        try FileSystemIdentity.requireDistinct(source, destination)
+        try staged.commit()
+        progress(1)
+    }
+
+    private nonisolated static func writeReordered(
+        snapshot: Data, expectedCount: Int, source: URL,
+        staged: AtomicFileWriter.StagedFile, order: [Int],
+        progress: @MainActor @Sendable (Double) -> Void
+    ) async throws {
+        try Task.checkCancellation()
+        guard let document = PDFDocument(data: snapshot), !document.isLocked,
+              document.pageCount == expectedCount else {
+            throw PDFwringerError.cannotOpenDocument
+        }
+        let output = PDFDocument()
+        output.documentAttributes = document.documentAttributes
+        for (position, index) in order.enumerated() {
+            try Task.checkCancellation()
+            guard let page = document.page(at: index),
+                  let copy = page.copy() as? PDFPage, copy !== page else {
+                throw PDFwringerError.cannotOpenDocument
+            }
+            output.insert(copy, at: output.pageCount)
+            await progress(min(0.99, Double(position + 1) / Double(expectedCount)))
+        }
+        try Task.checkCancellation()
+        guard output.write(to: staged.url) else { throw PDFwringerError.cannotWriteOutput }
+        try Task.checkCancellation()
+        guard let verification = PDFDocument(url: staged.url), !verification.isEncrypted,
+              verification.pageCount == expectedCount else { throw PDFwringerError.cannotWriteOutput }
+        for index in 0..<expectedCount {
+            try Task.checkCancellation()
+            guard verification.page(at: index) != nil else { throw PDFwringerError.cannotWriteOutput }
+        }
+        try FileSystemIdentity.requireDistinct(source, staged.destination)
+        try staged.commit()
+        await progress(1)
     }
 }

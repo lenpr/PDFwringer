@@ -65,6 +65,16 @@ operations, unavailable sources, late destination changes, permission failures
 and retry. The source now fixes persistent field labels, control contrast and
 filesystem failure messages. See `UX_AUDIT.md` for scope and evidence.
 
+The unreleased performance batch also moves merge and ordinary metadata output
+work off MainActor, simplifies unannotated reordering, streams full-document
+color output and makes Rotate/Crop saves cancellable. Lossless preparation
+verification and byte writing also run in an isolated worker. All 420 tests
+passed (349 fast, 62 corpus, 9 performance), along with the optimized bundle and
+unsigned App Store archive structure checks. This is not Store signing or
+Organizer validation of the new source. Measured results and preservation limits are recorded in
+`PERFORMANCE_AUDIT.md`. Native interactive performance checks, including the updated save flows, remain
+outstanding.
+
 These changes are not in the signed 0.2.3 candidates above. Their existing
 validation evidence retains its original identity. A consolidated update needs
 new version/build identities, signing and candidate-specific verification.

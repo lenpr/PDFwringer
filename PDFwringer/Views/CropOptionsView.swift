@@ -2,6 +2,7 @@ import SwiftUI
 import PDFKit
 
 struct CropOptionsView: View {
+    @Environment(AppViewModel.self) private var appVM
     let url: URL
     let document: PDFDocument
     let onBack: () -> Void
@@ -25,6 +26,8 @@ struct CropOptionsView: View {
     @State private var lastOutputURL: URL?
     @State private var isDropTargeted = false
     @State private var documentGeneration = 0
+    @State private var isSaving = false
+    @State private var saveTask: Task<Void, Never>?
     @State private var workingCopyHasChanges = false
     @State private var resizePending = false
     @State private var showingResizeGuide = false
@@ -70,10 +73,21 @@ struct CropOptionsView: View {
             }
 
             VStack(spacing: 0) {
-                OptionsHeaderView(url: url, onBack: onBack)
+                OptionsHeaderView(url: url, onBack: onBack, allowsEscapeBack: !isSaving)
+                    .disabled(isSaving)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
                 Divider()
+                if isSaving {
+                    HStack {
+                        ProgressView().controlSize(.small)
+                        Text(String(localized: "Saving…"))
+                        Spacer()
+                        Button(String(localized: "Cancel")) { saveTask?.cancel() }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                }
                 ScrollViewReader { scroll in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
@@ -187,6 +201,7 @@ struct CropOptionsView: View {
                         .frame(maxWidth: 520, alignment: .leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .disabled(isSaving)
                     .onChange(of: resultMessage) { _, message in
                         if message != nil { scroll.scrollTo("operation-result", anchor: .bottom) }
                     }
@@ -195,6 +210,8 @@ struct CropOptionsView: View {
             .frame(minWidth: 300, idealWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
             .tint(.coral)
         }
+        .onAppear { appVM.operationIsRunning = { isSaving } }
+        .onDisappear { saveTask?.cancel() }
         .onChange(of: [cropTop, cropBottom, cropLeft, cropRight]) { _, values in
             if values.contains(where: { $0 != 0 }) { showingResizeGuide = false; clearFeedback() }
         }
@@ -314,6 +331,7 @@ struct CropOptionsView: View {
     }
 
     private func saveCropped() {
+        guard !isSaving else { return }
         guard !hasPendingSettings else {
             resultMessage = String(localized: "Apply or discard the pending changes before saving. Nothing saved.")
             isError = false
@@ -327,11 +345,16 @@ struct CropOptionsView: View {
         resultMessage = nil
         isError = false
 
-        let result = DocumentSaver.save(document: document, source: url, to: destination)
-        resultMessage = result.message
-        isError = result.isError
-        lastOutputURL = result.outputURL
-        isWarning = false
-        if !result.isError { workingCopyHasChanges = false }
+        lastOutputURL = nil
+        isSaving = true
+        saveTask = Task { @MainActor in
+            defer { saveTask = nil; isSaving = false }
+            let result = await DocumentSaver.save(document: document, source: url, to: destination)
+            resultMessage = result.message
+            isError = result.isError
+            lastOutputURL = result.outputURL
+            isWarning = false
+            if result.outputURL != nil { workingCopyHasChanges = false }
+        }
     }
 }

@@ -2,6 +2,7 @@ import SwiftUI
 import PDFKit
 
 struct RotateOptionsView: View {
+    @Environment(AppViewModel.self) private var appVM
     let url: URL
     let document: PDFDocument
     let onBack: () -> Void
@@ -16,6 +17,8 @@ struct RotateOptionsView: View {
     @State private var lastOutputURL: URL?
     @State private var shakeOffset: CGFloat = 0
     @State private var documentGeneration = 0
+    @State private var isSaving = false
+    @State private var saveTask: Task<Void, Never>?
 
     private let rotator = PDFRotator()
 
@@ -40,10 +43,21 @@ struct RotateOptionsView: View {
             }
 
             VStack(spacing: 0) {
-                OptionsHeaderView(url: url, onBack: onBack)
+                OptionsHeaderView(url: url, onBack: onBack, allowsEscapeBack: !isSaving)
+                    .disabled(isSaving)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
                 Divider()
+                if isSaving {
+                    HStack {
+                        ProgressView().controlSize(.small)
+                        Text(String(localized: "Saving…"))
+                        Spacer()
+                        Button(String(localized: "Cancel")) { saveTask?.cancel() }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                }
                 ScrollViewReader { scroll in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
@@ -100,6 +114,7 @@ struct RotateOptionsView: View {
                         .frame(maxWidth: 520, alignment: .leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .disabled(isSaving)
                     .onChange(of: resultMessage) { _, message in
                         if message != nil { scroll.scrollTo("operation-result", anchor: .bottom) }
                     }
@@ -108,6 +123,8 @@ struct RotateOptionsView: View {
             .frame(minWidth: 300, idealWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
             .tint(.coral)
         }
+        .onAppear { appVM.operationIsRunning = { isSaving } }
+        .onDisappear { saveTask?.cancel() }
     }
 
     private func rotateInPlace(angle: PDFRotator.Angle) {
@@ -136,6 +153,7 @@ struct RotateOptionsView: View {
     }
 
     private func saveRotated() {
+        guard !isSaving else { return }
         do {
             try PDFPermissionPolicy.require(.assembleDocument, for: document)
         } catch {
@@ -151,10 +169,15 @@ struct RotateOptionsView: View {
         resultMessage = nil
         isError = false
 
-        let result = DocumentSaver.save(document: document, source: url, to: destination)
-        resultMessage = result.message
-        isError = result.isError
-        lastOutputURL = result.outputURL
-        if !result.isError { onDirtyChange?(false) }
+        lastOutputURL = nil
+        isSaving = true
+        saveTask = Task { @MainActor in
+            defer { saveTask = nil; isSaving = false }
+            let result = await DocumentSaver.save(document: document, source: url, to: destination)
+            resultMessage = result.message
+            isError = result.isError
+            lastOutputURL = result.outputURL
+            if result.outputURL != nil { onDirtyChange?(false) }
+        }
     }
 }

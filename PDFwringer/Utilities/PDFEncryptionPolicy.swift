@@ -8,9 +8,19 @@ enum PDFEncryptionPolicy {
     /// Locked outputs can be inspected further only by callers holding a password.
     @MainActor
     static func requirePreservedProtection(from source: PDFDocument, in output: PDFDocument) throws {
-        guard source.isEncrypted else { return }
+        try requirePreservedProtection(sourceIsEncrypted: source.isEncrypted,
+                                       sourcePermissions: UInt(source.accessPermissions.rawValue),
+                                       in: output)
+    }
+
+    /// Value-only source policy allows an isolated writer to verify protection
+    /// without transferring the authoritative PDFKit document across actors.
+    static func requirePreservedProtection(
+        sourceIsEncrypted: Bool, sourcePermissions: UInt, in output: PDFDocument
+    ) throws {
+        guard sourceIsEncrypted else { return }
         guard output.isEncrypted,
-              output.isLocked || output.accessPermissions == source.accessPermissions else {
+              output.isLocked || UInt(output.accessPermissions.rawValue) == sourcePermissions else {
             throw PDFwringerError.protectionPreservationFailed
         }
     }

@@ -7,6 +7,66 @@ import CoreGraphics
 @MainActor
 struct PDFColorAdjusterTests {
 
+    @Test("Color completion is reported only after verified publication",
+          arguments: ["all", "partial", "identity", "identity-source"])
+    func completionMeansPublished(mode: String) async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
+        let directory = TestPDFGenerator.makeTempDirectory()
+        let output = directory.appending(component: "adjusted.pdf")
+        defer { TestPDFGenerator.cleanup(source); TestPDFGenerator.cleanup(directory) }
+        let document = try #require(PDFDocument(url: source))
+        var values: [Double] = []
+        let report: (Double) -> Void = { value in
+            values.append(value)
+            if value == 1 {
+                #expect(FileManager.default.fileExists(atPath: output.path))
+                #expect(PDFDocument(url: output)?.pageCount == 2)
+            }
+        }
+        if mode == "identity-source" {
+            try await PDFColorAdjuster().adjust(source: source, destination: output,
+                                                settings: .init(), pages: nil, progress: report)
+        } else {
+            try await PDFColorAdjuster().adjust(document: document, source: source,
+                                                destination: output,
+                                                settings: .init(brightness: mode == "identity" ? 0 : 0.1),
+                                                pages: mode == "partial" ? [0] : nil,
+                                                dpi: 72, progress: report)
+        }
+        #expect(values.last == 1)
+        #expect(values.filter { $0 == 1 }.count == 1)
+    }
+
+    @Test("Streaming all adjusted pages preserves metadata and display geometry")
+    func streamingMetadataAndGeometry() async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 2)
+        let directory = TestPDFGenerator.makeTempDirectory()
+        let output = directory.appending(component: "streamed.pdf")
+        defer { TestPDFGenerator.cleanup(source); TestPDFGenerator.cleanup(directory) }
+        let document = try #require(PDFDocument(url: source))
+        document.documentAttributes = [
+            PDFDocumentAttribute.titleAttribute: "Title", PDFDocumentAttribute.authorAttribute: "Author", PDFDocumentAttribute.subjectAttribute: "Subject",
+            PDFDocumentAttribute.creatorAttribute: "Creator", PDFDocumentAttribute.keywordsAttribute: ["first", "second"]
+        ]
+        let page = try #require(document.page(at: 0))
+        page.rotation = 90
+        page.setBounds(CGRect(x: 20, y: 30, width: 400, height: 500), for: .cropBox)
+        try await PDFColorAdjuster().adjust(document: document, source: source, destination: output,
+                                           settings: .init(brightness: 0.1), pages: [0, 1],
+                                           dpi: 72, progress: { _ in })
+        let result = try #require(PDFDocument(url: output))
+        #expect(!result.isEncrypted)
+        #expect(result.pageCount == 2)
+        #expect(result.page(at: 0)?.bounds(for: .mediaBox).size == CGSize(width: 500, height: 400))
+        for key in [PDFDocumentAttribute.titleAttribute, .authorAttribute, .subjectAttribute, .creatorAttribute] {
+            #expect(result.documentAttributes?[key] as? String == document.documentAttributes?[key] as? String)
+        }
+        #expect(result.documentAttributes?[PDFDocumentAttribute.keywordsAttribute] as? [String] == ["first", "second"])
+        #expect((0..<2).allSatisfy { result.page(at: $0)?.annotations.isEmpty == true })
+        #expect(page.rotation == 90)
+        #expect(page.bounds(for: .cropBox).origin == CGPoint(x: 20, y: 30))
+    }
+
     // MARK: - Identity settings
 
     @Test("Identity settings preserve document semantics")

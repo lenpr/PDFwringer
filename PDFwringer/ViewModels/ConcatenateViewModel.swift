@@ -29,18 +29,19 @@ class ConcatenateViewModel {
         lastOutputURL = nil
         isError = false
 
+        let inputs = files
         operationTask = Task {
             defer { operationTask = nil }
             do {
-                let urls = files.map(\.url)
-                _ = try await concatenator.concatenate(
+                let urls = inputs.map(\.url)
+                let result = try await concatenator.concatenate(
                     sources: urls,
                     destination: destination,
                     progress: { [weak self] p in self?.progress = p }
                 )
 
-                let totalPages = files.reduce(0) { $0 + $1.pageCount }
-                resultMessage = "Done! Merged \(files.count) files (\(totalPages) pages)."
+                let totalPages = result.outputPageCount
+                resultMessage = "Done! Merged \(inputs.count) files (\(totalPages) pages)."
                 isError = false
                 lastOutputURL = destination
                 successfulSaveCount += 1

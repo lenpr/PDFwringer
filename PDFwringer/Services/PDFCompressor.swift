@@ -190,6 +190,7 @@ struct PDFCompressor {
             try PDFPermissionPolicy.require(.changeDocument, for: document)
             try await compressOptimize(
                 document: document,
+                source: source,
                 destination: destination,
                 removeAnnotations: removeAnnotations,
                 progress: progress
@@ -285,11 +286,14 @@ struct PDFCompressor {
 
     private func compressOptimize(
         document: PDFDocument,
+        source: URL,
         destination: URL,
         removeAnnotations: Bool,
         progress: (Double) -> Void
     ) async throws {
         try Task.checkCancellation()
+        let staged = try AtomicFileWriter.StagedFile(destination: destination)
+        defer { staged.cleanup() }
         guard let doc = document.copy() as? PDFDocument else {
             throw PDFwringerError.cannotOpenDocument
         }
@@ -321,46 +325,53 @@ struct PDFCompressor {
         guard let data = doc.dataRepresentation() else {
             throw PDFwringerError.cannotWriteOutput
         }
-        guard !data.isEmpty, let serializedOutput = PDFDocument(data: data) else {
-            throw PDFwringerError.cannotWriteOutput
+        guard !data.isEmpty else { throw PDFwringerError.cannotWriteOutput }
+        let expectedPageCount = document.pageCount
+        let sourceWasEncrypted = document.isEncrypted
+        let sourcePermissions = UInt(document.accessPermissions.rawValue)
+        if let available = Formatting.availableDiskSpace(at: destination), Int64(data.count) > available {
+            throw PDFwringerError.insufficientDiskSpace(needed: Int64(data.count), available: available)
         }
-        try PDFEncryptionPolicy.requirePreservedProtection(from: document, in: serializedOutput)
-        if serializedOutput.isLocked {
-            guard serializedOutput.isEncrypted else {
+
+        // The authoritative copy and serialization stay on MainActor. Every
+        // verification document below belongs exclusively to this worker.
+        let worker = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            guard let serializedOutput = PDFDocument(data: data) else {
                 throw PDFwringerError.cannotWriteOutput
             }
-        } else {
-            try Self.validateOutput(
-                serializedOutput,
-                expectedPageCount: document.pageCount,
-                requireNoAnnotations: removeAnnotations
+            try PDFEncryptionPolicy.requirePreservedProtection(
+                sourceIsEncrypted: sourceWasEncrypted, sourcePermissions: sourcePermissions,
+                in: serializedOutput
             )
-        }
-
-        if let available = Formatting.availableDiskSpace(at: destination) {
-            let needed = Int64(data.count)
-            if needed > available {
-                throw PDFwringerError.insufficientDiskSpace(needed: needed, available: available)
+            if serializedOutput.isLocked {
+                guard serializedOutput.isEncrypted else { throw PDFwringerError.cannotWriteOutput }
+            } else {
+                try Self.validateOutput(serializedOutput, expectedPageCount: expectedPageCount,
+                                        requireNoAnnotations: removeAnnotations)
             }
-        }
-
-        try Task.checkCancellation()
-        try AtomicFileWriter.write(to: destination) { tempURL in
-            try data.write(to: tempURL)
-            guard let output = PDFDocument(url: tempURL) else { return false }
-            try PDFEncryptionPolicy.requirePreservedProtection(from: document, in: output)
-            if output.isLocked { return output.isEncrypted }
-            do {
-                try Self.validateOutput(
-                    output,
-                    expectedPageCount: document.pageCount,
-                    requireNoAnnotations: removeAnnotations
-                )
-                return true
-            } catch {
-                return false
+            try Task.checkCancellation()
+            try data.write(to: staged.url)
+            try Task.checkCancellation()
+            guard let output = PDFDocument(url: staged.url) else {
+                throw PDFwringerError.cannotWriteOutput
             }
+            try PDFEncryptionPolicy.requirePreservedProtection(
+                sourceIsEncrypted: sourceWasEncrypted, sourcePermissions: sourcePermissions,
+                in: output
+            )
+            if output.isLocked {
+                guard output.isEncrypted else { throw PDFwringerError.cannotWriteOutput }
+            } else {
+                try Self.validateOutput(output, expectedPageCount: expectedPageCount,
+                                        requireNoAnnotations: removeAnnotations)
+            }
+            try FileSystemIdentity.requireDistinct(source, destination)
+            try staged.commit()
         }
+        try await withTaskCancellationHandler {
+            try await worker.value
+        } onCancel: { worker.cancel() }
 
         progress(1.0)
     }
@@ -503,7 +514,7 @@ struct PDFCompressor {
         )
     }
 
-    private static func validateOutput(
+    private nonisolated static func validateOutput(
         _ output: PDFDocument,
         expectedPageCount: Int,
         requireNoAnnotations: Bool
@@ -512,6 +523,7 @@ struct PDFCompressor {
             throw PDFwringerError.cannotWriteOutput
         }
         for index in 0..<expectedPageCount {
+            try Task.checkCancellation()
             guard let page = output.page(at: index) else {
                 throw PDFwringerError.cannotWriteOutput
             }

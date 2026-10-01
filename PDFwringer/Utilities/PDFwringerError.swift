@@ -191,7 +191,9 @@ enum AtomicFileWriter {
 
     /// A destination-volume write that may be retained for review before commit.
     /// The destination identity is captured at creation, not at the later save.
-    final class StagedFile {
+    /// This immutable handle can cross actors. Await its writer before cleanup;
+    /// filesystem publication/cleanup must remain sequenced by the owner.
+    final class StagedFile: Sendable {
         let destination: URL
         let destinationExists: Bool
         let destinationIdentity: FileSystemIdentity.Identity?
@@ -346,13 +348,13 @@ extension Color {
 /// Returns (message, isError, outputURL) for use in result message display.
 @MainActor
 enum DocumentSaver {
-    struct Result {
+    struct Result: Sendable {
         var message: String
         var isError: Bool
         var outputURL: URL?
     }
 
-    static func save(document: PDFDocument, source: URL, to destination: URL) -> Result {
+    static func save(document: PDFDocument, source: URL, to destination: URL) async -> Result {
         guard !FileSystemIdentity.representsSameFile(source, destination) else {
             return Result(
                 message: PDFwringerError.sourceEqualsDestination.localizedDescription,
@@ -368,24 +370,51 @@ enum DocumentSaver {
             )
         }
         let expectedPageCount = document.pageCount
-        guard expectedPageCount > 0,
-              let data = document.dataRepresentation(),
-              !data.isEmpty else {
-            return Result(message: "Failed to serialize document.", isError: true, outputURL: nil)
-        }
-
+        let sourceWasEncrypted = document.isEncrypted
+        let sourcePermissions = UInt(document.accessPermissions.rawValue)
         do {
-            try AtomicFileWriter.write(to: destination) { tempURL in
-                try data.write(to: tempURL)
-                guard let output = PDFDocument(url: tempURL) else { return false }
-                try PDFEncryptionPolicy.requirePreservedProtection(from: document, in: output)
-                if output.isLocked {
-                    return document.isEncrypted && output.isEncrypted
-                }
-                guard output.pageCount == expectedPageCount else { return false }
-                return (0..<expectedPageCount).allSatisfy { output.page(at: $0) != nil }
+            try Task.checkCancellation()
+            let staged = try AtomicFileWriter.StagedFile(destination: destination)
+            defer { staged.cleanup() }
+            guard expectedPageCount > 0,
+                  let data = document.dataRepresentation(), !data.isEmpty else {
+                throw PDFwringerError.cannotWriteOutput
             }
+            let worker = Task.detached(priority: .userInitiated) {
+                try Task.checkCancellation()
+                try data.write(to: staged.url)
+                try Task.checkCancellation()
+                guard let output = PDFDocument(url: staged.url) else {
+                    throw PDFwringerError.cannotWriteOutput
+                }
+                try PDFEncryptionPolicy.requirePreservedProtection(
+                    sourceIsEncrypted: sourceWasEncrypted,
+                    sourcePermissions: sourcePermissions, in: output
+                )
+                if output.isLocked {
+                    guard sourceWasEncrypted && output.isEncrypted else {
+                        throw PDFwringerError.cannotWriteOutput
+                    }
+                } else {
+                    guard output.pageCount == expectedPageCount else {
+                        throw PDFwringerError.cannotWriteOutput
+                    }
+                    for index in 0..<expectedPageCount {
+                        try Task.checkCancellation()
+                        guard output.page(at: index) != nil else {
+                            throw PDFwringerError.cannotWriteOutput
+                        }
+                    }
+                }
+                try FileSystemIdentity.requireDistinct(source, destination)
+                try staged.commit()
+            }
+            try await withTaskCancellationHandler {
+                try await worker.value
+            } onCancel: { worker.cancel() }
             return Result(message: "Saved.", isError: false, outputURL: destination)
+        } catch is CancellationError {
+            return Result(message: "Cancelled.", isError: false, outputURL: nil)
         } catch {
             return Result(message: PDFwringerError.userMessage(for: error), isError: true, outputURL: nil)
         }
