@@ -101,10 +101,13 @@ struct PDFCompressor {
         let staged = try AtomicFileWriter.StagedFile(destination: destination)
         let result = try await compress(document: document, source: source, destination: staged.url,
                                         level: level, quality: quality, grayscale: grayscale,
-                                        removeAnnotations: removeAnnotations, progress: progress)
+                                        removeAnnotations: removeAnnotations,
+                                        progress: { progress(min(0.99, $0)) })
         try Task.checkCancellation()
-        return try PreparedCompression(stagedFile: staged, source: source, document: document,
-                                       level: level, outputSize: result.outputSize)
+        let prepared = try PreparedCompression(stagedFile: staged, source: source, document: document,
+                                               level: level, outputSize: result.outputSize)
+        progress(1)
+        return prepared
     }
 
     /// Lossless plus at most three existing raster presets. Errors fail closed;
@@ -129,7 +132,7 @@ struct PDFCompressor {
             try Task.checkCancellation()
             let result = try await compress(document: document, source: source, destination: staged.url,
                                             level: level, quality: .good, grayscale: grayscale,
-                                            progress: { progress((Double(index) + $0) / Double(levels.count)) })
+                                            progress: { progress(min(0.99, (Double(index) + $0) / Double(levels.count))) })
             try Task.checkCancellation()
             smallestSize = min(smallestSize, result.outputSize)
             if result.outputSize < limitBytes {
@@ -488,7 +491,7 @@ struct PDFCompressor {
                         try PDFRasterizer.append(encodedPage, to: outputCtx)
                     }
 
-                    progress(Double(i + 1) / Double(pageCount))
+                    progress(min(0.99, Double(i + 1) / Double(pageCount)))
                 }
 
                 try Task.checkCancellation()
@@ -504,6 +507,7 @@ struct PDFCompressor {
                 throw error
             }
         }
+        progress(1)
     }
 
     // MARK: - Helpers

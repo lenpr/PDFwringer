@@ -148,8 +148,8 @@ struct PDFMetadataEditor {
                 verificationPassword: existingPassword,
                 removeProtection: removeProtection
             )
-            progress?(1.0)
         }
+        progress?(1.0)
     }
 
     private nonisolated static func buildAttributes(from metadata: Metadata) -> [PDFDocumentAttribute: Any] {
@@ -350,7 +350,7 @@ struct PDFMetadataEditor {
                     try PDFRasterizer.append(encodedPage, to: outputCtx)
                 }
 
-                progress?(Double(i + 1) / Double(pageCount))
+                progress?(min(0.99, Double(i + 1) / Double(pageCount)))
             }
 
             try Task.checkCancellation()

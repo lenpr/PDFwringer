@@ -159,6 +159,28 @@ and performance results were not rerun for this view-model feedback change.
 No version/distribution update or new signed Store validation was performed.
 Disposable build products and test logs were cleaned after the source commit.
 
+## Completion and publication follow-up — unreleased, 2026-10-01
+
+After `3d055b7`, regressions reproduced premature 100% progress in raster
+compression, annotation/password flattening and direct rotation. Completion now
+follows verified publication; compression preparation reserves its completion
+for a validated review candidate. A concurrent destination replacement during
+direct rotation also reproduced an overwrite: the existing atomic-write boundary
+now captures destination identity before the yielding edits and rejects that
+replacement. Interactive in-memory rotation is unchanged.
+
+All 458 tests passed: 386 fast, 63 checksum-verified corpus and nine performance.
+Coverage includes readable output at completion, rejected publication without
+false completion, concurrent-file preservation and last-step cancellation;
+lossless/raster preparation cancellation preserves existing files. Optimized
+release compilation, strict ad-hoc signature verification and unsigned Xcode
+App Store archive-structure checks passed without compiler warnings.
+
+No new signed-candidate/Organizer validation, installed-app update or distribution
+change was performed. Version and retained release evidence remain unchanged
+for the consolidated release. Disposable products, test logs and project-specific
+Derived Data were removed after committing the source; VoiceOver remains deferred.
+
 ## Local artifact retention — 2026-09-30
 
 Keep one current release evidence folder at

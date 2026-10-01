@@ -294,8 +294,9 @@ struct CompressionPreparationTests {
         }
     }
 
-    @Test("Cancellation at completion leaves source and existing destination unchanged")
-    func cancelledPreparation() async throws {
+    @Test("Cancellation before review never reports completion or changes existing files",
+          arguments: [CompressionLevel.lossless, .medium])
+    func cancelledPreparation(level: CompressionLevel) async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
         let directory = TestPDFGenerator.makeTempDirectory()
         defer { TestPDFGenerator.cleanup(source); try? FileManager.default.removeItem(at: directory) }
@@ -304,13 +305,18 @@ struct CompressionPreparationTests {
         let old = Data("existing".utf8)
         try old.write(to: destination)
         let original = try Data(contentsOf: source)
+        var completed = false
         let task = Task {
             try await PDFCompressor().prepare(document: document, source: source,
-                destination: destination, level: .medium, quality: .good, grayscale: false,
-                progress: { _ in withUnsafeCurrentTask { $0?.cancel() } })
+                destination: destination, level: level, quality: .good, grayscale: false,
+                progress: { value in
+                    if value == 1 { completed = true }
+                    if value >= 0.99 { withUnsafeCurrentTask { $0?.cancel() } }
+                })
         }
         do { _ = try await task.value; Issue.record("Expected cancellation") }
         catch { #expect(error is CancellationError) }
+        #expect(!completed)
         #expect(try Data(contentsOf: source) == original)
         #expect(try Data(contentsOf: destination) == old)
     }

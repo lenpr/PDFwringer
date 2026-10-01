@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Raster compression, annotation/password flattening and direct rotation reserve
+  100% progress for validated file publication. Compression preparation reserves
+  completion for a validated review candidate. Direct rotation captures the
+  destination before editing, rejecting a concurrent replacement during that work.
+
 - Reused Compress/Split source loaders clear stale results, completed progress
   and retry categories when replacing sources, including rejected inputs.
 

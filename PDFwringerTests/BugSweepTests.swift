@@ -121,4 +121,82 @@ struct BugSweepTests {
         #expect(splitter.resultMessage == nil && splitter.errorSource == nil)
     }
 
+
+    @Test("Write completion observes a verified published PDF", arguments: ["compress", "flatten", "password", "rotate"])
+    func publishedCompletion(operation: String) async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
+        let directory = TestPDFGenerator.makeTempDirectory()
+        defer { TestPDFGenerator.cleanup(source); TestPDFGenerator.cleanup(directory) }
+        let output = directory.appending(component: "result.pdf")
+        let original = try Data(contentsOf: source)
+        var completionCount = 0
+        let progress: (Double) -> Void = { value in
+            #expect((0...1).contains(value))
+            if value == 1 {
+                completionCount += 1
+                guard let result = PDFDocument(url: output) else {
+                    Issue.record("Completion preceded publication")
+                    return
+                }
+                if operation == "password" { #expect(result.unlock(withPassword: "secret")) }
+                #expect(result.pageCount == 1)
+                if operation == "rotate" { #expect(result.page(at: 0)?.rotation == 90) }
+            }
+        }
+        if operation == "compress" {
+            _ = try await PDFCompressor().compress(source: source, destination: output,
+                level: .medium, quality: .good, grayscale: false, progress: progress)
+        } else if operation == "rotate" {
+            try await PDFRotator().rotate(source: source, destination: output,
+                angle: .ninety, pageIndices: nil, progress: progress)
+        } else {
+            try await PDFMetadataEditor().write(metadata: .empty, source: source,
+                destination: output, password: operation == "password" ? "secret" : nil,
+                flattenAnnotations: true, progress: progress)
+        }
+        #expect(completionCount == 1)
+        #expect(try Data(contentsOf: source) == original)
+    }
+
+
+    @Test("Failed publication never reports completion", arguments: ["compress", "flatten", "rotate"])
+    func noFalseCompletion(operation: String) async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
+        let directory = TestPDFGenerator.makeTempDirectory()
+        defer { TestPDFGenerator.cleanup(source); TestPDFGenerator.cleanup(directory) }
+        let output = directory.appending(component: "result.pdf")
+        try Data("Original destination".utf8).write(to: output)
+        let replacement = Data("Concurrent replacement".utf8)
+        var replaced = false
+        var completed = false
+        let progress: (Double) -> Void = { value in
+            if value == 1 { completed = true }
+            if value >= 0.99, !replaced {
+                do {
+                    try FileManager.default.moveItem(at: output,
+                        to: directory.appending(component: "prior-result.pdf"))
+                    try replacement.write(to: output)
+                    replaced = true
+                } catch { Issue.record("Could not inject destination replacement: \(error)") }
+            }
+        }
+        do {
+            if operation == "compress" {
+                _ = try await PDFCompressor().compress(source: source, destination: output,
+                    level: .medium, quality: .good, grayscale: false, progress: progress)
+            } else if operation == "rotate" {
+                try await PDFRotator().rotate(source: source, destination: output,
+                    angle: .ninety, pageIndices: nil, progress: progress)
+            } else {
+                try await PDFMetadataEditor().write(metadata: .empty, source: source,
+                    destination: output, flattenAnnotations: true, progress: progress)
+            }
+            Issue.record("Expected changed-destination rejection")
+        } catch PDFwringerError.destinationChanged {
+            // The concurrent replacement must remain untouched.
+        }
+        #expect(replaced && !completed)
+        #expect(try Data(contentsOf: output) == replacement)
+    }
+
 }

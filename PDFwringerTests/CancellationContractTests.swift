@@ -10,7 +10,7 @@ import Foundation
 struct CancellationContractTests {
 
     private func expectCancellationAtFinalProgress(
-        output: URL, cancelAt: Double = 1,
+        output: URL, cancelAt: Double = 0.99,
         operation: @escaping @MainActor (@escaping @MainActor @Sendable (Double) -> Void) async throws -> Void
     ) async {
         var operationTask: Task<Void, Error>?
@@ -248,7 +248,7 @@ struct CancellationContractTests {
         #expect(!FileManager.default.fileExists(atPath: output.path(percentEncoded: false)))
     }
 
-    @Test("Cancellation at final progress prevents publishing raster outputs")
+    @Test("Cancellation at the last preparation step prevents publishing raster outputs")
     func cancellationAtFinalProgress() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1, filename: "final_cancel.pdf")
         let directory = TestPDFGenerator.makeTempDirectory()
@@ -366,7 +366,7 @@ struct CancellationContractTests {
         )
     }
 
-    @Test("Rotation cancellation at final progress preserves source and publishes no output")
+    @Test("Rotation cancellation before publication preserves source and publishes no output")
     func rotatorCancellationAtFinalProgress() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(
             pageCount: 1,

@@ -77,3 +77,26 @@ classes and valid-source recovery. Split uses a real validation error before
 replacement. Before the fix the cases failed; after the fix the output must stay
 readable, old feedback must be absent, and valid-source processing must recover.
 No PDF output algorithm, permission or navigation behavior changed.
+
+## Completion and publication follow-up — 2026-10-01
+
+Review of `3d055b7` found raster compression, annotation/password flattening and
+the direct rotation writer reporting 100% inside their final page loop, before
+closing, verifying and publishing the PDF. A regression reproduced this in all
+four cases by trying to read the destination from the completion callback. These
+writers now reserve completion for successful publication. Compression
+preparation similarly reserves completion for a validated retained candidate;
+the chosen destination remains untouched until Save Result.
+
+A concurrent-replacement regression also showed that direct rotation captured
+the destination identity only after its yielding page edits. A replacement
+arriving during that work could therefore be overwritten. Rotation now runs
+inside the existing atomic-write boundary, capturing the identity before editing
+and rechecking source/destination separation before writing. This does not change
+the interactive in-memory rotation path.
+
+Regressions require exactly one completion signal with a readable output, no
+completion on rejected publication, preservation of a concurrent destination,
+and cancellation at the last pre-publication step. Lossless and raster review
+preparation must also reject cancellation before readiness without reporting
+completion or changing existing files. No new output modes or permissions added.

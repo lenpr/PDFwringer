@@ -42,16 +42,17 @@ struct PDFRotator {
         }
 
         let start = ContinuousClock.now
-        let rotatedPageCount = try await rotateInBatches(
-            document: doc,
-            angle: angle,
-            pageIndices: pageIndices,
-            progress: progress
-        )
-        let expectedRotations = try rotations(in: doc)
-
-        try Task.checkCancellation()
-        try AtomicFileWriter.write(to: destination) { tempURL in
+        var rotatedPageCount = 0
+        try await AtomicFileWriter.write(to: destination) { tempURL in
+            rotatedPageCount = try await rotateInBatches(
+                document: doc,
+                angle: angle,
+                pageIndices: pageIndices,
+                progress: { progress(min(0.99, $0)) }
+            )
+            let expectedRotations = try rotations(in: doc)
+            try Task.checkCancellation()
+            try FileSystemIdentity.requireDistinct(source, destination)
             guard doc.write(to: tempURL),
                   let output = PDFDocument(url: tempURL),
                   output.pageCount == doc.pageCount else {
@@ -64,6 +65,7 @@ struct PDFRotator {
             return (try? rotations(in: output)) == expectedRotations
         }
 
+        progress(1)
         let elapsed = ContinuousClock.now - start
         Log.rotate.info("Rotation complete: \(rotatedPageCount) pages rotated \(angle.title), duration=\(elapsed)")
     }
