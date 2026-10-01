@@ -69,7 +69,9 @@ struct PageThumbnailStripView: View {
 
         return VStack(spacing: 3) {
             Group {
-                if let img = cache.thumbnail(for: index, document: document, size: CGSize(width: thumbWidth * 2, height: thumbHeight * 2)) {
+                if let img = cache.thumbnail(for: index, document: document,
+                                             size: CGSize(width: thumbWidth * 2, height: thumbHeight * 2),
+                                             priority: isCurrent) {
                     Image(nsImage: img)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
@@ -143,7 +145,7 @@ struct PageThumbnailStripView: View {
                    previewSize.width > 0, previewSize.height > 0 {
                     let _ = cache.generation
                     Group {
-                        if let image = cache.thumbnail(for: index, document: document, size: previewSize) {
+                        if let image = cache.thumbnail(for: index, document: document, size: previewSize, priority: true) {
                             Image(nsImage: image)
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
@@ -158,6 +160,14 @@ struct PageThumbnailStripView: View {
                         .padding()
                 }
             }
+        }
+        .onAppear {
+            _ = cache.thumbnail(for: index, document: document,
+                                size: CGSize(width: thumbWidth * 2, height: thumbHeight * 2), priority: isCurrent)
+        }
+        .onDisappear {
+            cache.discardQueued(for: index, document: document,
+                                size: CGSize(width: thumbWidth * 2, height: thumbHeight * 2))
         }
     }
 

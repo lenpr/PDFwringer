@@ -368,6 +368,13 @@ benchmark-preview: verify-fixtures $(BUILD_DIR)/PDFwringerBenchmark
 		done; \
 	done
 
+.PHONY: benchmark-thumbnails
+benchmark-thumbnails: verify-fixtures $(BUILD_DIR)/PDFwringerBenchmark
+	@set -e; \
+	for fixture in smoke/tracemonkey.pdf large/fdsys_architecture.pdf scanned/usgs_orthoimagery.pdf; do \
+		$(BUILD_DIR)/PDFwringerBenchmark thumbnail-priority "PDFwringerTests/Fixtures/$$fixture" "$(BUILD_DIR)"; \
+	done
+
 # Slow lane: corpus tests first, then performance bounds without corpus contention.
 test-corpus: verify-fixtures $(BUILD_DIR)/$(TEST_NAME)
 	$(BUILD_DIR)/$(TEST_NAME) --filter "$(CORPUS_TEST_FILTER)"

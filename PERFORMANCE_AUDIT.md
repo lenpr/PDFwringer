@@ -164,6 +164,58 @@ structure check also passed. Native divider/Retina/slider interaction and
 signed-candidate checks remain release gates. Installed/published 0.2.3 and the
 canonical signed archive/package retain their existing source identities.
 
+## Thumbnail scheduling follow-up — unreleased, 2026-10-01
+
+Item 7 now selects a newly requested current/selected page ahead of older queued
+thumbnail work. Enlarged popover previews can also request priority. A single
+task drains the queue; no concurrent page renderers, persistent caches or
+dependencies were added. Nonpreferred work remains FIFO. The existing 200-item /
+32-MiB cache policy is unchanged.
+
+Cells discard size-specific queued requests when disappearing and can request
+again when returning. Disappearance from an old document cannot discard another
+document's requests. A running noninterruptible render finishes before its
+replacement snapshots a page, including after cancellation. Page identity and
+geometry are checked before snapshotting and cache publication, so edits during
+preparation cannot populate an obsolete cache key. Lazy/native cell visibility
+behavior still needs interactive scroll profiling; this is not a guarantee that
+SwiftUI will never reevaluate an offscreen cell.
+
+`make benchmark-thumbnails` queues up to 12 older pages, then requests the last
+page with priority, and measures its publication separately from total queue
+completion. The before control uses the `c5e7058` FIFO cache, with an ignored
+priority argument only to accept the same harness. This comparison uses six
+iterations per input/implementation, in two fresh optimized processes; the
+second pass reverses process order. Operations, builds and tests ran sequentially.
+These are headless cache-publication timings, before native image painting.
+
+| Input | Preferred-page median, before → after | Entire-queue median, before → after | Max MainActor delay, before → after | Process peak RSS, before → after |
+|---|---:|---:|---:|---:|
+| Vector (`tracemonkey.pdf`), 12 older pages | 295.4 → 19.3 ms | 295.4 → 296.2 ms | 54.9 → 54.6 ms | 39.6 → 38.5 MiB |
+| Mixed (`fdsys_architecture.pdf`), 12 older pages | 125.5 → 15.4 ms | 125.5 → 129.8 ms | 16.1 → 17.6 ms | 43.3 → 43.1 MiB |
+| Image-heavy (`usgs_orthoimagery.pdf`), 3 older pages | 913.0 → 446.8 ms | 913.0 → 908.6 ms | 164.5 → 172.5 ms | 61.2 → 57.0 MiB |
+
+Whole-queue ranges were 292.2–306.6 / 292.5–303.1 ms (vector before/after),
+122.7–136.6 / 129.0–141.1 ms (mixed) and 903.2–919.5 / 905.8–918.6 ms (scanned).
+An earlier three-iteration pass measured a slower 385.1-ms vector queue median
+after the change; the paired repeat did not reproduce it. Active applications,
+framework/font caches and power/thermal state were not controlled. Do not infer
+a total-throughput or cold-snapshot improvement from the priority gain.
+The substantial scanned-page serialization/render cost remains; priority changes
+which useful result arrives first, without reducing that page's work.
+
+Optional compression-estimate scheduling, per-cell observation/native update
+profiling and worker-owned cold source reads remain separate follow-ups.
+
+Verification: 440 tests passed (369 fast, 62 corpus, 9 performance), including
+FIFO/priority order, priority changes during active work, disappearing/reappearing
+cells, old-view cleanup, immediate requeue after cancellation and geometry changes
+during preparation. The existing bounded-snapshot and document-switch tests also
+pass. Native rapid-scroll/reorder/popover interaction remains a release gate.
+The optimized build, strict ad-hoc signature verification and unsigned App Store
+archive structure check passed. Installed/published versions and canonical
+signed release artifacts remain unchanged for the consolidated release.
+
 ## How the baseline was measured
 
 - Apple M2 Pro, 12 CPU cores, 32 GiB RAM, macOS 27.0, build 26A428; Swift 6.4.

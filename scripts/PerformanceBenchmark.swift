@@ -68,6 +68,10 @@ private func milliseconds(_ duration: Duration) -> Double {
             try await measurePreview(source: source, mode: mode)
             return
         }
+        if mode == "thumbnail-priority" {
+            try await measureThumbnails(source: source)
+            return
+        }
 
         for iteration in 1...3 {
             guard let document = PDFDocument(url: source), !document.isLocked else {
@@ -179,6 +183,45 @@ private func milliseconds(_ duration: Duration) -> Double {
             try await Task.sleep(for: .milliseconds(1))
         }
         guard vm.previewImage != nil else { throw PDFwringerError.cannotCreateOutput }
+    }
+
+    @MainActor private static func measureThumbnails(source: URL) async throws {
+        for iteration in 1...3 {
+            guard let document = PDFDocument(url: source), document.pageCount > 1, !document.isLocked else {
+                throw PDFwringerError.cannotOpenDocument
+            }
+            let cache = ThumbnailCache()
+            defer { cache.cancel() }
+            let size = CGSize(width: 96, height: 128)
+            let preferred = document.pageCount - 1
+            let older = Array(0..<min(12, preferred))
+            let heartbeat = Heartbeat()
+            await heartbeat.start()
+            let start = ContinuousClock.now
+            for index in older { _ = cache.thumbnail(for: index, document: document, size: size) }
+            _ = cache.thumbnail(for: preferred, document: document, size: size, priority: true)
+            let deadline = ContinuousClock.now + .seconds(30)
+            while cache.thumbnail(for: preferred, document: document, size: size, priority: true) == nil {
+                guard ContinuousClock.now < deadline else { throw PDFwringerError.cannotCreateOutput }
+                try await Task.sleep(for: .milliseconds(1))
+            }
+            let preferredMS = milliseconds(ContinuousClock.now - start)
+            while cache.generation < older.count + 1 {
+                guard ContinuousClock.now < deadline else { throw PDFwringerError.cannotCreateOutput }
+                try await Task.sleep(for: .milliseconds(1))
+            }
+            let elapsed = milliseconds(ContinuousClock.now - start)
+            let gap = await heartbeat.finish()
+            var usage = rusage()
+            getrusage(RUSAGE_SELF, &usage)
+            let record: [String: Any] = [
+                "operation": "thumbnail-priority", "input": source.lastPathComponent,
+                "iteration": iteration, "queuedOlderPages": older.count,
+                "preferredPageMS": preferredMS, "allThumbnailsMS": elapsed,
+                "maxMainActorLatenessMS": gap, "peakRSSMiB": Double(usage.ru_maxrss) / 1_048_576
+            ]
+            print(String(decoding: try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]), as: UTF8.self))
+        }
     }
 
 }

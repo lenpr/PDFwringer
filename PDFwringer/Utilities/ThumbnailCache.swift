@@ -8,19 +8,30 @@ import PDFKit
 final class ThumbnailCache {
     @ObservationIgnored private let cache = NSCache<NSString, NSImage>()
     @ObservationIgnored private weak var document: PDFDocument?
-    @ObservationIgnored private var pending: [String: Task<Void, Never>] = [:]
-    // Keep the tail across cancellation: a non-interruptible PDFKit render must
-    // finish before a replacement request allocates another page snapshot.
-    @ObservationIgnored private var renderTail: Task<Void, Never>?
+    @ObservationIgnored private var pending: [String: Request] = [:]
+    @ObservationIgnored private var queue: [String] = []
+    @ObservationIgnored private var preferredPage: Int?
+    @ObservationIgnored private var activeRequest: Request?
+    // Keep the active task across cancellation: a non-interruptible PDFKit
+    // render must finish before another request allocates a page snapshot.
+    @ObservationIgnored private var renderTask: Task<Void, Never>?
     @ObservationIgnored private var revision = 0
     private(set) var generation = 0
+
+    private struct Request {
+        let key: String
+        let index: Int
+        let page: PDFPage
+        let size: CGSize
+        let revision: Int
+    }
 
     init() {
         cache.countLimit = 200
         cache.totalCostLimit = 32 * 1024 * 1024
     }
 
-    func thumbnail(for index: Int, document: PDFDocument, size: CGSize) -> NSImage? {
+    func thumbnail(for index: Int, document: PDFDocument, size: CGSize, priority: Bool = false) -> NSImage? {
         if self.document !== document {
             cancel()
             self.document = document
@@ -33,21 +44,52 @@ final class ThumbnailCache {
         guard bounds.origin.x.isFinite, bounds.origin.y.isFinite,
               bounds.width.isFinite, bounds.height.isFinite,
               bounds.width > 0, bounds.height > 0 else { return nil }
-        let key = "\(index)|\(ObjectIdentifier(page))|\(page.rotation)|\(bounds)|\(page.bounds(for: .mediaBox))|\(size)"
+        if priority { preferredPage = index }
+        let key = Self.key(for: index, page: page, size: size)
         if let image = cache.object(forKey: key as NSString) { return image }
-        guard pending[key] == nil else { return nil }
-        let requestRevision = revision
+        guard pending[key] == nil,
+              !(activeRequest?.key == key && activeRequest?.revision == revision) else { return nil }
+        // A geometry change supersedes an older queued render of this cell.
+        discardQueued(for: index, document: document, size: size)
+        pending[key] = Request(key: key, index: index, page: page, size: size, revision: revision)
+        queue.append(key)
+        startNextIfNeeded()
+        return nil
+    }
 
-        let task = Task { [weak self, previous = renderTail] in
-            await previous?.value
-            defer {
-                if let self, self.revision == requestRevision {
-                    self.pending.removeValue(forKey: key)
-                }
-            }
+    /// Leaving a cell removes optional work that has not started. A running
+    /// render remains single-flight and may populate the bounded cache.
+    func discardQueued(for index: Int, document: PDFDocument, size: CGSize) {
+        guard self.document === document else { return }
+        let keys = Set(pending.values.filter { $0.index == index && $0.size == size }.map(\.key))
+        for key in keys { pending.removeValue(forKey: key) }
+        queue.removeAll { keys.contains($0) }
+    }
+
+    private static func key(for index: Int, page: PDFPage, size: CGSize) -> String {
+        "\(index)|\(ObjectIdentifier(page))|\(page.rotation)|\(page.bounds(for: .cropBox))|\(page.bounds(for: .mediaBox))|\(size)"
+    }
+
+    private func isCurrent(_ request: Request) -> Bool {
+        guard let page = document?.page(at: request.index), page === request.page else { return false }
+        return Self.key(for: request.index, page: page, size: request.size) == request.key
+    }
+
+    private func startNextIfNeeded() {
+        guard renderTask == nil, !queue.isEmpty else { return }
+
+        renderTask = Task { [weak self] in
+            defer { self?.finishRender() }
             // View construction only queues work. Leaving the view can cancel
             // it before PDFKit serializes the authoritative page on MainActor.
-            guard !Task.isCancelled, let pageData = page.dataRepresentation else { return }
+            guard !Task.isCancelled, let self, !self.queue.isEmpty else { return }
+            let position = self.queue.firstIndex { self.pending[$0]?.index == self.preferredPage } ?? 0
+            let key = self.queue.remove(at: position)
+            guard let request = self.pending.removeValue(forKey: key), self.revision == request.revision,
+                  self.isCurrent(request) else { return }
+            self.activeRequest = request
+            guard let pageData = request.page.dataRepresentation else { return }
+            let size = request.size
             let imageData = try? await PDFPageWorker.run(pageData: pageData) { isolatedPage in
                 let image = isolatedPage.thumbnail(of: size, for: .cropBox)
                 guard let data = image.tiffRepresentation else {
@@ -55,22 +97,27 @@ final class ThumbnailCache {
                 }
                 return data
             }
-            guard let self, self.revision == requestRevision else { return }
-            guard !Task.isCancelled, let imageData, let image = NSImage(data: imageData) else { return }
-            self.cache.setObject(image, forKey: key as NSString, cost: imageData.count)
+            guard self.revision == request.revision, !Task.isCancelled, self.isCurrent(request),
+                  let imageData, let image = NSImage(data: imageData) else { return }
+            self.cache.setObject(image, forKey: request.key as NSString, cost: imageData.count)
             self.generation += 1
         }
-        pending[key] = task
-        renderTail = task
-        return nil
+    }
+
+    private func finishRender() {
+        activeRequest = nil
+        renderTask = nil
+        startNextIfNeeded()
     }
 
     /// Invalidates late completions as well as cancelling workers. A newly shown
     /// view may reuse this cache without an old task clearing its pending request.
     func cancel() {
         revision += 1
-        for task in pending.values { task.cancel() }
+        renderTask?.cancel()
         pending.removeAll()
+        queue.removeAll()
+        preferredPage = nil
         cache.removeAllObjects()
         document = nil
     }

@@ -5,6 +5,125 @@ import Testing
 @Suite("Preview lifecycle")
 @MainActor
 struct PreviewLifecycleTests {
+    @Test("Current thumbnails precede older queued pages and ordinary work remains FIFO")
+    func preferredThumbnailOrder() async throws {
+        let document = PDFDocument()
+        let pages = (0..<5).map { _ in SnapshotCountingPage() }
+        var snapshots: [Int] = []
+        for (index, page) in pages.enumerated() {
+            page.setBounds(CGRect(x: 0, y: 0, width: 200, height: 300), for: .mediaBox)
+            page.snapshotHook = { snapshots.append(index) }
+            document.insert(page, at: index)
+        }
+        let cache = ThumbnailCache()
+        defer { cache.cancel() }
+        let size = CGSize(width: 48, height: 64)
+        for index in pages.indices {
+            _ = cache.thumbnail(for: index, document: document, size: size, priority: index == 4)
+        }
+        #expect(snapshots.isEmpty)
+        try await waitUntil { cache.generation == 5 }
+        #expect(snapshots == [4, 0, 1, 2, 3])
+        #expect(pages.allSatisfy { $0.snapshotCount == 1 })
+    }
+
+    @Test("A new preferred page can bypass the queue after a render starts")
+    func preferredThumbnailDuringRender() async throws {
+        let document = PDFDocument()
+        let pages = (0..<5).map { _ in SnapshotCountingPage() }
+        var snapshots: [Int] = []
+        let cache = ThumbnailCache()
+        defer { cache.cancel() }
+        let size = CGSize(width: 48, height: 64)
+        for (index, page) in pages.enumerated() {
+            page.setBounds(CGRect(x: 0, y: 0, width: 200, height: 300), for: .mediaBox)
+            page.snapshotHook = {
+                snapshots.append(index)
+                if index == 0 { _ = cache.thumbnail(for: 4, document: document, size: size, priority: true) }
+            }
+            document.insert(page, at: index)
+        }
+        for index in pages.indices { _ = cache.thumbnail(for: index, document: document, size: size) }
+        try await waitUntil { cache.generation == 5 }
+        #expect(snapshots == [0, 4, 1, 2, 3])
+        #expect(pages.allSatisfy { $0.snapshotCount == 1 })
+    }
+
+    @Test("Offscreen queued cells do not snapshot, and reappearing can request again")
+    func discardingQueuedThumbnails() async throws {
+        let document = PDFDocument()
+        let pages = (0..<5).map { _ in SnapshotCountingPage() }
+        for (index, page) in pages.enumerated() {
+            page.setBounds(CGRect(x: 0, y: 0, width: 200, height: 300), for: .mediaBox)
+            document.insert(page, at: index)
+        }
+        let cache = ThumbnailCache()
+        defer { cache.cancel() }
+        let size = CGSize(width: 48, height: 64)
+        for index in pages.indices { _ = cache.thumbnail(for: index, document: document, size: size) }
+        for index in 0..<4 { cache.discardQueued(for: index, document: document, size: size) }
+        try await waitUntil { cache.generation == 1 }
+        #expect(pages.dropLast().allSatisfy { $0.snapshotCount == 0 })
+        #expect(pages[4].snapshotCount == 1)
+        _ = cache.thumbnail(for: 0, document: document, size: size)
+        try await waitUntil { cache.generation == 2 }
+        #expect(pages[0].snapshotCount == 1)
+    }
+
+    @Test("Old-view disappearance cannot discard another document's queued cell")
+    func oldViewCannotDiscardNewDocument() async throws {
+        let old = try coloredDocument(red: 1, blue: 0)
+        let current = try coloredDocument(red: 0, blue: 1)
+        let cache = ThumbnailCache()
+        defer { cache.cancel() }
+        let size = CGSize(width: 48, height: 64)
+        _ = cache.thumbnail(for: 0, document: old, size: size)
+        _ = cache.thumbnail(for: 0, document: current, size: size)
+        cache.discardQueued(for: 0, document: old, size: size)
+        _ = try await waitForThumbnail(cache, document: current, size: size)
+        #expect(cache.generation == 1)
+    }
+
+    @Test("Cancellation and immediate requeue preserve one snapshot in flight")
+    func cancellingInFlightThumbnailQueue() async throws {
+        let document = PDFDocument()
+        let page = SnapshotCountingPage()
+        page.setBounds(CGRect(x: 0, y: 0, width: 200, height: 300), for: .mediaBox)
+        document.insert(page, at: 0)
+        let cache = ThumbnailCache()
+        defer { cache.cancel() }
+        let size = CGSize(width: 48, height: 64)
+        page.snapshotHook = {
+            cache.cancel()
+            _ = cache.thumbnail(for: 0, document: document, size: size, priority: true)
+        }
+        _ = cache.thumbnail(for: 0, document: document, size: size)
+        try await waitUntil { cache.generation == 1 }
+        #expect(page.snapshotCount == 2)
+        #expect(cache.thumbnail(for: 0, document: document, size: size) != nil)
+    }
+
+    @Test("Geometry changes during thumbnail preparation cannot populate an obsolete cache key")
+    func thumbnailGeometryDuringRender() async throws {
+        let document = PDFDocument()
+        let page = SnapshotCountingPage()
+        page.setBounds(CGRect(x: 0, y: 0, width: 200, height: 300), for: .mediaBox)
+        document.insert(page, at: 0)
+        let cache = ThumbnailCache()
+        defer { cache.cancel() }
+        let size = CGSize(width: 48, height: 64)
+        page.snapshotHook = {
+            page.rotation = 90
+            _ = cache.thumbnail(for: 0, document: document, size: size)
+        }
+        _ = cache.thumbnail(for: 0, document: document, size: size)
+        try await waitUntil { cache.generation == 1 }
+        #expect(page.snapshotCount == 2)
+        #expect(cache.thumbnail(for: 0, document: document, size: size) != nil)
+        page.rotation = 0
+        #expect(cache.thumbnail(for: 0, document: document, size: size) == nil)
+    }
+
     @Test("Rapid cold revisioned requests restart and publish only the latest settings")
     func rapidColdRevisionedRequests() async throws {
         let document = PDFDocument()

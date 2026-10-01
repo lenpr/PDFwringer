@@ -12,6 +12,9 @@
 - Color sliders reuse one current-page base image, render to the pane's display
   density and avoid repeated JPEG encoding/decoding. Rapid edits coalesce while
   stale pages, revisions and cancelled work cannot publish a preview.
+- Thumbnail rendering prioritizes the current/selected page and enlarged
+  previews, drops queued work for disappearing cells and rejects stale geometry.
+  Rendering remains sequential with the existing cache limits.
 - Rotate/Crop saves write and verify in the background, show a cancellable busy
   phase and prevent edits/navigation from racing publication.
 - Ordinary unencrypted metadata saves write and verify in the background after

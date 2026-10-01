@@ -85,6 +85,15 @@ in `PERFORMANCE_AUDIT.md`; native Retina/divider/slider checks and candidate-spe
 validation remain outstanding. The cold scanned-page snapshot still runs on
 MainActor and is explicitly recorded as remaining work.
 
+The thumbnail follow-up prioritizes the current/selected page, discards queued
+work for disappearing cells, and rejects stale page geometry. Rendering remains
+single-flight with the existing bounded cache. All 440 tests passed (369 fast,
+62 corpus, 9 performance); repeat measurements confirm earlier current-page
+publication with broadly similar whole-queue time. Native rapid scrolling,
+reorder selection and popover checks remain open. See `PERFORMANCE_AUDIT.md`.
+The optimized build, strict ad-hoc signature verification and unsigned archive
+structure check passed; these do not replace new signed-candidate validation.
+
 These changes are not in the signed 0.2.3 candidates above. Their existing
 validation evidence retains its original identity. A consolidated update needs
 new version/build identities, signing and candidate-specific verification.

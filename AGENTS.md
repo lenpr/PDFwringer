@@ -35,6 +35,8 @@ Run it without concurrent tests/builds for comparable measurements.
 `make benchmark-preview` compares uncached, cached and pane-sized color previews
 on verified vector/scanned inputs, including first-render and warm-filter timing.
 It is headless publication timing, not native mouse-to-paint latency.
+`make benchmark-thumbnails` measures a newly preferred page behind older queued
+requests, plus complete-queue timing, heartbeat delay and process peak memory.
 
 ## Architecture
 
@@ -87,7 +89,7 @@ landing → singleFile / multiFile → compressing / splitting / rotating / edit
 - **Formatting**: `Formatting.fileSize(_:)` is the shared byte-formatting utility. `Formatting.triggerShake(_:)` provides the shared invalid-input shake animation.
 - **Atomic writes**: `AtomicFileWriter` (in `PDFwringerError.swift`) checks cancellation before publication. Existing destinations use `FileManager.replaceItemAt` after an identity check; new destinations use exclusive rename to avoid overwriting a file that appeared during preparation. Staging is cleaned up on failure. The old `temporaryDirectory/PDFwringer` path is only used for legacy cleanup.
 - **Logging**: `Log` enum (in `PDFwringerError.swift`) provides structured `os.Logger` instances per category (compress, merge, split, rotate, metadata).
-- **Thumbnails**: `ThumbnailCache` is `@MainActor @Observable` with a generation counter for SwiftUI refresh. Page snapshots are deferred until after view construction, and each cache permits one snapshot/render at a time, including across cancellation. Authoritative PDF access stays on MainActor; isolated rendering is detached. Native PDF preview updates must cancel stale queued navigation and refresh coordinator bindings.
+- **Thumbnails**: `ThumbnailCache` is `@MainActor @Observable` with a generation counter for SwiftUI refresh. Page snapshots are deferred until after view construction. A single render task drains a reorderable queue, favoring the latest preferred page; disappearing cells discard their queued size-specific requests. Each cache permits one snapshot/render at a time, including across cancellation. Document/revision/page geometry are checked before snapshotting and before cache publication. Authoritative PDF access stays on MainActor; isolated rendering is detached. Native PDF preview updates must cancel stale queued navigation and refresh coordinator bindings.
 - **Color previews**: One current-page unadjusted `CGImage` is retained, with a weak source-document reference. Cache reuse requires an explicit content revision; advance it for any content/annotation edits. Unrevisioned callers always snapshot afresh. Page identity, rotation, crop/media bounds and pixel budget also invalidate reuse. The read-only color editor supplies a stable revision and a display-density-aware pane budget. Base preparation/filtering remains single-flight; cancellation discards the cache, saving pauses previews, and stale generations cannot publish. Immutable `CGImage` uses SDK Sendable conformance; authoritative PDFKit/AppKit objects never cross actors. Saved-output resolution and encoding are independent of preview sizing.
 
 ## Compression dual-engine

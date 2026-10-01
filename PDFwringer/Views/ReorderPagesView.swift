@@ -34,7 +34,7 @@ struct ReorderPagesView: View {
                             if let thumb = thumbnailCache.thumbnail(
                                 for: pageIdx,
                                 document: document,
-                                size: CGSize(width: 100, height: 140)
+                                size: CGSize(width: 100, height: 140), priority: selectedPage == pageIdx
                             ) {
                                 Image(nsImage: thumb)
                                     .resizable()
@@ -68,6 +68,14 @@ struct ReorderPagesView: View {
                         .tag(pageIdx)
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel("Page \(pageIdx + 1), position \(position + 1) of \(vm.pageOrder.count)")
+                        .onAppear {
+                            _ = thumbnailCache.thumbnail(for: pageIdx, document: document,
+                                                         size: CGSize(width: 100, height: 140), priority: selectedPage == pageIdx)
+                        }
+                        .onDisappear {
+                            thumbnailCache.discardQueued(for: pageIdx, document: document,
+                                                         size: CGSize(width: 100, height: 140))
+                        }
                     }
                     .onMove { from, to in
                         vm.pageOrder.move(fromOffsets: from, toOffset: to)
