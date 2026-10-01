@@ -29,7 +29,7 @@ struct LandingView: View {
                         .font(.body.weight(.medium))
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.coral)
+                .tint(.coralFill)
                 .controlSize(.large)
             }
             .accessibilityElement(children: .contain)

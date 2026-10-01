@@ -188,6 +188,7 @@ struct MergeOptionsView: View {
                                 }
                                 .keyboardShortcut("s")
                                 .buttonStyle(.borderedProminent)
+                                .tint(.coralFill)
                                 .controlSize(.large)
                                 .disabled(files.count < 2 || vm.isProcessing || isAddingFiles)
                             }

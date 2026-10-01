@@ -38,6 +38,7 @@ struct CompressOptionsView: View {
                     Text(String(localized: "Result")).tag(true)
                 }
                 .pickerStyle(.segmented)
+                .tint(.coralFill)
                 .disabled(!vm.canCompare)
                 .opacity(vm.hasPreparedResult ? 1 : 0)
                 .accessibilityHidden(!vm.hasPreparedResult)
@@ -86,6 +87,7 @@ struct CompressOptionsView: View {
                                 Text(String(localized: "Fit under…")).tag(CompressionMode.targetSize)
                             }
                             .pickerStyle(.segmented)
+                            .tint(.coralFill)
                             .disabled(vm.isProcessing)
 
                             if vm.mode == .targetSize {
@@ -282,12 +284,14 @@ struct CompressOptionsView: View {
                                     Button(String(localized: "Save Result")) { vm.savePreparedResult() }
                                         .keyboardShortcut("s")
                                         .buttonStyle(.borderedProminent)
+                                        .tint(.coralFill)
                                         .controlSize(.large)
                                 } else {
                                     Button(String(localized: "Prepare…")) {
                                         Task { await vm.performCompression() }
                                     }
                                     .buttonStyle(.borderedProminent)
+                                    .tint(.coralFill)
                                     .controlSize(.large)
                                     .disabled(!vm.canCompress)
                                 }

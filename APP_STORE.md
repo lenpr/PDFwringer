@@ -57,6 +57,20 @@ Remaining submission gates are listing/privacy/compliance responses, complete
 accessibility/contrast/minimum-window QA, and Store/TestFlight-installed tests.
 No app was uploaded as a release or submitted for review in this increment.
 
+## Unreleased QA follow-up — 2026-09-30
+
+Minimum-window inspection covered the chooser and all nine tools in light/dark
+appearances. Installed-download recovery checks covered cancelled panels and
+operations, unavailable sources, late destination changes, permission failures
+and retry. The source now fixes persistent field labels, control contrast and
+filesystem failure messages. See `UX_AUDIT.md` for scope and evidence.
+
+These changes are not in the signed 0.2.3 candidates above. Their existing
+validation evidence retains its original identity. A consolidated update needs
+new version/build identities, signing and candidate-specific verification.
+VoiceOver is deferred at the user's request; complete assistive-technology,
+high-contrast/Reduce Motion and Store/TestFlight-installed testing remain open.
+
 ## Local artifact retention — 2026-09-30
 
 Keep one current release evidence folder at

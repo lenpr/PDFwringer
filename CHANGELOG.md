@@ -1,5 +1,18 @@
 # Release progression
 
+## Unreleased
+
+- Metadata/password fields keep their accessibility names after typing.
+- Coral controls improve text contrast in light appearance; primary buttons and
+  segmented choices retain readable white labels in both appearances.
+- Failed output publication explains permission, disk-full/quota, read-only and
+  missing-path problems. Permission-loss regressions verify unchanged files and
+  successful retry using the reviewed result.
+
+Native layout/recovery evidence and deferred accessibility checks are in
+`UX_AUDIT.md`. Version and distributed candidates remain unchanged until the
+consolidated release.
+
 ## 0.2.3 — 2026-09-30
 
 Includes the task-flow refinements below and shows only the public version in

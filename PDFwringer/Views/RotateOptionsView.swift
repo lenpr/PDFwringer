@@ -81,6 +81,7 @@ struct RotateOptionsView: View {
                                 Button(String(localized: "Save Copy…")) { saveRotated() }
                                     .keyboardShortcut("s")
                                     .buttonStyle(.borderedProminent)
+                                    .tint(.coralFill)
                                     .controlSize(.large)
                             }
 

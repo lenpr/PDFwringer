@@ -117,10 +117,12 @@ struct MetadataOptionsView: View {
                                     .font(.callout)
                                 if !removeProtection && (flattenAnnotations || requiresCurrentPassword) {
                                     SecureField(flattenAnnotations ? String(localized: "Password for flattened copy") : String(localized: "Current password (verification only)"), text: $passwordText)
+                                        .accessibilityLabel(flattenAnnotations ? String(localized: "Password for flattened copy") : String(localized: "Current password (verification only)"))
                                         .textFieldStyle(.roundedBorder)
                                         .disabled(isSaving)
                                     if flattenAnnotations {
                                         SecureField(String(localized: "Confirm password"), text: $confirmPasswordText)
+                                            .accessibilityLabel(String(localized: "Confirm password"))
                                             .textFieldStyle(.roundedBorder)
                                             .disabled(isSaving)
                                     }
@@ -141,9 +143,11 @@ struct MetadataOptionsView: View {
                                     .font(.callout)
                                 if setPassword {
                                     SecureField(String(localized: "Password"), text: $passwordText)
+                                        .accessibilityLabel(String(localized: "Password"))
                                         .textFieldStyle(.roundedBorder)
                                         .disabled(isSaving)
                                     SecureField(String(localized: "Confirm password"), text: $confirmPasswordText)
+                                        .accessibilityLabel(String(localized: "Confirm password"))
                                         .textFieldStyle(.roundedBorder)
                                         .disabled(isSaving)
                                     if !confirmPasswordText.isEmpty && passwordText != confirmPasswordText {
@@ -171,6 +175,7 @@ struct MetadataOptionsView: View {
                                 Button(String(localized: "Save Copy…")) { startSaving() }
                                     .keyboardShortcut("s")
                                     .buttonStyle(.borderedProminent)
+                                    .tint(.coralFill)
                                     .controlSize(.large)
                                     .disabled(isSaving
                                         || (setPassword && (passwordText.isEmpty || passwordText != confirmPasswordText))
@@ -272,6 +277,7 @@ struct MetadataOptionsView: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
             TextField(label, text: text)
+                .accessibilityLabel(label)
                 .textFieldStyle(.roundedBorder)
                 .disabled(isSaving)
                 .onChange(of: text.wrappedValue) { _, newValue in

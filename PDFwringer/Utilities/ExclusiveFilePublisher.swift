@@ -131,25 +131,33 @@ enum ExclusiveFilePublisher {
     /// `FileManager.moveItem` may overwrite in a check-then-move race. Darwin's
     /// exclusive rename makes the no-clobber guarantee a single filesystem step.
     static func renameExclusively(from source: URL, to destination: URL) throws -> Bool {
-        let result: Int32 = try source.withUnsafeFileSystemRepresentation { sourcePath in
+        let errorCode: Int32 = try source.withUnsafeFileSystemRepresentation { sourcePath in
             guard let sourcePath else { throw PDFwringerError.cannotWriteOutput }
             return try destination.withUnsafeFileSystemRepresentation { destinationPath in
                 guard let destinationPath else { throw PDFwringerError.cannotWriteOutput }
-                return renameatx_np(
+                let result = renameatx_np(
                     AT_FDCWD,
                     sourcePath,
                     AT_FDCWD,
                     destinationPath,
                     UInt32(RENAME_EXCL)
                 )
+                // Capture errno before Foundation releases either path buffer.
+                return result == 0 ? 0 : errno
             }
         }
 
-        if result == 0 { return true }
-        let errorCode = errno
+        if errorCode == 0 { return true }
         if errorCode == EEXIST { return false }
         Log.fileIO.error("Exclusive output rename failed with errno \(errorCode)")
-        throw PDFwringerError.cannotWriteOutput
+        // Preserve common filesystem failures so the UI can explain how to retry.
+        switch errorCode {
+        case EACCES, EPERM: throw CocoaError(.fileWriteNoPermission)
+        case ENOSPC, EDQUOT: throw CocoaError(.fileWriteOutOfSpace)
+        case EROFS: throw CocoaError(.fileWriteVolumeReadOnly)
+        case ENOENT: throw CocoaError(.fileNoSuchFile)
+        default: throw PDFwringerError.cannotWriteOutput
+        }
     }
 
     private struct PublishedOutput {

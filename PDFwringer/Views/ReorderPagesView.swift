@@ -158,6 +158,7 @@ struct ReorderPagesView: View {
                                 }
                                 .keyboardShortcut("s")
                                 .buttonStyle(.borderedProminent)
+                                .tint(.coralFill)
                                 .controlSize(.large)
                                 .disabled(!vm.canSave)
                             }

@@ -289,3 +289,90 @@ evidence and remaining release gates are in `APP_STORE.md`.
 The final download is 0.2.3, which also removes the parenthesized build suffix
 from About and public release descriptions. Technical archive identities retain
 separate build identifiers for signing provenance.
+
+## Accessibility and recovery follow-up — unreleased, 2026-09-30
+
+The visible version remains 0.2.3. These source changes are awaiting the
+consolidated release; the installed download, GitHub assets and validated Store
+archive have not been replaced. No PDF operations, permissions or dependencies
+were added.
+
+### Fixes
+
+- Metadata and password fields keep explicit accessibility names after typing.
+  Native inspection confirmed populated Title and Creator fields retain their
+  descriptions, and Tab advances from Title to Author.
+- Text-bearing coral controls use a darker accent in light appearance. Prominent
+  buttons and segmented selections use a separate fill that gives white labels
+  approximately 5:1 contrast, versus approximately 3.3:1 previously. Native light
+  and dark inspection confirmed the intended appearance.
+- Exclusive output publication preserves common permission, disk-full/quota,
+  read-only and missing-path failures as actionable filesystem errors. A native
+  permission failure now explains how to choose a writable location, instead of
+  showing only “Failed to write the output file.” Retry retains the reviewed
+  result and publishes it after permissions are restored.
+
+### Native checks
+
+The isolated ad-hoc QA bundle used the production views and services, with only
+its bundle identity/name and initial window size changed. At 650×420 content,
+the chooser and all nine PDF tools were inspected in light and dark appearances.
+Long options and feedback scroll below the pinned navigation. Crop and color
+save actions remain reachable; invalid extraction feedback wraps. The divider
+was dragged from 324.5 to 279.5 points without losing either pane's controls.
+The updated save error and Try Again remain visible at this size. This is layout
+and accessibility-tree evidence, not full assistive-technology certification.
+
+In the installed, notarized Developer ID 0.2.3 download:
+
+- Cancelling a metadata save panel preserves the edited title; Quit cannot
+  interrupt the active panel. A metadata save still succeeds from the already
+  loaded document if its disposable source path temporarily disappears.
+- Target-size compression reports an unavailable source without presenting a
+  chooser or writing output. Restoring the source and choosing Try Again clears
+  the error without restarting the app.
+- A file created by another writer after preparation is preserved byte-for-byte.
+  Save reports the changed destination; Try Again opens a new chooser, and
+  cancelling that chooser preserves the reviewed result.
+- Making the disposable destination folder unwritable prevents publication and
+  exposes retry. Restoring permissions allows the same reviewed result to save.
+- Close File is blocked while a 400-page preparation is running. A separate
+  preparation was cancelled at approximately 3% progress and wrote nothing.
+  Retrying in the same workflow produced a saved, readable 400-page PDF.
+
+Recovery outputs reopened with the expected page counts and searchable text.
+The disposable original and externally created destination retained their
+SHA-256 identities. The revised permission message and retry were also exercised
+in the QA build at minimum size.
+
+The regression suite covers both new and existing destinations losing write
+permission between review and publication: source/destination and reviewed bytes
+stay intact, feedback exposes no saved link, and restoring permissions allows
+successful publication and staging cleanup. Disk exhaustion was not induced on
+the user's disk; existing failure tests cover disk-space handling.
+
+All 407 tests passed (340 fast, 61 checksum-verified corpus, 6 performance).
+The fast lane passed again after capturing publication errors directly at the
+filesystem call. The optimized production-source app build and strict signature
+verification passed. This build remains ad-hoc QA, not a new signed Store or
+Developer ID candidate.
+
+### Deferred and remaining
+
+VoiceOver was deferred at the user's request because it interrupted their work.
+It is off, and the temporary Increase Contrast setting was restored to off.
+Only the opening screen was inspected with the actual system Increase Contrast
+setting; a complete high-contrast, Reduce Motion and VoiceOver pass remains a
+final QA gate. Keyboard field navigation and existing shortcuts were checked;
+this does not certify every Full Keyboard Access/focus path.
+
+Run the final consolidated signed candidate through these checks again and test
+its actual Store/TestFlight installation. Next priorities are completing the
+Store listing/privacy/compliance responses, then brief observed usability tests
+with new users. Avoid another feature batch before these release gates.
+
+Disposable builds, harness source, test PDFs, output and logs were removed with
+`make clean`; the isolated QA container was deleted. The installed app reopened
+cleanly and its recent-document menu did not retain the two deleted QA inputs.
+Current signed archives, packages, symbols and distribution evidence were
+preserved. No version bump, app replacement or release publication was performed.

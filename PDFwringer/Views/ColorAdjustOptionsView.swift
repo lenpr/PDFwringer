@@ -76,6 +76,7 @@ struct ColorAdjustOptionsView: View {
                                 }
                                 .keyboardShortcut("s")
                                 .buttonStyle(.borderedProminent)
+                                .tint(.coralFill)
                                 .controlSize(.large)
                                 .disabled(vm.isIdentity || vm.isSaving)
                             }

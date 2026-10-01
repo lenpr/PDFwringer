@@ -85,6 +85,7 @@ struct ExportImagesOptionsView: View {
                                     }
                                 }
                                 .pickerStyle(.segmented)
+                                .tint(.coralFill)
                                 .labelsHidden()
                                 .frame(width: 140)
                             }
@@ -100,6 +101,7 @@ struct ExportImagesOptionsView: View {
                                     Text("300 DPI").tag(CGFloat(300))
                                 }
                                 .pickerStyle(.segmented)
+                                .tint(.coralFill)
                                 .labelsHidden()
                                 .onChange(of: resultMessage) { _, message in
                         if message != nil { scroll.scrollTo("operation-result", anchor: .bottom) }
@@ -130,6 +132,7 @@ struct ExportImagesOptionsView: View {
                         Button(String(localized: "Export")) { exportImages() }
                             .keyboardShortcut("s")
                             .buttonStyle(.borderedProminent)
+                            .tint(.coralFill)
                             .controlSize(.large)
                             .disabled(isProcessing)
                     }

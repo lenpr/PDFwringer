@@ -168,6 +168,7 @@ struct CropOptionsView: View {
                                     .keyboardShortcut("s")
                                     .controlSize(.large)
                                     .buttonStyle(.borderedProminent)
+                                    .tint(.coralFill)
                             }
 
                             if let msg = resultMessage {

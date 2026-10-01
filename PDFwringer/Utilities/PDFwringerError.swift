@@ -327,7 +327,14 @@ enum Log {
 }
 
 extension Color {
-    static let coral = Color(red: 0.91, green: 0.39, blue: 0.30)
+    // Text-bearing controls need a darker accent on light backgrounds.
+    static let coral = Color(nsColor: NSColor(name: nil) { appearance in
+        let dark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return dark ? NSColor(red: 0.91, green: 0.39, blue: 0.30, alpha: 1)
+                    : NSColor(red: 0.70, green: 0.20, blue: 0.14, alpha: 1)
+    })
+    // Native prominent buttons and segmented selections use white labels.
+    static let coralFill = Color(red: 0.78, green: 0.25, blue: 0.19)
     static let coralText = Color(nsColor: NSColor(name: nil) { appearance in
         let dark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         return dark ? NSColor(red: 0.98, green: 0.57, blue: 0.46, alpha: 1)

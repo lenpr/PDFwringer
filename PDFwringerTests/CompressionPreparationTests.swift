@@ -147,6 +147,44 @@ struct CompressionPreparationTests {
         #expect(vm.lastOutputURL == nil)
     }
 
+    @Test("Publication permission failures preserve the reviewed result and allow retry", arguments: [false, true])
+    func publicationPermissionRecovery(existing: Bool) async throws {
+        let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
+        let directory = TestPDFGenerator.makeTempDirectory()
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+            TestPDFGenerator.cleanup(source)
+            TestPDFGenerator.cleanup(directory)
+        }
+        let destination = directory.appending(component: "result.pdf")
+        let original = try Data(contentsOf: source)
+        if existing { try original.write(to: destination) }
+        let vm = CompressViewModel()
+        vm.setSource(source)
+        vm.selectedLevel = .lossless
+        await vm.prepare(to: destination)
+        let staged = try #require(vm.prepared?.url)
+        let reviewed = try Data(contentsOf: staged)
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: directory.path)
+        vm.savePreparedResult()
+        #expect(vm.isError)
+        #expect(vm.resultMessage?.contains("Choose a folder") == true)
+        #expect(vm.hasPreparedResult)
+        #expect(vm.lastOutputURL == nil)
+        #expect((try? Data(contentsOf: destination)) == (existing ? original : nil))
+        #expect(try Data(contentsOf: staged) == reviewed)
+        #expect(try Data(contentsOf: source) == original)
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+        vm.savePreparedResult()
+        #expect(!vm.isError)
+        #expect(!vm.hasPreparedResult)
+        #expect(vm.lastOutputURL == destination)
+        #expect(try Data(contentsOf: destination) == reviewed)
+        #expect(PDFDocument(url: destination)?.pageCount == 1)
+        #expect(!FileManager.default.fileExists(atPath: staged.deletingLastPathComponent().path))
+    }
+
     @Test("A source change during rendering suppresses late completion")
     func supersededPreparation() async throws {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 4)
