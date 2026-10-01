@@ -1,4 +1,5 @@
 import CoreGraphics
+import Darwin
 import Foundation
 import ImageIO
 import PDFKit
@@ -29,11 +30,57 @@ enum PDFRasterizer {
             atPath: url.path(percentEncoded: false)
         ), let fileSize = attributes[.size] as? NSNumber,
            fileSize.int64Value <= maximumInMemoryPDFBytes,
-           let data = try? Data(contentsOf: url),
+           let data = try? readSourceBytes(at: url),
            let provider = CGDataProvider(data: data as CFData) else {
             return nil
         }
         return CGPDFDocument(provider)
+    }
+
+    /// Bound the read itself: an earlier size check cannot prevent a file from
+    /// growing or being replaced. Intake and optional probes use the same limit.
+    nonisolated static func readSourceBytes(
+        at url: URL, byteLimit: Int = Int(maximumInMemoryPDFBytes)
+    ) throws -> Data? {
+        try Task.checkCancellation()
+        guard url.isFileURL, byteLimit >= 0, byteLimit < Int.max else {
+            throw PDFwringerError.cannotOpenDocument
+        }
+        // Nonblocking open prevents a substituted pipe from waiting for a
+        // producer before we can validate the opened object as a regular file.
+        let descriptor = try url.withUnsafeFileSystemRepresentation { path in
+            guard let path else { throw PDFwringerError.cannotOpenDocument }
+            let descriptor = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)
+            if descriptor < 0 {
+                // Capture errno before releasing the path buffer, preserving
+                // the established actionable read-error messages.
+                switch errno {
+                case EACCES, EPERM: throw CocoaError(.fileReadNoPermission)
+                case ENOENT, ENOTDIR: throw CocoaError(.fileReadNoSuchFile)
+                default: throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+                }
+            }
+            return descriptor
+        }
+        let file = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        defer { try? file.close() }
+        var information = stat()
+        guard fstat(descriptor, &information) == 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        guard information.st_mode & S_IFMT == S_IFREG else {
+            throw PDFwringerError.cannotOpenDocument
+        }
+        var data = Data()
+        while data.count <= byteLimit {
+            try Task.checkCancellation()
+            let chunk = try file.read(upToCount: min(1_048_576, byteLimit + 1 - data.count))
+            try Task.checkCancellation()
+            guard let chunk,
+                  !chunk.isEmpty else { return data }
+            data.append(chunk)
+        }
+        return nil
     }
 
     /// Renders a Core Graphics page. Used by compression size estimation.

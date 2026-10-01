@@ -240,7 +240,8 @@ class AppViewModel {
                         atPath: url.path(percentEncoded: false))[.size] as? Int64 ?? 0
                     // Large sources retain URL-backed PDFKit loading rather
                     // than retaining an additional unbounded byte buffer.
-                    let data = size > 0 && size <= 100_000_000 ? try Self.readPreviewBytes(at: url) : nil
+                    let data = size > 0 && size <= PDFRasterizer.maximumInMemoryPDFBytes
+                        ? try PDFRasterizer.readSourceBytes(at: url) : nil
                     try Task.checkCancellation()
                     return (data, data.map { Int64($0.count) } ?? size)
                 }
@@ -266,20 +267,6 @@ class AppViewModel {
                 }
             }
         }
-    }
-
-    private nonisolated static func readPreviewBytes(at url: URL) throws -> Data? {
-        let limit = 100_000_000
-        let file = try FileHandle(forReadingFrom: url)
-        defer { try? file.close() }
-        var data = Data()
-        while data.count <= limit {
-            try Task.checkCancellation()
-            guard let chunk = try file.read(upToCount: min(1_048_576, limit + 1 - data.count)),
-                  !chunk.isEmpty else { return data }
-            data.append(chunk)
-        }
-        return nil
     }
 
     func waitForFileIntake() async { await fileIntakeTask?.value }

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Optional compression estimates enforce their 100 MB source-byte limit during
+  reading, even if the file grows after the size check. Intake and estimates
+  share the cancellable chunked reader, retaining normal-file symlink support
+  and actionable missing-file/permission errors.
+
 - Raster compression, annotation/password flattening and direct rotation reserve
   100% progress for validated file publication. Compression preparation reserves
   completion for a validated review candidate. Direct rotation captures the

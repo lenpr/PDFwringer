@@ -100,3 +100,30 @@ completion on rejected publication, preservation of a concurrent destination,
 and cancellation at the last pre-publication step. Lossless and raster review
 preparation must also reject cancellation before readiness without reporting
 completion or changing existing files. No new output modes or permissions added.
+
+## Bounded source-read follow-up — 2026-10-01
+
+Review of `ae0c370` examined source reads, cancellation/error recovery, malformed
+geometry and page selections, working-copy mutations, merge ownership and
+reused view-model state. One concrete resource-limit gap was found: optional
+compression probes checked file size, then used an unbounded `Data(contentsOf:)`.
+A source growing or being replaced after that check could exceed the intended
+100 MB eager-read limit. This was identified from the code; no timing-dependent
+filesystem race is claimed as a deterministic reproduction.
+
+The existing intake reader now lives beside the raster source loader, and both
+callers reuse it. Chunked reads enforce the byte limit independently of the
+earlier size check and check cancellation before and after each read. The opened
+descriptor is validated as a regular file; nonblocking open avoids waiting for a
+pipe substituted before that validation. Regular-file symlinks remain supported.
+Open errors preserve the established missing-file/permission guidance. Larger
+intake sources retain their existing URL-backed fallback; oversized optional
+probes retain heuristic estimates.
+
+Tests cover exact limits at zero, one byte and either side of a 1 MiB chunk
+boundary, one-byte growth beyond each limit, regular-file aliases, cancelled
+reads, denied access and missing files. A pipe fixture is also rejected; the
+previous optional probe already rejected that fixture, so this is preserved
+behavior rather than a newly reproduced PDF-opening bug. The source-byte limit
+does not imply a total process-memory bound or make framework/filesystem calls
+interruptible. No new PDF operation, permission, dependency or UI flow.

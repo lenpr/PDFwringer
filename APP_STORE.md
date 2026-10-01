@@ -181,6 +181,31 @@ change was performed. Version and retained release evidence remain unchanged
 for the consolidated release. Disposable products, test logs and project-specific
 Derived Data were removed after committing the source; VoiceOver remains deferred.
 
+## Bounded source-read follow-up — unreleased, 2026-10-01
+
+After `ae0c370`, source review found optional exact compression estimates relying
+on a size check followed by an unbounded read. Intake and estimates now share the
+existing chunked source reader, enforcing the byte limit during reading and
+checking cancellation before and after chunks. Opened sources must be regular
+files; normal-file symlinks and missing-file/permission guidance are retained.
+Large intake sources retain URL-backed loading; oversized probes retain heuristic
+estimates. This is a source-byte limit, not a total process-memory guarantee.
+
+All 462 tests passed: 390 fast, 63 checksum-verified corpus and nine performance.
+New coverage includes exact byte/chunk boundaries, growth beyond each limit,
+regular-file aliases, cancellation, missing/denied access and pipe rejection.
+The original probe already rejected the pipe fixture; the size-check/read race
+was identified in code, not reproduced with a timing-dependent test. Optimized
+release compilation and strict ad-hoc signature verification passed without
+compiler warnings. The unsigned archive-structure check from the previous batch
+was not rerun for this source-only change.
+
+No permissions, dependencies, UI flows or PDF operations added. Versions,
+installed/public apps and retained signed evidence remain unchanged pending the
+consolidated release. No new signed Store validation or native interaction QA;
+VoiceOver remains deferred. Disposable builds and logs were cleaned after the
+source commit.
+
 ## Local artifact retention — 2026-09-30
 
 Keep one current release evidence folder at

@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import PDFKit
 import Testing
 
@@ -197,6 +198,85 @@ struct BugSweepTests {
         }
         #expect(replaced && !completed)
         #expect(try Data(contentsOf: output) == replacement)
+    }
+
+    @Test("Exact compression probes reject pipes masquerading as PDFs")
+    func probeRejectsPipe() async throws {
+        let source = TestPDFGenerator.makePDF(pageCount: 1)
+        let directory = TestPDFGenerator.makeTempDirectory()
+        defer { TestPDFGenerator.cleanup(source); TestPDFGenerator.cleanup(directory) }
+        let pipe = directory.appending(component: "input.pdf")
+        #expect(pipe.withUnsafeFileSystemRepresentation { mkfifo($0!, 0o600) } == 0)
+        let descriptor = pipe.withUnsafeFileSystemRepresentation { open($0!, O_RDWR | O_NONBLOCK) }
+        try #require(descriptor >= 0)
+        let data = try Data(contentsOf: source)
+        let written = data.withUnsafeBytes { write(descriptor, $0.baseAddress, $0.count) }
+        #expect(written == data.count)
+        // Keep the pipe alive until the probe has begun. The deadline also
+        // bounds the old unbounded read if it waits for the producer's EOF.
+        let closer = Task.detached {
+            try? await Task.sleep(for: .seconds(1))
+            close(descriptor)
+        }
+        #expect(PDFRasterizer.openDocument(at: pipe) == nil)
+        #expect(throws: PDFwringerError.self) {
+            try PDFRasterizer.readSourceBytes(at: pipe)
+        }
+        await closer.value
+    }
+
+    @Test("Source reads enforce exact byte limits across chunk boundaries",
+          arguments: [0, 1, 1_048_576, 1_048_577])
+    func boundedSourceRead(size: Int) throws {
+        let directory = TestPDFGenerator.makeTempDirectory()
+        defer { TestPDFGenerator.cleanup(directory) }
+        let source = directory.appending(component: "source.pdf")
+        let data = Data(repeating: 0x61, count: size)
+        try data.write(to: source)
+        #expect(try PDFRasterizer.readSourceBytes(at: source, byteLimit: size) == data)
+        let link = directory.appending(component: "alias.pdf")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: source)
+        #expect(try PDFRasterizer.readSourceBytes(at: link, byteLimit: size) == data)
+        let writer = try FileHandle(forWritingTo: source)
+        defer { try? writer.close() }
+        try writer.seekToEnd()
+        try writer.write(contentsOf: Data([0x62]))
+        #expect(try PDFRasterizer.readSourceBytes(at: source, byteLimit: size) == nil)
+    }
+
+    @Test("Cancelled source reads do not return bytes")
+    func cancelledSourceRead() async throws {
+        let source = TestPDFGenerator.makePDF(pageCount: 1)
+        defer { TestPDFGenerator.cleanup(source) }
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try PDFRasterizer.readSourceBytes(at: source)
+        }
+        await #expect(throws: CancellationError.self) { try await task.value }
+    }
+
+    @Test("Bounded reads preserve actionable missing-file and permission errors")
+    func boundedReadErrors() throws {
+        let directory = TestPDFGenerator.makeTempDirectory()
+        defer { TestPDFGenerator.cleanup(directory) }
+        let source = directory.appending(component: "source.pdf")
+        do {
+            _ = try PDFRasterizer.readSourceBytes(at: source)
+            Issue.record("Expected missing-file rejection")
+        } catch let error as CocoaError {
+            #expect(error.code == .fileReadNoSuchFile)
+            #expect(PDFwringerError.userMessage(for: error).contains("no longer available"))
+        }
+        try Data([0x61]).write(to: source)
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: source.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: source.path) }
+        do {
+            _ = try PDFRasterizer.readSourceBytes(at: source)
+            Issue.record("Expected permission rejection")
+        } catch let error as CocoaError {
+            #expect(error.code == .fileReadNoPermission)
+            #expect(PDFwringerError.userMessage(for: error).contains("grant access"))
+        }
     }
 
 }
