@@ -64,6 +64,11 @@ private func milliseconds(_ duration: Duration) -> Double {
             return
         }
 
+        if ["preview", "preview-cached", "preview-sized"].contains(mode) {
+            try await measurePreview(source: source, mode: mode)
+            return
+        }
+
         for iteration in 1...3 {
             guard let document = PDFDocument(url: source), !document.isLocked else {
                 throw PDFwringerError.cannotOpenDocument
@@ -126,4 +131,54 @@ private func milliseconds(_ duration: Duration) -> Double {
             print(String(decoding: data, as: UTF8.self))
         }
     }
+    @MainActor private static func measurePreview(source: URL, mode: String) async throws {
+        let revision: Int? = mode == "preview" ? nil : 0
+        // A fixed device-pixel viewport isolates cache/size effects. The real
+        // editor measures its pane and display scale instead of using this size.
+        let pixels: CGSize? = mode == "preview-sized" ? CGSize(width: 640, height: 1024) : nil
+        for iteration in 1...3 {
+            guard let document = PDFDocument(url: source), !document.isLocked else {
+                throw PDFwringerError.cannotOpenDocument
+            }
+            let vm = ColorAdjustViewModel()
+            defer { vm.cancelPreview() }
+            let heartbeat = Heartbeat()
+            await heartbeat.start()
+            let firstStart = ContinuousClock.now
+            vm.updatePreview(document: document, page: 0, documentRevision: revision, pixelSize: pixels)
+            try await waitForPreview(vm)
+            let firstMS = milliseconds(ContinuousClock.now - firstStart)
+            let firstGap = await heartbeat.finish()
+            let warmHeartbeat = Heartbeat()
+            await warmHeartbeat.start()
+            var warm: [Double] = []
+            for step in 1...6 {
+                vm.brightness = Float(step) * 0.05
+                let start = ContinuousClock.now
+                vm.updatePreview(document: document, page: 0, documentRevision: revision, pixelSize: pixels)
+                try await waitForPreview(vm)
+                warm.append(milliseconds(ContinuousClock.now - start))
+            }
+            let warmGap = await warmHeartbeat.finish()
+            var usage = rusage()
+            getrusage(RUSAGE_SELF, &usage)
+            let record: [String: Any] = [
+                "operation": mode, "input": source.lastPathComponent, "iteration": iteration,
+                "firstPreviewMS": firstMS, "firstMainActorLatenessMS": firstGap,
+                "warmPreviewMS": warm, "warmMainActorLatenessMS": warmGap,
+                "peakRSSMiB": Double(usage.ru_maxrss) / 1_048_576
+            ]
+            print(String(decoding: try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]), as: UTF8.self))
+        }
+    }
+
+    @MainActor private static func waitForPreview(_ vm: ColorAdjustViewModel) async throws {
+        let deadline = ContinuousClock.now + .seconds(30)
+        while vm.isPreviewUpdating {
+            guard ContinuousClock.now < deadline else { throw PDFwringerError.cannotCreateOutput }
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        guard vm.previewImage != nil else { throw PDFwringerError.cannotCreateOutput }
+    }
+
 }

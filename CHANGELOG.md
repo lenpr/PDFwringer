@@ -9,6 +9,9 @@
   the established path.
 - Full-document color adjustment streams encoded pages instead of retaining a
   complete image-backed document. Partial selections preserve untouched pages.
+- Color sliders reuse one current-page base image, render to the pane's display
+  density and avoid repeated JPEG encoding/decoding. Rapid edits coalesce while
+  stale pages, revisions and cancelled work cannot publish a preview.
 - Rotate/Crop saves write and verify in the background, show a cancellable busy
   phase and prevent edits/navigation from racing publication.
 - Ordinary unencrypted metadata saves write and verify in the background after

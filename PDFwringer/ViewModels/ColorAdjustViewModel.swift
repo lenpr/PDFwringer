@@ -25,6 +25,24 @@ class ColorAdjustViewModel {
     @ObservationIgnored private var previewGeneration = 0
     @ObservationIgnored private weak var pendingPreviewDocument: PDFDocument?
     @ObservationIgnored private var pendingPreviewPage = 0
+    @ObservationIgnored private var pendingPreviewRevision: Int?
+    @ObservationIgnored private var pendingPreviewPixels: CGSize?
+    @ObservationIgnored private var isPreparingPreviewBase = false
+    @ObservationIgnored private weak var cachedPreviewDocument: PDFDocument?
+    @ObservationIgnored private var cachedPreviewKey: PreviewKey?
+    @ObservationIgnored private var cachedPreviewBase: CGImage?
+    @ObservationIgnored private weak var publishedPreviewDocument: PDFDocument?
+    @ObservationIgnored private var publishedPreviewKey: PreviewKey?
+
+    private struct PreviewKey: Equatable {
+        let page: Int
+        let revision: Int?
+        let pixels: CGSize?
+        let pageIdentity: ObjectIdentifier
+        let rotation: Int
+        let cropBox: CGRect
+        let mediaBox: CGRect
+    }
     @ObservationIgnored private var pendingPreviewSettings = PDFColorAdjuster.Settings(brightness: 0, contrast: 1, saturation: 1)
     /// Single-flight guard: prevents concurrent preview renders from exhausting resources.
     @ObservationIgnored private(set) var isRendering = false
@@ -53,71 +71,140 @@ class ColorAdjustViewModel {
 
     // MARK: - Preview
 
-    func updatePreview(document: PDFDocument, page: Int, selection: PageSelection? = nil) {
-        if lastPublishedPreviewPage != page { previewImage = nil }
+    /// Reuse is opt-in: callers must advance the revision for content edits.
+    /// Geometry/page identity are checked too. Without a revision, always take
+    /// a fresh snapshot so arbitrary PDFKit edits cannot leave a stale preview.
+    func updatePreview(
+        document: PDFDocument, page: Int, selection: PageSelection? = nil,
+        documentRevision: Int? = nil, pixelSize: CGSize? = nil
+    ) {
+        guard !isSaving else { return }
+        let sameInput = matchesPending(document, page: page, revision: documentRevision, pixels: pixelSize)
+        let hasReusableBase = matchesCache(document, page: page, revision: documentRevision, pixels: pixelSize)
+        if !(sameInput && (hasReusableBase || (documentRevision != nil && isPreparingPreviewBase))) {
+            previewTask?.cancel()
+        }
+        if !hasReusableBase { clearPreviewBase() }
+        if publishedPreviewDocument !== document || lastPublishedPreviewPage != page
+            || publishedPreviewKey?.revision != documentRevision {
+            previewImage = nil
+        }
         previewUnavailable = false
         isPreviewUpdating = true
         let includesPage = selection.map { $0.includes(page) } ?? true
-        pendingPreviewSettings = includesPage ? settings : .init(brightness: 0, contrast: 1, saturation: 1)
-        previewTask?.cancel()
+        pendingPreviewSettings = includesPage ? settings : .init()
         previewGeneration += 1
         pendingPreviewDocument = document
         pendingPreviewPage = page
+        pendingPreviewRevision = documentRevision
+        pendingPreviewPixels = pixelSize
         startPendingPreviewIfNeeded()
     }
 
+    private func matchesPending(_ document: PDFDocument, page: Int, revision: Int?, pixels: CGSize?) -> Bool {
+        pendingPreviewDocument === document && pendingPreviewPage == page
+            && pendingPreviewRevision == revision && pendingPreviewPixels == pixels
+    }
+
+    private func matchesCache(_ document: PDFDocument, page: Int, revision: Int?, pixels: CGSize?) -> Bool {
+        revision != nil && cachedPreviewDocument === document && cachedPreviewBase != nil
+            && cachedPreviewKey?.page == page && cachedPreviewKey?.revision == revision
+            && cachedPreviewKey?.pixels == pixels
+    }
+
+    private func previewSource(
+        _ document: PDFDocument, page index: Int, revision: Int?, pixels: CGSize?
+    ) throws -> (PDFPage, PreviewKey) {
+        if let pixels {
+            guard pixels.width.isFinite, pixels.height.isFinite,
+                  pixels.width >= 1, pixels.height >= 1,
+                  pixels.width <= 4096, pixels.height <= 4096 else {
+                throw PDFwringerError.cannotCreateOutput
+            }
+        }
+        guard let page = document.page(at: index) else { throw PDFwringerError.cannotCreateOutput }
+        let crop = page.bounds(for: .cropBox)
+        let media = page.bounds(for: .mediaBox)
+        guard [crop.minX, crop.minY, crop.width, crop.height, media.minX, media.minY, media.width, media.height]
+                .allSatisfy(\.isFinite), crop.width > 0, crop.height > 0 else {
+            throw PDFwringerError.cannotCreateOutput
+        }
+        return (page, PreviewKey(page: index, revision: revision, pixels: pixels,
+                                 pageIdentity: ObjectIdentifier(page), rotation: page.rotation,
+                                 cropBox: crop, mediaBox: media))
+    }
+
     private func startPendingPreviewIfNeeded() {
-        guard !isRendering,
-              let document = pendingPreviewDocument else { return }
-
-        let gen = previewGeneration
-        let currentSettings = pendingPreviewSettings
-
+        guard !isRendering, let document = pendingPreviewDocument else { return }
         let pageIndex = pendingPreviewPage
-
+        let revision = pendingPreviewRevision
+        let pixels = pendingPreviewPixels
+        let isWarm = matchesCache(document, page: pageIndex, revision: revision, pixels: pixels)
+        let initialGeneration = previewGeneration
         isRendering = true
 
         previewTask = Task { @MainActor [weak self] in
-            defer { self?.finishPreview(generation: gen) }
-            try? await Task.sleep(for: .milliseconds(100))
-            guard !Task.isCancelled else { return }
-
-            // Debounce before serializing a potentially expensive page. Cancelled
-            // slider changes must not perform this work on the UI thread.
-            // PDFKit access stays on MainActor; the worker receives only Data.
+            var generation = initialGeneration
+            defer { self?.finishPreview(generation: generation) }
+            // Cold requests debounce before PDFKit access. Warm requests coalesce
+            // at a frame cadence, taking the newest settings after the wait.
+            try? await Task.sleep(for: .milliseconds(isWarm ? 16 : 100))
+            guard !Task.isCancelled, let self,
+                  self.matchesPending(document, page: pageIndex, revision: revision, pixels: pixels) else { return }
+            generation = self.previewGeneration
             do {
-                guard let pageData = document.page(at: pageIndex)?.dataRepresentation else {
-                    throw PDFwringerError.cannotCreateOutput
+                let (page, key) = try self.previewSource(document, page: pageIndex, revision: revision, pixels: pixels)
+                let base: CGImage
+                if self.cachedPreviewDocument === document, self.cachedPreviewKey == key,
+                   let image = self.cachedPreviewBase {
+                    base = image
+                } else {
+                    self.isPreparingPreviewBase = true
+                    guard let data = page.dataRepresentation else { throw PDFwringerError.cannotCreateOutput }
+                    let image = try await PDFPageWorker.run(pageData: data) { isolatedPage in
+                        guard let image = PDFRasterizer.renderPreview(isolatedPage, pixelSize: pixels) else {
+                            throw PDFwringerError.cannotCreateOutput
+                        }
+                        return image
+                    }
+                    self.isPreparingPreviewBase = false
+                    try Task.checkCancellation()
+                    guard self.matchesPending(document, page: pageIndex, revision: revision, pixels: pixels),
+                          try self.previewSource(document, page: pageIndex, revision: revision, pixels: pixels).1 == key else { return }
+                    base = image
+                    if revision != nil {
+                        self.cachedPreviewDocument = document
+                        self.cachedPreviewKey = key
+                        self.cachedPreviewBase = image
+                    }
                 }
-                let previewData = try await PDFPageWorker.run(pageData: pageData) { page in
-                    guard let (rendered, _) = PDFRasterizer.render(
-                        page,
-                        dpi: 150,
-                        grayscale: false
-                    ) else {
+                generation = self.previewGeneration
+                let currentSettings = self.pendingPreviewSettings
+                if revision != nil, self.publishedPreviewDocument === document,
+                   self.publishedPreviewKey == key, self.lastPublishedPreviewSettings == currentSettings,
+                   self.previewImage != nil { return }
+                let worker = Task.detached(priority: .userInitiated) {
+                    try Task.checkCancellation()
+                    guard let image = PDFColorAdjuster.adjustImage(base, settings: currentSettings, renderImmediately: true) else {
                         throw PDFwringerError.cannotCreateOutput
                     }
-
-                    guard let adjusted = PDFColorAdjuster.adjustImage(
-                        rendered,
-                        settings: currentSettings
-                    ) else { throw PDFwringerError.cannotCreateOutput }
-                    guard let data = PDFRasterizer.jpegData(for: adjusted, quality: 0.9) else {
-                        throw PDFwringerError.cannotCreateOutput
-                    }
-                    return data
+                    try Task.checkCancellation()
+                    return image
                 }
+                let image = try await withTaskCancellationHandler {
+                    try await worker.value
+                } onCancel: { worker.cancel() }
                 try Task.checkCancellation()
-
-                guard let self, self.previewGeneration == gen else { return }
-                guard let preview = NSImage(data: previewData) else {
-                    throw PDFwringerError.cannotCreateOutput
-                }
+                guard self.previewGeneration == generation,
+                      try self.previewSource(document, page: pageIndex, revision: revision, pixels: pixels).1 == key else { return }
+                self.previewImage = NSImage(cgImage: image, size: CGSize(width: image.width, height: image.height))
+                self.publishedPreviewDocument = document
+                self.publishedPreviewKey = key
                 self.lastPublishedPreviewPage = pageIndex
                 self.lastPublishedPreviewSettings = currentSettings
-                self.previewImage = preview
             } catch {
-                guard let self, self.previewGeneration == gen, !(error is CancellationError) else { return }
+                guard self.previewGeneration == generation, !(error is CancellationError) else { return }
+                self.clearPreviewBase()
                 self.previewImage = nil
                 self.previewUnavailable = true
             }
@@ -125,6 +212,7 @@ class ColorAdjustViewModel {
     }
 
     private func finishPreview(generation: Int) {
+        isPreparingPreviewBase = false
         isRendering = false
         if previewGeneration != generation {
             startPendingPreviewIfNeeded()
@@ -133,11 +221,18 @@ class ColorAdjustViewModel {
         }
     }
 
+    private func clearPreviewBase() {
+        cachedPreviewBase = nil
+        cachedPreviewKey = nil
+        cachedPreviewDocument = nil
+    }
+
     func cancelPreview() {
         isPreviewUpdating = false
         pendingPreviewDocument = nil
         previewGeneration += 1
         previewTask?.cancel()
+        clearPreviewBase()
     }
 
     // MARK: - Save
@@ -147,6 +242,7 @@ class ColorAdjustViewModel {
         document: PDFDocument,
         pageIndices: [Int]?
     ) async {
+        guard !isSaving else { return }
         let suggestedName = source.deletingPathExtension().lastPathComponent + "_adjusted.pdf"
         guard let destination = FileDialogHelper.showSavePanel(suggestedName: suggestedName) else { return }
 
@@ -158,6 +254,7 @@ class ColorAdjustViewModel {
         lastOutputURL = nil
         isError = false
         isSaving = true
+        cancelPreview()
         progress = 0
 
         operationTask = Task {

@@ -358,6 +358,16 @@ $(BUILD_DIR)/PDFwringerBenchmark: Makefile $(TESTABLE_SOURCES) scripts/Performan
 	@mkdir -p $(BUILD_DIR)
 	$(SWIFTC) $(SWIFT_FLAGS) $(RELEASE_FLAGS) -o $@ $(TESTABLE_SOURCES) scripts/PerformanceBenchmark.swift
 
+# Optional color-preview comparison; no generated PDFs or saved output.
+.PHONY: benchmark-preview
+benchmark-preview: verify-fixtures $(BUILD_DIR)/PDFwringerBenchmark
+	@set -e; \
+	for fixture in smoke/tracemonkey.pdf scanned/usgs_orthoimagery.pdf; do \
+		for operation in preview preview-cached preview-sized; do \
+			$(BUILD_DIR)/PDFwringerBenchmark "$$operation" "PDFwringerTests/Fixtures/$$fixture" "$(BUILD_DIR)"; \
+		done; \
+	done
+
 # Slow lane: corpus tests first, then performance bounds without corpus contention.
 test-corpus: verify-fixtures $(BUILD_DIR)/$(TEST_NAME)
 	$(BUILD_DIR)/$(TEST_NAME) --filter "$(CORPUS_TEST_FILTER)"

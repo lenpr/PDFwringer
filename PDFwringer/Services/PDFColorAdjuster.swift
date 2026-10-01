@@ -19,7 +19,9 @@ struct PDFColorAdjuster {
 
     private nonisolated static let ciContext = CIContext(options: [.useSoftwareRenderer: false])
 
-    nonisolated static func adjustImage(_ image: CGImage, settings: Settings) -> CGImage? {
+    nonisolated static func adjustImage(
+        _ image: CGImage, settings: Settings, renderImmediately: Bool = false
+    ) -> CGImage? {
         guard !settings.isIdentity else { return image }
 
         let ciImage = CIImage(cgImage: image)
@@ -31,6 +33,13 @@ struct PDFColorAdjuster {
 
         guard let output = filter.outputImage else { return nil }
 
+        if renderImmediately {
+            // A preview is handed directly to AppKit: finish Core Image work on
+            // the worker instead of allowing its first draw to trigger rendering.
+            return ciContext.createCGImage(output, from: output.extent, format: .RGBA8,
+                                           colorSpace: CGColorSpace(name: CGColorSpace.sRGB),
+                                           deferred: false)
+        }
         guard let cgResult = ciContext.createCGImage(output, from: output.extent) else { return nil }
         return cgResult
     }

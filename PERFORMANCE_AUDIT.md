@@ -98,6 +98,72 @@ until the consolidated release. Remaining snapshot/protected-writer work and com
 preview reuse are the next increments, before optional scheduling and
 animation refinements.
 
+## Color preview follow-up — unreleased, 2026-10-01
+
+Items 5/6 now avoid repeated color-preview snapshots and rasterization within the
+read-only editor. One unadjusted current-page bitmap is retained; the source
+document reference is weak. Reuse requires an explicit content revision and is
+also invalidated by document/page identity, rotation, crop/media bounds and the
+pixel budget. Callers that omit a revision still snapshot mutable PDFKit content
+afresh. No authoritative PDFKit or mutable AppKit references cross actors.
+
+The pane measures its size and backing scale, rounds its budget to 64-pixel
+buckets and retains the existing 150-DPI/A3 ceiling. The capped integer raster
+plan is scaled directly, so unusual or rotated pages cannot exceed the requested
+budget. Saved output retains its existing resolution and JPEG quality.
+
+Warm edits coalesce for 16 ms instead of repeating the 100 ms cold debounce.
+Settings received during base preparation use the same snapshot; filters remain
+single-flight, and only the latest page/settings generation can publish. Presets
+use one combined settings observer. Duplicate effective settings (including
+excluded pages) keep the published image. Preview filtering completes off
+MainActor and passes an immutable CGImage directly to AppKit, avoiding the old
+JPEG encode/decode round trip. Cancellation discards the base; saving pauses
+preview work and page-selection/navigation controls in this editor.
+
+`make benchmark-preview` reproduces the comparison on verified vector/scanned
+fixtures. The before measurements used `839c825`; after measurements use this
+unreleased implementation. Each fixture/mode runs in a fresh optimized process,
+with three newly opened document/VM iterations, one identity preview and six
+successive brightness changes per iteration. The pane-sized mode uses a fixed
+640 × 1,024 **device-pixel** budget; actual UI sizing depends on the window/display.
+Warm medians include all 18 changes, including first filter initialization.
+Other applications remained active. These timings end at VM publication, before
+native painting, and are not a frame-rate, GPU-memory or launch measurement.
+
+| Input | First preview median, before → after | Warm change median, before → after | Warm max MainActor delay, before → after | Process peak RSS, before → after |
+|---|---:|---:|---:|---:|
+| Vector (`tracemonkey.pdf`) | 131.2 → 123.7 ms | 134.9 → 20.9 ms | 9.1 → 1.4 ms | 82.7 → 46.2 MiB |
+| Image-heavy (`usgs_orthoimagery.pdf`) | 436.2 → 385.8 ms | 282.4 → 19.3 ms | 10.7 → 1.3 ms | 134.4 → 71.4 MiB |
+
+Before first-preview ranges were 126.9–139.6 / 399.8–448.1 ms; after ranges were
+123.4–131.4 / 383.0–389.4 ms (vector/scanned). Warm ranges were
+126.7–226.3 / 267.5–419.4 ms before and 18.5–67.7 / 18.2–54.5 ms after.
+Cache-only, unchanged-size warm medians were 23.1 / 22.7 ms, with
+77.4 / 124.0 MiB process peaks: reuse accounts for most of the latency gain,
+while pane sizing mainly reduces bitmap work and memory. Uncached new-path
+warm controls measured 129.7 / 275.5 ms; direct image handoff alone does not
+deliver the cache's speedup. Peak RSS includes framework retention across all
+three iterations and is not a leak measurement.
+
+First-page serialization remains on MainActor. In the pane-sized run its maximum
+heartbeat delay was 11.0 / 163.4 ms (before: 9.8 / 184.0 ms). The image-heavy
+cold-page pause therefore remains a meaningful follow-up; this batch does not
+claim to fix it. Cold requests retain the cancellation debounce. A worker-owned
+source-reader prototype, exact placeholder geometry, thumbnail priority and
+native interaction traces are still open; no eager graphics prewarming or
+shared global cache was added.
+
+Verification: 434 tests passed (363 fast, 62 corpus, 9 performance). Regression
+coverage includes rapid cold/warm edits, changes during base preparation,
+document switches, source revisions, page replacement, geometry, selection,
+duplicate requests, cancellation, weak document retention, invalid/oversized
+budgets and parity of displayed filter pixels. The optimized application build,
+strict ad-hoc bundle-signature verification and unsigned App Store archive
+structure check also passed. Native divider/Retina/slider interaction and
+signed-candidate checks remain release gates. Installed/published 0.2.3 and the
+canonical signed archive/package retain their existing source identities.
+
 ## How the baseline was measured
 
 - Apple M2 Pro, 12 CPU cores, 32 GiB RAM, macOS 27.0, build 26A428; Swift 6.4.

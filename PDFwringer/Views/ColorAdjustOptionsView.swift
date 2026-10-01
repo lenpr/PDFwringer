@@ -12,11 +12,13 @@ struct ColorAdjustOptionsView: View {
     @Binding var currentPage: Int
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.displayScale) private var displayScale
     @State private var vm = ColorAdjustViewModel()
     @State private var pageSelection = PageSelection()
     @State private var savedPageSelection = PageSelection()
     @State private var shakeOffset: CGFloat = 0
     @State private var isDropTargeted = false
+    @State private var previewPixelSize: CGSize?
 
     var body: some View {
         HSplitView {
@@ -58,6 +60,7 @@ struct ColorAdjustOptionsView: View {
                                 shakeOffset: $shakeOffset,
                                 label: String(localized: "Adjust all pages")
                             )
+                            .disabled(vm.isSaving)
 
                             Divider()
 
@@ -116,10 +119,9 @@ struct ColorAdjustOptionsView: View {
         .onChange(of: hasPendingChanges) { _, dirty in appVM.hasUnsavedChanges = dirty }
         .onChange(of: currentPage) { _, _ in refreshPreview() }
         .onChange(of: pageSelection) { _, _ in refreshPreview(); clearResult() }
-        .onChange(of: vm.settings) { _, _ in clearResult() }
-        .onChange(of: vm.brightness) { _, _ in refreshPreview() }
-        .onChange(of: vm.contrast) { _, _ in refreshPreview() }
-        .onChange(of: vm.saturation) { _, _ in refreshPreview() }
+        .onChange(of: vm.settings) { _, _ in clearResult(); refreshPreview() }
+        .onChange(of: previewPixelSize) { _, _ in refreshPreview() }
+        .onChange(of: vm.isSaving) { _, saving in if !saving { refreshPreview() } }
         .onAppear { appVM.operationIsRunning = { vm.isSaving } }
         .onAppear { refreshPreview() }
         .onDisappear {
@@ -133,7 +135,21 @@ struct ColorAdjustOptionsView: View {
     }
 
     private func refreshPreview() {
-        vm.updatePreview(document: document, page: currentPage, selection: pageSelection)
+        // This editor never mutates the source document. Its revision is stable
+        // for the view lifetime; another document/page or geometry invalidates it.
+        vm.updatePreview(document: document, page: currentPage, selection: pageSelection,
+                         documentRevision: 0, pixelSize: previewPixelSize)
+    }
+
+    private func updatePreviewPixelSize(_ size: CGSize) {
+        let width = size.width * displayScale
+        let height = size.height * displayScale
+        guard width.isFinite, height.isFinite, width > 0, height > 0 else { return }
+        // Round up to small buckets so divider dragging does not rebuild the
+        // base image for every pixel. Retina density stays included in the budget.
+        let pixels = CGSize(width: min(4096, max(64, ceil(width / 64) * 64)),
+                            height: min(4096, max(64, ceil(height / 64) * 64)))
+        if previewPixelSize != pixels { previewPixelSize = pixels }
     }
 
     private func clearResult() {
@@ -173,6 +189,7 @@ struct ColorAdjustOptionsView: View {
                 currentPage: $currentPage,
                 selectedPages: pageSelection.appliesToAll ? nil : $pageSelection.selectedPages
             )
+            .disabled(vm.isSaving)
             .padding(.horizontal, 20)
         }
         .frame(minWidth: 260, idealWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
@@ -206,6 +223,15 @@ struct ColorAdjustOptionsView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+            GeometryReader { proxy in
+                Color.clear
+                    .onChange(of: proxy.size, initial: true) { _, size in updatePreviewPixelSize(size) }
+                    .onChange(of: displayScale) { _, _ in updatePreviewPixelSize(proxy.size) }
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
         .overlay(alignment: .top) {
             if vm.isPreviewUpdating && vm.previewImage != nil {
                 Text(String(localized: "Updating preview…"))

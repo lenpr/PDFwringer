@@ -75,6 +75,16 @@ Organizer validation of the new source. Measured results and preservation limits
 `PERFORMANCE_AUDIT.md`. Native interactive performance checks, including the updated save flows, remain
 outstanding.
 
+The 2026-10-01 color-preview follow-up reuses one revisioned current-page base,
+sizes it to the pane/display density and removes preview JPEG round trips.
+Saved PDF quality is unchanged. All 434 tests passed (363 fast, 62 corpus,
+9 performance), including cache invalidation, cancellation, stale-source and
+filter-pixel regressions. The optimized build, strict ad-hoc signature and
+unsigned archive structure checks also passed. Headless preview measurements are recorded
+in `PERFORMANCE_AUDIT.md`; native Retina/divider/slider checks and candidate-specific
+validation remain outstanding. The cold scanned-page snapshot still runs on
+MainActor and is explicitly recorded as remaining work.
+
 These changes are not in the signed 0.2.3 candidates above. Their existing
 validation evidence retains its original identity. A consolidated update needs
 new version/build identities, signing and candidate-specific verification.

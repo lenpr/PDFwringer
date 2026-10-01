@@ -5,6 +5,278 @@ import Testing
 @Suite("Preview lifecycle")
 @MainActor
 struct PreviewLifecycleTests {
+    @Test("Rapid cold revisioned requests restart and publish only the latest settings")
+    func rapidColdRevisionedRequests() async throws {
+        let document = PDFDocument()
+        let page = SnapshotCountingPage()
+        page.setBounds(CGRect(x: 0, y: 0, width: 200, height: 300), for: .mediaBox)
+        document.insert(page, at: 0)
+        let vm = ColorAdjustViewModel()
+        defer { vm.cancelPreview() }
+        for brightness: Float in [0.1, 0.2, 0.3] {
+            vm.brightness = brightness
+            vm.updatePreview(document: document, page: 0, documentRevision: 0)
+        }
+        #expect(page.snapshotCount == 0)
+        try await waitUntil { !vm.isRendering }
+        #expect(page.snapshotCount == 1 && vm.previewImage != nil)
+        #expect(vm.lastPublishedPreviewSettings == vm.settings)
+        #expect(!vm.isPreviewUpdating)
+    }
+
+    @Test("Switching source during base preparation cannot publish the abandoned source")
+    func sourceSwitchDuringBasePreparation() async throws {
+        let first = PDFDocument()
+        let page = SnapshotCountingPage()
+        page.setBounds(CGRect(x: 0, y: 0, width: 200, height: 300), for: .mediaBox)
+        first.insert(page, at: 0)
+        let second = try coloredDocument(red: 0, blue: 1)
+        let vm = ColorAdjustViewModel()
+        defer { vm.cancelPreview() }
+        page.snapshotHook = { vm.updatePreview(document: second, page: 0, documentRevision: 0) }
+        vm.updatePreview(document: first, page: 0, documentRevision: 0)
+        try await waitUntil { !vm.isRendering }
+        let bitmap = try #require(vm.previewImage?.tiffRepresentation.flatMap(NSBitmapImageRep.init(data:)))
+        let color = try #require(bitmap.colorAt(x: bitmap.pixelsWide / 2, y: bitmap.pixelsHigh / 2)?.usingColorSpace(.deviceRGB))
+        #expect(color.blueComponent > 0.9 && color.redComponent < 0.1)
+        #expect(page.snapshotCount == 1 && !vm.isPreviewUpdating)
+    }
+
+    @Test("Excluded pages reuse an unchanged preview and inclusion applies the latest settings")
+    func selectionReusesBase() async throws {
+        let document = PDFDocument()
+        let page = SnapshotCountingPage()
+        page.setBounds(CGRect(x: 0, y: 0, width: 200, height: 300), for: .mediaBox)
+        document.insert(page, at: 0)
+        let vm = ColorAdjustViewModel()
+        defer { vm.cancelPreview() }
+        var selection = PageSelection()
+        selection.appliesToAll = false
+        selection.selectedPages = []
+        vm.brightness = 0.1
+        vm.updatePreview(document: document, page: 0, selection: selection, documentRevision: 0)
+        try await waitUntil { !vm.isRendering }
+        let image = vm.previewImage
+        vm.brightness = 0.3
+        vm.updatePreview(document: document, page: 0, selection: selection, documentRevision: 0)
+        try await waitUntil { !vm.isRendering }
+        #expect(vm.previewImage === image && vm.lastPublishedPreviewSettings?.isIdentity == true)
+        selection.selectedPages = [0]
+        vm.updatePreview(document: document, page: 0, selection: selection, documentRevision: 0)
+        try await waitUntil { !vm.isRendering }
+        #expect(page.snapshotCount == 1 && vm.lastPublishedPreviewSettings == vm.settings)
+    }
+
+    @Test("Revisioned color previews reuse one snapshot across settings and duplicate requests")
+    func reusableColorBase() async throws {
+        let document = PDFDocument()
+        let page = SnapshotCountingPage()
+        page.setBounds(CGRect(x: 0, y: 0, width: 200, height: 300), for: .mediaBox)
+        document.insert(page, at: 0)
+        let vm = ColorAdjustViewModel()
+        defer { vm.cancelPreview() }
+        let pixels = CGSize(width: 128, height: 192)
+        vm.updatePreview(document: document, page: 0, documentRevision: 0, pixelSize: pixels)
+        try await waitUntil { !vm.isRendering }
+        for brightness: Float in [0.1, 0.2, 0.3] {
+            vm.brightness = brightness
+            vm.updatePreview(document: document, page: 0, documentRevision: 0, pixelSize: pixels)
+            try await waitUntil { !vm.isRendering }
+            #expect(vm.lastPublishedPreviewSettings == vm.settings)
+        }
+        #expect(page.snapshotCount == 1)
+        let published = vm.previewImage
+        vm.updatePreview(document: document, page: 0, documentRevision: 0, pixelSize: pixels)
+        try await waitUntil { !vm.isRendering }
+        #expect(vm.previewImage === published)
+        #expect(page.snapshotCount == 1)
+        #expect(!vm.isPreviewUpdating)
+    }
+
+    @Test("Color cache invalidates for revisions, geometry, page replacement and pixel budget")
+    func colorCacheInvalidation() async throws {
+        let document = PDFDocument()
+        let page = SnapshotCountingPage()
+        page.setBounds(CGRect(x: 0, y: 0, width: 200, height: 300), for: .mediaBox)
+        document.insert(page, at: 0)
+        let vm = ColorAdjustViewModel()
+        defer { vm.cancelPreview() }
+        var pixels = CGSize(width: 128, height: 192)
+        func refresh(revision: Int = 0) async throws {
+            vm.updatePreview(document: document, page: 0, documentRevision: revision, pixelSize: pixels)
+            try await waitUntil { !vm.isRendering }
+            #expect(vm.previewImage != nil)
+        }
+        try await refresh()
+        page.rotation = 90
+        try await refresh()
+        page.setBounds(CGRect(x: 10, y: 20, width: 100, height: 180), for: .cropBox)
+        try await refresh()
+        let annotation = PDFAnnotation(bounds: CGRect(x: 20, y: 30, width: 40, height: 20),
+                                       forType: .freeText, withProperties: nil)
+        annotation.contents = "Changed content"
+        page.addAnnotation(annotation)
+        try await refresh(revision: 1)
+        pixels = CGSize(width: 256, height: 384)
+        try await refresh(revision: 1)
+        #expect(page.snapshotCount == 5)
+        let replacement = SnapshotCountingPage()
+        replacement.setBounds(page.bounds(for: .mediaBox), for: .mediaBox)
+        replacement.setBounds(page.bounds(for: .cropBox), for: .cropBox)
+        replacement.rotation = page.rotation
+        document.removePage(at: 0)
+        document.insert(replacement, at: 0)
+        try await refresh(revision: 1)
+        #expect(replacement.snapshotCount == 1)
+    }
+
+    @Test("Unrevisioned color callers always capture mutable PDFKit content afresh")
+    func uncachedMutableColorDocument() async throws {
+        let document = PDFDocument()
+        let page = SnapshotCountingPage()
+        page.setBounds(CGRect(x: 0, y: 0, width: 200, height: 300), for: .mediaBox)
+        document.insert(page, at: 0)
+        let vm = ColorAdjustViewModel()
+        defer { vm.cancelPreview() }
+        vm.updatePreview(document: document, page: 0)
+        try await waitUntil { !vm.isRendering }
+        page.addAnnotation(PDFAnnotation(bounds: CGRect(x: 10, y: 10, width: 40, height: 20),
+                                         forType: .freeText, withProperties: nil))
+        vm.updatePreview(document: document, page: 0)
+        try await waitUntil { !vm.isRendering }
+        #expect(page.snapshotCount == 2)
+    }
+
+    @Test("Settings changes during base preparation do not serialize the page again")
+    func latestSettingsDuringBasePreparation() async throws {
+        let document = PDFDocument()
+        let page = SnapshotCountingPage()
+        page.setBounds(CGRect(x: 0, y: 0, width: 200, height: 300), for: .mediaBox)
+        document.insert(page, at: 0)
+        let vm = ColorAdjustViewModel()
+        defer { vm.cancelPreview() }
+        page.snapshotHook = {
+            vm.brightness = 0.4
+            vm.updatePreview(document: document, page: 0, documentRevision: 0)
+        }
+        vm.updatePreview(document: document, page: 0, documentRevision: 0)
+        try await waitUntil { !vm.isRendering }
+        #expect(page.snapshotCount == 1)
+        #expect(vm.lastPublishedPreviewSettings == vm.settings)
+        #expect(vm.previewImage != nil)
+    }
+
+    @Test("Rapid warm changes publish the latest settings without additional snapshots")
+    func rapidWarmColorChanges() async throws {
+        let document = PDFDocument()
+        let page = SnapshotCountingPage()
+        page.setBounds(CGRect(x: 0, y: 0, width: 200, height: 300), for: .mediaBox)
+        document.insert(page, at: 0)
+        let vm = ColorAdjustViewModel()
+        defer { vm.cancelPreview() }
+        vm.updatePreview(document: document, page: 0, documentRevision: 0)
+        try await waitUntil { !vm.isRendering }
+        for step in 1...40 {
+            vm.brightness = Float(step) / 100
+            vm.updatePreview(document: document, page: 0, documentRevision: 0)
+            if step.isMultiple(of: 4) { await Task.yield() }
+        }
+        try await waitUntil { !vm.isRendering }
+        #expect(page.snapshotCount == 1)
+        #expect(vm.lastPublishedPreviewSettings == vm.settings)
+        #expect(!vm.isPreviewUpdating)
+    }
+
+    @Test("Changing documents at the same page clears stale color imagery immediately")
+    func changingColorDocument() async throws {
+        let red = try coloredDocument(red: 1, blue: 0)
+        let blue = try coloredDocument(red: 0, blue: 1)
+        let vm = ColorAdjustViewModel()
+        defer { vm.cancelPreview() }
+        vm.updatePreview(document: red, page: 0, documentRevision: 0)
+        try await waitUntil { !vm.isRendering }
+        #expect(vm.previewImage != nil)
+        vm.updatePreview(document: blue, page: 0, documentRevision: 0)
+        #expect(vm.previewImage == nil)
+        try await waitUntil { !vm.isRendering }
+        let bitmap = try #require(vm.previewImage?.tiffRepresentation.flatMap(NSBitmapImageRep.init(data:)))
+        let color = try #require(bitmap.colorAt(x: bitmap.pixelsWide / 2, y: bitmap.pixelsHigh / 2)?.usingColorSpace(.deviceRGB))
+        #expect(color.blueComponent > 0.9 && color.redComponent < 0.1)
+    }
+
+    @Test("Cancelling cached color work discards the base and returning snapshots afresh")
+    func cancellingCachedColorWork() async throws {
+        let document = PDFDocument()
+        let page = SnapshotCountingPage()
+        page.setBounds(CGRect(x: 0, y: 0, width: 200, height: 300), for: .mediaBox)
+        document.insert(page, at: 0)
+        let vm = ColorAdjustViewModel()
+        vm.updatePreview(document: document, page: 0, documentRevision: 0)
+        try await waitUntil { !vm.isRendering }
+        vm.brightness = 0.3
+        vm.updatePreview(document: document, page: 0, documentRevision: 0)
+        vm.cancelPreview()
+        try await waitUntil { !vm.isRendering }
+        #expect(!vm.isPreviewUpdating && page.snapshotCount == 1)
+        vm.updatePreview(document: document, page: 0, documentRevision: 0)
+        try await waitUntil { !vm.isRendering }
+        #expect(page.snapshotCount == 2)
+        #expect(vm.lastPublishedPreviewSettings == vm.settings)
+        vm.cancelPreview()
+    }
+
+    @Test("Color preview cache does not retain the source PDFDocument")
+    func colorCacheReleasesDocument() async throws {
+        let vm = ColorAdjustViewModel()
+        defer { vm.cancelPreview() }
+        weak var observed: PDFDocument?
+        do {
+            let document = try coloredDocument(red: 1, blue: 0)
+            observed = document
+            vm.updatePreview(document: document, page: 0, documentRevision: 0)
+            try await waitUntil { !vm.isRendering }
+        }
+        #expect(vm.previewImage != nil)
+        #expect(observed == nil)
+    }
+
+    @Test("Preview pixels are bounded and invalid budgets fail before snapshotting",
+          arguments: [CGSize(width: 64, height: 96), CGSize(width: 1024, height: 1024),
+                      CGSize.zero, CGSize(width: 0.5, height: 200),
+                      CGSize(width: CGFloat.infinity, height: 200), CGSize(width: 4097, height: 200)])
+    func colorPixelBudget(pixels: CGSize) async throws {
+        let document = PDFDocument()
+        let page = SnapshotCountingPage()
+        page.setBounds(CGRect(x: 0, y: 0, width: 200, height: 300), for: .mediaBox)
+        document.insert(page, at: 0)
+        let vm = ColorAdjustViewModel()
+        defer { vm.cancelPreview() }
+        vm.updatePreview(document: document, page: 0, documentRevision: 0, pixelSize: pixels)
+        try await waitUntil { !vm.isRendering }
+        if pixels.width >= 1 && pixels.height >= 1 && pixels.width.isFinite && pixels.width <= 4096 {
+            let image = try #require(vm.previewImage?.cgImage(forProposedRect: nil, context: nil, hints: nil))
+            #expect(CGFloat(image.width) <= pixels.width && CGFloat(image.height) <= pixels.height)
+            #expect(page.snapshotCount == 1)
+        } else {
+            #expect(vm.previewUnavailable && vm.previewImage == nil)
+            #expect(page.snapshotCount == 0)
+        }
+    }
+
+    @Test("Preview raster budgets remain bounded for large, fractional and rotated pages",
+          arguments: [0, 90, 180, 270])
+    func unusualPreviewGeometry(rotation: Int) throws {
+        let page = PDFPage()
+        page.setBounds(CGRect(x: 0, y: 0, width: 6120.7, height: 7920.3), for: .mediaBox)
+        page.setBounds(CGRect(x: 11.1, y: 13.2, width: 5000.9, height: 7000.8), for: .cropBox)
+        page.rotation = rotation
+        let budget = CGSize(width: 127, height: 193)
+        let image = try #require(PDFRasterizer.renderPreview(page, pixelSize: budget))
+        #expect(image.width <= 127 && image.height <= 193)
+        let displaySize = PDFRasterizer.rotatedDisplaySize(page.bounds(for: .cropBox).size, rotation: rotation)
+        #expect(abs(Double(image.width) / Double(image.height) - displaySize.width / displaySize.height) < 0.02)
+    }
+
     @Test("Thumbnail requests keep only one page snapshot in flight", .timeLimit(.minutes(1)))
     func boundedThumbnailWork() async throws {
         let document = PDFDocument()
@@ -244,9 +516,14 @@ private final class PageAccessCountingDocument: PDFDocument {
 
 private final class SnapshotCountingPage: PDFPage {
     var snapshotCount = 0
+    var snapshotHook: (@MainActor () -> Void)?
 
     override var dataRepresentation: Data? {
         snapshotCount += 1
-        return super.dataRepresentation
+        let data = super.dataRepresentation
+        let hook = snapshotHook
+        snapshotHook = nil
+        MainActor.assumeIsolated { hook?() }
+        return data
     }
 }

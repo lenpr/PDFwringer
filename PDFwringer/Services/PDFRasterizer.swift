@@ -83,6 +83,16 @@ enum PDFRasterizer {
         return encode(image, as: .jpeg, properties: properties)
     }
 
+    /// Preview resolution follows the visible pixel budget, with the existing
+    /// 150-DPI/A3 ceiling. Saved output continues to use its own DPI and quality.
+    nonisolated static func renderPreview(_ page: PDFPage, pixelSize: CGSize?) -> CGImage? {
+        let displaySize = rotatedDisplaySize(page.bounds(for: .cropBox).size, rotation: page.rotation)
+        return renderCanvas(displaySize: displaySize, dpi: 150, grayscale: false, pixelSize: pixelSize) {
+            context, _ in
+            page.draw(with: .cropBox, to: context)
+        }?.image
+    }
+
     nonisolated static func pngData(for image: CGImage) -> Data? {
         encode(image, as: .png, properties: nil)
     }
@@ -171,9 +181,22 @@ enum PDFRasterizer {
         displaySize: CGSize,
         dpi: CGFloat,
         grayscale: Bool,
+        pixelSize: CGSize? = nil,
         draw: (CGContext, CGRect) -> Void
     ) -> (image: CGImage, displaySize: CGSize)? {
-        guard let plan = rasterPlan(displaySize: displaySize, dpi: dpi) else { return nil }
+        guard var plan = rasterPlan(displaySize: displaySize, dpi: dpi) else { return nil }
+        if let pixelSize {
+            guard pixelSize.width.isFinite, pixelSize.height.isFinite,
+                  pixelSize.width >= 1, pixelSize.height >= 1,
+                  pixelSize.width <= 4096, pixelSize.height <= 4096 else { return nil }
+            let scale = min(1, pixelSize.width / CGFloat(plan.dimensions.width),
+                            pixelSize.height / CGFloat(plan.dimensions.height))
+            // Scale the capped integer plan directly: recalculating DPI can
+            // round the A3 cap differently and exceed the requested budget.
+            plan = (PixelDimensions(width: max(1, Int(CGFloat(plan.dimensions.width) * scale)),
+                                    height: max(1, Int(CGFloat(plan.dimensions.height) * scale))),
+                    plan.effectiveScale * scale)
+        }
 
         let colorSpace = grayscale ? CGColorSpaceCreateDeviceGray() : sRGBColorSpace
         let bitmapInfo = grayscale

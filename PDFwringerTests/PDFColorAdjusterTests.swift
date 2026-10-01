@@ -245,6 +245,37 @@ struct PDFColorAdjusterTests {
 
     // MARK: - adjustImage static method
 
+    @Test("Eager preview filters match the existing color pipeline",
+          arguments: [PDFColorAdjuster.Settings(brightness: 0.2, contrast: 1.3, saturation: 0.8),
+                      PDFColorAdjuster.Settings(saturation: 0), PDFColorAdjuster.Settings()])
+    func eagerPreviewFilterParity(settings: PDFColorAdjuster.Settings) throws {
+        let context = try #require(CGContext(data: nil, width: 32, height: 16, bitsPerComponent: 8,
+                                            bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        for x in 0..<32 {
+            context.setFillColor(red: CGFloat(x) / 31, green: 0.4, blue: 1 - CGFloat(x) / 31, alpha: 1)
+            context.fill(CGRect(x: x, y: 0, width: 1, height: 16))
+        }
+        let source = try #require(context.makeImage())
+        let original = try #require(PDFColorAdjuster.adjustImage(source, settings: settings))
+        let eager = try #require(PDFColorAdjuster.adjustImage(source, settings: settings, renderImmediately: true))
+        #expect(original.width == eager.width && original.height == eager.height)
+        func pixels(_ image: CGImage) throws -> Data {
+            let canvas = try #require(CGContext(data: nil, width: image.width, height: image.height,
+                                               bitsPerComponent: 8, bytesPerRow: 0,
+                                               space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                               bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            canvas.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+            return Data(bytes: try #require(canvas.data), count: canvas.bytesPerRow * image.height)
+        }
+        // Compare the displayed pixels in one explicit space. NSBitmapImageRep's
+        // colorAt reports calibrated NSColor values for explicit sRGB images.
+        let expected = try pixels(original)
+        let actual = try pixels(eager)
+        #expect(expected.count == actual.count)
+        #expect(zip(expected, actual).allSatisfy { abs(Int($0) - Int($1)) <= 1 })
+    }
+
     @Test("adjustImage with identity returns same image")
     func adjustImageIdentity() {
         let source = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
