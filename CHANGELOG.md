@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Discard confirmation now blocks reentrant Open/Close/navigation events while
+  the user decides, preserving unsaved edits when the decision is declined.
+- Extreme split sizes avoid integer overflow; invalid color-page indices fail
+  safely without crashing while constructing their error message.
+
 - Large-document Rotate/Crop entry and bulk edits yield to the interface;
   cancellation restores the original working-copy bounds/rotations.
 - Reviewed compression publication, protected metadata verification,

@@ -63,8 +63,7 @@ struct PDFColorAdjuster {
         if let pages {
             guard !pages.isEmpty,
                   pages.allSatisfy({ (0..<document.pageCount).contains($0) }) else {
-                let range = pages.map { String($0 + 1) }.joined(separator: ", ")
-                throw PDFwringerError.invalidPageRange(range)
+                throw PDFwringerError.invalidPageRange("page outside document")
             }
         }
 
@@ -122,8 +121,7 @@ struct PDFColorAdjuster {
         let targetPages: Set<Int>
         if let pages {
             guard !pages.isEmpty, pages.allSatisfy({ (0..<pageCount).contains($0) }) else {
-                let range = pages.map { String($0 + 1) }.joined(separator: ", ")
-                throw PDFwringerError.invalidPageRange(range)
+                throw PDFwringerError.invalidPageRange("page outside document")
             }
             targetPages = Set(pages)
         } else {

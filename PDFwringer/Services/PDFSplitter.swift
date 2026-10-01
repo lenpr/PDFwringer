@@ -70,7 +70,7 @@ struct PDFSplitter {
         case .splitEveryN(let n):
             results = try await splitEveryN(
                 sourceDoc: document,
-                n: max(1, n),
+                n: min(pageCount, max(1, n)),
                 baseName: source.deletingPathExtension().lastPathComponent,
                 outputDir: destination,
                 progress: progress
@@ -117,7 +117,7 @@ struct PDFSplitter {
         let pageCount = sourceDoc.pageCount
         var processedPages = 0
 
-        let totalChunks = (pageCount + n - 1) / n
+        let totalChunks = 1 + (pageCount - 1) / n
 
         guard totalChunks <= 5_000 else {
             throw PDFwringerError.documentTooLarge("Split would create \(totalChunks) files, exceeding the 5,000 file limit")
@@ -138,7 +138,7 @@ struct PDFSplitter {
             try Task.checkCancellation()
 
             let startPage = chunkIndex * n
-            let endPage = min(startPage + n, pageCount)
+            let endPage = startPage + min(n, pageCount - startPage)
 
             let chunkDoc = PDFDocument()
             for pageIdx in startPage..<endPage {

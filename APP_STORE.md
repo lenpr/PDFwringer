@@ -125,6 +125,25 @@ No upload, notarization or distribution was performed in this batch. Disposable
 benchmarks, generated PDFs, profiler traces, test app/settings, logs and project
 Derived Data were cleaned; historical candidate evidence remains preserved.
 
+## Bug and stability sweep — unreleased, 2026-10-01
+
+The code review after `1c5d8fc` covered workflow lifecycle/reentrancy, cancellation
+and worker ownership, file publication/rollback, malformed inputs, PDF
+permissions/preservation and preview invalidation. It reproduced a nested discard
+confirmation replacing unsaved work despite a declined outer decision, then
+fixed that gate. Extreme split-size arithmetic and invalid color-index error
+formatting now avoid integer-overflow traps. See `BUG_STABILITY_REVIEW.md` for
+findings, unchanged safeguards and scope limits.
+
+All 455 tests passed: 383 fast, 63 checksum-verified corpus, nine performance.
+The final fast lane passed again; optimized release compilation and strict
+ad-hoc signature verification passed without compiler warnings. Disposable
+builds and test logs were removed after committing the source.
+No new permissions, dependencies or PDF functionality. Source version,
+installed/public download and preserved signed-candidate identities remain
+unchanged; candidate-specific signing/Organizer/installed QA is still required
+for the consolidated release. VoiceOver remains deferred.
+
 ## Local artifact retention — 2026-09-30
 
 Keep one current release evidence folder at

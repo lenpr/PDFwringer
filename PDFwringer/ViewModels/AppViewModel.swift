@@ -43,6 +43,7 @@ class AppViewModel {
     // Includes pending metadata, color, page-order, and working-document edits.
     var hasUnsavedChanges = false
     @ObservationIgnored var operationIsRunning: @MainActor () -> Bool = { false }
+    @ObservationIgnored private var isConfirmingDiscard = false
     @ObservationIgnored private let confirmDiscard: @MainActor () -> Bool
 
     /// Navigation and termination share the same gate. Running operations must finish
@@ -50,13 +51,18 @@ class AppViewModel {
     func canLeaveWorkflow() -> Bool {
         // The active file panel owns the workflow until it returns. Do not open
         // a discard/error alert underneath it or release its source-file access.
-        guard !FileDialogHelper.isPresentingFilePanel else { return false }
+        guard !FileDialogHelper.isPresentingFilePanel, !isConfirmingDiscard else { return false }
         if operationIsRunning() {
             errorMessage = String(localized: "An operation is still running. Wait for it to finish, or cancel it before leaving this document.")
             showErrorAlert = true
             return false
         }
-        return !hasUnsavedChanges || confirmDiscard()
+        guard hasUnsavedChanges else { return true }
+        // NSAlert runs a nested event loop just like a file panel. Preserve the
+        // workflow while its discard decision is outstanding.
+        isConfirmingDiscard = true
+        defer { isConfirmingDiscard = false }
+        return confirmDiscard()
     }
 
     // Password prompt state
@@ -345,7 +351,7 @@ class AppViewModel {
 
     @discardableResult
     func loadMultipleFiles(_ urls: [URL]) -> Task<Void, Never> {
-        guard !FileDialogHelper.isPresentingFilePanel else { return Task {} }
+        guard !FileDialogHelper.isPresentingFilePanel, !isConfirmingDiscard else { return Task {} }
         guard !operationIsRunning() else {
             _ = canLeaveWorkflow()
             return Task {}

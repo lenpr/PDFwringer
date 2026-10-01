@@ -403,8 +403,9 @@ struct AppViewModelTests {
     func mergeBackGuards() async {
         let url = TestPDFGenerator.makeRenderedPDF(pageCount: 1)
         defer { TestPDFGenerator.cleanup(url) }
-        var discard = false
-        let vm = AppViewModel(confirmDiscard: { discard })
+        @MainActor final class DiscardDecision { var allowed = false }
+        let discard = DiscardDecision()
+        let vm = AppViewModel(confirmDiscard: { discard.allowed })
         vm.loadSingleFile(url)
         await vm.waitForFileIntake()
         vm.selectMerge()
@@ -413,7 +414,7 @@ struct AppViewModelTests {
         vm.goBack()
         #expect(vm.mergeReturnsToDocument)
         #expect(!vm.canSelectSingleFileAction)
-        discard = true
+        discard.allowed = true
         vm.operationIsRunning = { true }
         vm.goBack()
         #expect(vm.mergeReturnsToDocument)
