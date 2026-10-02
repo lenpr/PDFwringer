@@ -1,6 +1,6 @@
 # Release progression
 
-## Unreleased
+## 0.2.4 — 2026-10-01
 
 - Optional compression estimates enforce their 100 MB source-byte limit during
   reading, even if the file grows after the size check. Intake and estimates
@@ -63,8 +63,8 @@
   successful retry using the reviewed result.
 
 Native layout/recovery evidence and deferred accessibility checks are in
-`UX_AUDIT.md`. Version and distributed candidates remain unchanged until the
-consolidated release.
+`UX_AUDIT.md`. Candidate validation and distribution evidence are recorded in
+`APP_STORE.md`.
 
 ## 0.2.3 — 2026-09-30
 

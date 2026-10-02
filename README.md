@@ -24,18 +24,19 @@
 
 ## Current Status
 
-The default branch contains the latest hardening work and compression review
-flow for **Apple silicon on macOS 27.0+**. Version **0.2.3** refines
-preview accuracy, page selection, pending/apply/save clarity, accessibility, and
-visual consistency while retaining target-size compression and original/result
-comparison. Navigation controls now stay visible, the divider is adjustable, and
-Merge is available after opening a single PDF. Release validation and
-remaining App Store checks are tracked in [APP_STORE.md](APP_STORE.md). The app
-has not been submitted for review or published on the App Store.
+The default branch contains the consolidated **0.2.4** update for **Apple silicon
+on macOS 27.0+**. It improves large-document responsiveness, color previews,
+thumbnail scheduling, cancellation, file-publication safety and error recovery.
+Existing tools, offline processing and explicit destructive-operation consent
+are retained. Navigation stays visible, the divider is adjustable, and Merge is
+available after opening a single PDF.
 
-The [0.2.3 download](https://github.com/lenpr/PDFwringer/releases/tag/v0.2.3) is
-signed, notarized, and available through Homebrew. All 406 tests passed; the
-matching App Store candidate passed signed archive/export and Organizer validation.
+Release validation and remaining App Store checks are tracked in
+[APP_STORE.md](APP_STORE.md). Version 0.2.4 distribution and matching candidate
+validation are being prepared; the previous
+[0.2.3 download](https://github.com/lenpr/PDFwringer/releases/tag/v0.2.3) remains
+available until publication. The app has not been submitted for review or
+published on the App Store.
 
 See [CHANGELOG.md](CHANGELOG.md) for the public versions and earlier development
 milestones. Screenshots below show the older release; current control labels

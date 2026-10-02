@@ -6,7 +6,22 @@ and must not be used to create the App Store build.
 
 The app requires macOS 27.0 or later on Apple silicon. Build with Xcode 27.
 
-## Current validated candidate: 0.2.3 — 2026-09-30
+## Consolidated release preparation: 0.2.4 — 2026-10-01
+
+This update includes the accessibility/recovery refinements, performance work and
+bug sweeps through `63128c6`. No AI integration, new PDF tool, dependency or
+permission was added. Source version is 0.2.4 with a new internal candidate
+identity; About and public release copy show only the public version.
+
+Final source tests, signed/download distribution, installation and matching
+App Store archive/export are being prepared. The previous 0.2.3 signing and
+Organizer validation below remain historical evidence for that source only.
+The new candidate must record its own identities and validation results.
+App Store listing/privacy/export-compliance responses, the complete deferred
+accessibility pass and TestFlight-installed QA remain final release gates.
+Nothing is submitted for App Review by this preparation.
+
+## Previous validated candidate: 0.2.3 — 2026-09-30
 
 This candidate makes existing task flows consistent: larger pinned navigation,
 native draggable dividers, Merge entry after opening one PDF, and explicit
