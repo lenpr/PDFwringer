@@ -6,20 +6,52 @@ and must not be used to create the App Store build.
 
 The app requires macOS 27.0 or later on Apple silicon. Build with Xcode 27.
 
-## Consolidated release preparation: 0.2.4 — 2026-10-01
+## Current prepared release: 0.2.4 — 2026-10-01
 
-This update includes the accessibility/recovery refinements, performance work and
-bug sweeps through `63128c6`. No AI integration, new PDF tool, dependency or
-permission was added. Source version is 0.2.4 with a new internal candidate
-identity; About and public release copy show only the public version.
+The consolidated source `0080d21` is preserved by `v0.2.4` and
+`appstore-v0.2.4-build.8`, and pushed to the default branch. It includes the
+accessibility/recovery refinements, performance work and bug sweeps through
+`63128c6`. No AI integration, new PDF operation, permission or dependency added.
+Public UI shows only version 0.2.4; the internal candidate identity stays in
+signing metadata.
 
-Final source tests, signed/download distribution, installation and matching
-App Store archive/export are being prepared. The previous 0.2.3 signing and
-Organizer validation below remain historical evidence for that source only.
-The new candidate must record its own identities and validation results.
-App Store listing/privacy/export-compliance responses, the complete deferred
-accessibility pass and TestFlight-installed QA remain final release gates.
-Nothing is submitted for App Review by this preparation.
+All 462 tests passed (390 fast, 63 checksum-verified corpus, nine performance).
+Optimized Developer ID compilation, strict signature verification, unsigned
+App Store archive structure and the signed Release archive passed. The local
+`/Applications/PDFwringer.app` was atomically replaced with the signed 0.2.4
+build, preserving settings. Its executable, Info.plist and signing resource
+record match the built payload. Native launch displays 0.2.4 on the neutral
+landing screen. Detailed native interaction/About checks were not completed:
+the UI automation service returned action timeouts; a process sample showed the
+main thread idle in its normal event loop, not blocked in PDF processing.
+
+**Distribution blocker:** Apple notarization returned HTTP 403 because a required
+developer agreement is missing/expired. App Store export separately returned
+“PLA Update available,” preventing access to cloud distribution signing resources.
+The account holder must review and accept the pending Program License Agreement.
+Notarization, public download/Homebrew update, new package export and Organizer
+validation are therefore unfinished; do not label this candidate validated.
+The GitHub download and Homebrew receipt remain 0.2.3 while the local app is 0.2.4.
+
+The new signed archive and matching dSYMs are retained at
+`~/Library/Developer/Xcode/Archives/2026-10-01/PDFwringer.xcarchive`.
+Archive UUID: `630EAE37-38DB-3ABC-80E1-685F24933CAB`.
+Local download-build UUID: `177CDB8E-23E9-3DE5-8F07-3006C851C5E1`.
+Essential preparation evidence and the exact blocked-service responses are in
+`../PDFwringer-release-evidence/current/preparation/`. The older validated archive
+and package remain retained until the new package/export/validation can replace
+them safely; they do not contain the new source changes. Disposable build
+products, expanded packages, process sample and project Derived Data were cleaned.
+
+After agreement acceptance, resume from the immutable release tags, reuse the
+retained candidate for export, notarize the local/download payload, publish the
+matching GitHub asset/checksum and update/install through Homebrew. Then record
+new package/Organizer identities and prune superseded private candidate artifacts
+only after verifying the new evidence is safely retained.
+
+Final App Store gates still include listing/privacy/export-compliance responses,
+complete deferred accessibility and final candidate/TestFlight-installed QA.
+VoiceOver remains deferred. Nothing was uploaded or submitted for App Review.
 
 ## Previous validated candidate: 0.2.3 — 2026-09-30
 

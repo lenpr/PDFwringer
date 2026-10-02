@@ -32,11 +32,12 @@ are retained. Navigation stays visible, the divider is adjustable, and Merge is
 available after opening a single PDF.
 
 Release validation and remaining App Store checks are tracked in
-[APP_STORE.md](APP_STORE.md). Version 0.2.4 distribution and matching candidate
-validation are being prepared; the previous
-[0.2.3 download](https://github.com/lenpr/PDFwringer/releases/tag/v0.2.3) remains
-available until publication. The app has not been submitted for review or
-published on the App Store.
+[APP_STORE.md](APP_STORE.md). All 462 tests passed for 0.2.4, and its signed
+App Store archive is prepared. Apple requires acceptance of a pending developer
+agreement before notarization and Store package export can finish. Until then,
+the [0.2.3 download](https://github.com/lenpr/PDFwringer/releases/tag/v0.2.3)
+remains the public/Homebrew version. The app has not been uploaded or submitted
+for App Store review.
 
 See [CHANGELOG.md](CHANGELOG.md) for the public versions and earlier development
 milestones. Screenshots below show the older release; current control labels
